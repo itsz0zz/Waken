@@ -1,10 +1,9 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { AgentClient, checkDevice, mergeLibrary, probeSunshine, WakenApi, type Device, type Game, type GameArtKind, type HostGame } from '@waken/core';
-import type { DeviceStatus } from '@waken/ui';
+import { AgentClient, checkDevice, mergeLibrary, probeSunshine, type Device, type Game, type GameArtKind, type HostGame } from '@waken/core';
+import type { ArtSource, DeviceStatus } from '@waken/ui';
 import { useShallow } from 'zustand/react/shallow';
+import { platform } from './platform';
 import { useWaken } from './store';
-
-const fallbackArt = require('../assets/artwork/desktop.png');
 
 const hasAgent = (d: Device) => !!d.stream?.agentUrl && !!d.stream.agentToken;
 
@@ -25,9 +24,8 @@ export function useLibrary() {
   hosts.forEach((d, i) => {
     if (queries[i].data) found[d.id] = queries[i].data!;
   });
-  const games = mergeLibrary(found, kept, lastPlayed);
   return {
-    games,
+    games: mergeLibrary(found, kept, lastPlayed),
     loading: queries.some((q) => q.isLoading),
     /** Hosts that did not answer, to say why their games are missing. */
     unreachable: hosts.filter((_, i) => queries[i].isError).map((d) => d.name),
@@ -47,44 +45,29 @@ export function useGame(id?: string) {
   return id ? games.find((g) => g.id === id) : undefined;
 }
 
-/**
- * Official picture from the game's host (SteamGridDB or Steam, cached by the agent), light version for phones.
- * Entries without art use the homelab covers when configured, else the bundled picture.
- */
-export function useGameImage(game: Game, kind: GameArtKind = 'hero') {
-  const device = useWaken((s) => s.devices.find((d) => d.id === game.deviceId));
-  const { apiUrl, apiToken } = useWaken((s) => s.settings);
-  const path = game.art?.[kind];
-  if (path && device && hasAgent(device)) return new AgentClient(device).artSource(path, true);
-  if (apiToken && game.store) return new WakenApi(apiUrl, apiToken).coverSource(game.title, kind === 'cover' ? 'grid' : 'hero');
-  return fallbackArt;
+export function useDevice(id?: string) {
+  return useWaken((s) => s.devices.find((d) => d.id === id));
 }
 
-/** The official logo, when the host has one: shown over the banner instead of the title. */
-export function useGameLogo(game?: Game) {
+/**
+ * Official picture from the game's host (SteamGridDB or Steam, cached by the agent). Phones take the light
+ * version, desktops the full one. Undefined when there is none: the tile then writes the title.
+ */
+export function useGameArt(game: Game | undefined, kind: GameArtKind): ArtSource | undefined {
   const device = useWaken((s) => s.devices.find((d) => d.id === game?.deviceId));
-  const path = game?.art?.logo;
-  return path && device && hasAgent(device) ? new AgentClient(device).artSource(path, true) : undefined;
+  const path = game?.art?.[kind];
+  if (!path || !device || !hasAgent(device)) return undefined;
+  return new AgentClient(device).artSource(path, platform().form === 'phone');
 }
 
 /** Polls a device every 10 s. PlayStation status needs libchiaki discovery (V3): shown as unknown until then. */
-export function useDeviceStatus(device: Device): DeviceStatus {
-  const apiUrl = useWaken((s) => s.settings.apiUrl);
+export function useDeviceStatus(device?: Device): DeviceStatus {
   const q = useQuery({
-    queryKey: ['status', device.id, device.stream, device.kind === 'homelab' ? apiUrl : null],
-    enabled: device.kind !== 'playstation',
+    queryKey: ['status', device?.id, device?.stream?.agentUrl],
+    enabled: !!device && device.kind !== 'playstation',
     refetchInterval: 10_000,
     queryFn: async (): Promise<DeviceStatus> => {
-      if (device.kind === 'homelab') {
-        const { apiToken } = useWaken.getState().settings;
-        try {
-          await new WakenApi(apiUrl, apiToken).health();
-          return 'online';
-        } catch {
-          return 'unreachable';
-        }
-      }
-      const r = await checkDevice(device);
+      const r = await checkDevice(device!);
       return r === 'online' ? 'online' : r === 'booting' ? 'waking' : 'offline';
     },
   });

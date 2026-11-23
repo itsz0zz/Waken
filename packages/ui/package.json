@@ -4,14 +4,24 @@
   "private": true,
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "devDependencies": { "@types/react": "~19.3.0" },
+  "devDependencies": {
+    "@types/react": "~19.3.0"
+  },
   "peerDependencies": {
     "expo-blur": "*",
     "expo-image": "*",
-    "expo-linear-gradient": "*",
     "lucide-react-native": "*",
     "react": "*",
     "react-native": "*",
     "react-native-svg": "*"
+  },
+  "description": "Waken design system. Runs on iOS, Android, macOS and Windows: Expo pieces only in the .tsx defaults, desktop variants in .macos.tsx / .windows.tsx.",
+  "peerDependenciesMeta": {
+    "expo-blur": {
+      "optional": true
+    },
+    "expo-image": {
+      "optional": true
+    }
   }
 }

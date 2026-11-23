@@ -7,5 +7,8 @@
   "peerDependencies": {
     "expo": "*",
     "react-native": "*"
+  },
+  "dependencies": {
+    "@waken/core": "workspace:*"
   }
 }

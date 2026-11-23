@@ -353,7 +353,11 @@ func (t *Tunnel) startForwarding() error {
 				return fmt.Errorf("port %d : %w", p, err)
 			}
 		}
-		return t.serveHello(ip4)
+		if err := t.serveHello(ip4); err != nil {
+			return err
+		}
+		// A desktop app hosts and also browses the owner's other computers: their agents through the same proxy.
+		return t.serveAgentProxy()
 	}
 
 	peer := func() string {

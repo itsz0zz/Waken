@@ -1,20 +1,21 @@
 import { useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, useWindowDimensions } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Unbounded_600SemiBold, Unbounded_700Bold } from '@expo-google-fonts/unbounded';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { JetBrainsMono_600SemiBold } from '@expo-google-fonts/jetbrains-mono';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Anton_400Regular } from '@expo-google-fonts/anton';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
+import { FrameContext, NavContext, setPlatform, useConfigLoad, useNetworkRunner } from '@waken/app';
 import { colors } from '@waken/ui';
-import { useConfigLoad } from '../src/store';
-import { useNetworkRunner } from '../src/network';
+import { mobilePlatform } from '../src/platform';
+import { useRouterNav } from '../src/nav';
 
+setPlatform(mobilePlatform);
 SplashScreen.preventAutoHideAsync();
-// Without it an iPhone stays in landscape after leaving the stream. iPad and Mac keep every orientation.
+// Without it an iPhone stays in landscape after leaving the stream. iPad keeps every orientation.
 const screenOrientation = Platform.OS === 'ios' && !Platform.isPad ? 'portrait_up' : 'default';
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -24,17 +25,20 @@ function NetworkRunner() {
   return null;
 }
 
+function Providers({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const nav = useRouterNav();
+  return (
+    <NavContext.Provider value={nav}>
+      <FrameContext.Provider value={{ top: insets.top, bottom: insets.bottom, wide: width >= 900 }}>{children}</FrameContext.Provider>
+    </NavContext.Provider>
+  );
+}
+
 export default function RootLayout() {
   const config = useConfigLoad((s) => s.state);
-  const [fontsLoaded] = useFonts({
-    Unbounded_600SemiBold,
-    Unbounded_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    JetBrainsMono_600SemiBold,
-  });
+  const [fontsLoaded] = useFonts({ Anton_400Regular, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
 
   // Screens copy the configuration into their fields: never show them before the Keychain has answered.
   const ready = fontsLoaded && config !== 'loading';
@@ -50,14 +54,17 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <NetworkRunner />
       <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, orientation: screenOrientation, contentStyle: { backgroundColor: colors.bg0 } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="device/[id]" />
-          <Stack.Screen name="edit/[id]" />
-          <Stack.Screen name="wake/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
-          <Stack.Screen name="stream/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', orientation: 'landscape' }} />
-        </Stack>
+        <StatusBar style="dark" />
+        <Providers>
+          <Stack screenOptions={{ headerShown: false, orientation: screenOrientation, contentStyle: { backgroundColor: colors.white } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="game/[id]" />
+            <Stack.Screen name="add" />
+            <Stack.Screen name="edit/[id]" />
+            <Stack.Screen name="wake/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+            <Stack.Screen name="stream/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', orientation: 'landscape' }} />
+          </Stack>
+        </Providers>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

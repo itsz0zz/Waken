@@ -1,72 +1,78 @@
+import { fonts } from './fontNames';
+
 /**
- * Waken design tokens — mirror of the "Waken" design system (theme Nuit).
- * Keep names identical to the design system so designers and code speak the same language.
+ * Waken design tokens, theme "Arcade" (mockups: claude.ai canvas "Waken, mockups macOS & iOS", page Arcade).
+ * Bright gradient grounds, black ink, white cards, giant Anton titles, blue and lime accents.
  */
 export const colors = {
-  bg0: '#07080C',
-  bg1: '#0E1017',
-  bg2: '#161925',
-  bg3: '#20243A',
-  line: '#2A2F45',
-  ink: '#F4F5FA',
-  ink2: '#A9AEC4',
-  ink3: '#6F7590',
-  /** Signature colour: primary button, logo, active tab, progress. */
-  neon: '#FF3D7F',
-  /** Text and icons placed on `neon`. */
-  neonInk: '#0A0B10',
-  violet: '#8B6CFF',
-  blue: '#3D8BFF',
-  teal: '#2FD3C1',
-  online: '#34E39B',
+  ink: '#0B0B0F',
+  /** Secondary text on white and on the light end of the gradients. */
+  ink2: '#3F424D',
+  /** Disabled, "à venir", machine switched off. */
+  muted: '#8A8D96',
+  white: '#FFFFFF',
+  /** Soft fill of chips and inactive segments on white cards. */
+  soft: '#F1F2F6',
+  /** Frosted white of the round buttons over a gradient. */
+  frost: 'rgba(255,255,255,0.88)',
+  frostLight: 'rgba(255,255,255,0.5)',
+  /** Dark frosted surface of the in-game HUD, over the video. */
+  glass: 'rgba(11,11,15,0.55)',
+  glassLine: 'rgba(255,255,255,0.16)',
+  /** Signature accents. */
+  blue: '#2F7BFF',
+  lime: '#C8FF2E',
+  /** States. */
+  online: '#1FBF6A',
   waking: '#FFB13D',
-  offline: '#6F7590',
-  danger: '#FF7A45',
-  glass: 'rgba(16,18,28,0.62)',
-  glassLine: 'rgba(255,255,255,0.14)',
-  /** Secondary text over artwork (lighter than ink2 for contrast on images). */
-  onArt: '#C9CDDD',
+  hot: '#FF7A1A',
+  danger: '#FF5A36',
+  violet: '#7A5CFF',
+  /** Pastels for avatars and illustrations. */
+  sky: '#A6CBFF',
+  lilac: '#D6CCFF',
+  peach: '#FFC9AE',
 } as const;
 
-export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32, 12: 48 } as const;
-
-export const radius = { sm: 10, md: 16, lg: 24, xl: 32, pill: 999 } as const;
-
-export const fonts = {
-  display: 'Unbounded_700Bold',
-  displaySemi: 'Unbounded_600SemiBold',
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  mono: 'JetBrainsMono_600SemiBold',
+/** Each screen family has its own ground, always fading to white at the bottom. */
+export const grounds = {
+  /** Home, settings. 165 degrees. */
+  sun: { colors: ['#EFFF3A', '#F6FF9E', '#FFFFFF'], locations: [0, 0.42, 1], angle: 165 },
+  /** Games, game page, add a machine. */
+  sky: { colors: ['#4E97FF', '#A6CBFF', '#FFFFFF'], locations: [0, 0.52, 1], angle: 180 },
+  /** Machines, wake. */
+  lime: { colors: ['#BDFF2E', '#E6FFA6', '#FFFFFF'], locations: [0, 0.5, 1], angle: 180 },
+  /** Something went wrong. */
+  ember: { colors: ['#FF8A5B', '#FFC9AE', '#FFFFFF'], locations: [0, 0.5, 1], angle: 180 },
 } as const;
+
+export type Ground = keyof typeof grounds;
+
+export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 12: 48 } as const;
+
+export const radius = { chip: 9, md: 16, card: 24, art: 22, hero: 28, pill: 999 } as const;
+
+/** Font family names: per platform (fontNames.ts, .macos.ts, .windows.ts). */
+export { fonts };
 
 export const type = {
-  displayXl: { fontFamily: fonts.display, fontSize: 56, lineHeight: 60, letterSpacing: -1.5 },
-  displayL: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, letterSpacing: -1 },
-  title: { fontFamily: fonts.displaySemi, fontSize: 22, lineHeight: 28, letterSpacing: -0.3 },
-  headline: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 24 },
-  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },
-  caption: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 },
-  overline: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, letterSpacing: 1.2 },
-  metric: { fontFamily: fonts.mono, fontSize: 20, lineHeight: 24 },
-  metricS: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
+  /** Giant uppercase screen title: "ON JOUE ?", "TES JEUX". Scale it with `size`. */
+  display: { fontFamily: fonts.display, textTransform: 'uppercase', letterSpacing: -1 },
+  /** "Réveille ta machine", "Ton PC se réveille". */
+  title: { fontFamily: fonts.heavy, fontSize: 26, lineHeight: 32, letterSpacing: -0.5 },
+  /** Game or machine name in a card. */
+  headline: { fontFamily: fonts.heavy, fontSize: 18, lineHeight: 22 },
+  body: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21 },
+  label: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 19 },
+  caption: { fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16 },
+  chip: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16 },
+  button: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 19 },
 } as const;
 
+/** Card lift, tilted art lift. */
 export const shadows = {
-  glowNeon: {
-    shadowColor: colors.neon,
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
+  card: { shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 11, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  lift: { shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 15, shadowOffset: { width: 0, height: 14 }, elevation: 8 },
 } as const;
 
 export type DeviceTint = 'pc' | 'playstation' | 'homelab';
-export const deviceTint: Record<DeviceTint, { bg: string; fg: string }> = {
-  pc: { bg: colors.violet, fg: '#FFFFFF' },
-  playstation: { bg: colors.blue, fg: '#FFFFFF' },
-  homelab: { bg: colors.teal, fg: colors.neonInk },
-};

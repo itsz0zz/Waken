@@ -6,7 +6,7 @@
     "version": "0.2.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "backgroundColor": "#07080C",
     "newArchEnabled": true,
     "ios": {

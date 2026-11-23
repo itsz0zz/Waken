@@ -1,18 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import * as SecureStore from 'expo-secure-store';
-import { defaultStreamSettings, type Device, type Game, type StreamSettings } from '@waken/core';
-
-/** Config holds API tokens and the Shelly key, so it lives in the Keychain / Keystore. */
-const secureStorage: StateStorage = {
-  getItem: (k) => SecureStore.getItemAsync(k),
-  setItem: (k, v) => SecureStore.setItemAsync(k, v),
-  removeItem: (k) => SecureStore.deleteItemAsync(k),
-};
+import { type Device, type Game, type StreamSettings } from '@waken/core';
+import { onPlatformSet, platform } from './platform';
+import { qualities } from './quality';
 
 /**
  * Nothing to configure on a new install: the computers running Waken appear on their own once the
- * Waken network is signed in (src/network.ts adds them).
+ * Waken network is signed in (network.ts adds them).
  */
 const defaultDevices: Device[] = [];
 const defaultGames: Game[] = [];
@@ -22,18 +16,18 @@ const EXAMPLE_GAMES = new Set(['cod', 'gta6', 'steam']);
 
 export type StreamEngine = 'moonlight-app' | 'native';
 
-interface Settings {
+export interface Settings {
+  /** Homelab relay, kept for waking computers that are off (not used by computers on the Waken network). */
   apiUrl: string;
   apiToken: string;
-  /** V1: hand off to the Moonlight app. V2: stream inside Waken (waken-stream native module). */
+  /** native: stream inside Waken. moonlight-app: hand off to Moonlight (iPhone, kept from V1). */
   engine: StreamEngine;
   stream: StreamSettings;
-  /** URL that opens your Moonlight install (V1), e.g. "moonlight://" if your build registers it. */
   moonlightUrl: string;
   psRemotePlayUrl: string;
 }
 
-interface WakenState {
+export interface WakenState {
   devices: Device[];
   /** Entries kept in the app. The installed games come from the hosts (see useLibrary). */
   games: Game[];
@@ -49,8 +43,15 @@ interface WakenState {
 
 type LoadState = 'loading' | 'loaded' | 'failed';
 
-/** persist.hasHydrated() stays false when the Keychain fails, so loading has its own end signal. */
+/** persist.hasHydrated() stays false when the storage fails, so loading has its own end signal. */
 export const useConfigLoad = create<{ state: LoadState }>(() => ({ state: 'loading' }));
+
+/** Reads and writes through the platform's storage, set at startup (Keychain on iPhone, private file on desktop). */
+const platformStorage: StateStorage = {
+  getItem: (k) => platform().storage.getItem(k),
+  setItem: (k, v) => platform().storage.setItem(k, v),
+  removeItem: (k) => platform().storage.removeItem(k),
+};
 
 export const useWaken = create<WakenState>()(
   persist(
@@ -62,7 +63,7 @@ export const useWaken = create<WakenState>()(
         apiUrl: 'http://homelab:8085',
         apiToken: '',
         engine: 'native',
-        stream: defaultStreamSettings,
+        stream: qualities.balanced.settings,
         moonlightUrl: '',
         psRemotePlayUrl: '',
       },
@@ -83,6 +84,9 @@ export const useWaken = create<WakenState>()(
     {
       name: 'waken-config',
       version: 1,
+      storage: createJSONStorage(() => platformStorage),
+      // The platform is set by the app after this module loads: loading waits for it.
+      skipHydration: true,
       migrate: (persisted, version) => {
         const state = persisted as Partial<WakenState>;
         if (version < 1) {
@@ -92,8 +96,11 @@ export const useWaken = create<WakenState>()(
         }
         return state as WakenState;
       },
-      storage: createJSONStorage(() => secureStorage),
       onRehydrateStorage: () => (_state, error) => useConfigLoad.setState({ state: error ? 'failed' : 'loaded' }),
     }
   )
 );
+
+onPlatformSet(() => {
+  void useWaken.persist.rehydrate();
+});

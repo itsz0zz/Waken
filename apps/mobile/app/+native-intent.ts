@@ -1,11 +1,5 @@
-// Any web page can open a waken:// link. Screens that act as soon as they open (power the PC on, start a game,
-// which closes the running one) must only be reached by a tap inside the app: send those links home.
-const ACTING_SCREENS = /(^|\/)(wake|stream)(\/|\?|#|$)/i;
-
-export function redirectSystemPath({ path }: { path: string; initial: boolean }): string {
-  try {
-    return ACTING_SCREENS.test(decodeURIComponent(path)) ? '/' : path;
-  } catch {
-    return '/'; // malformed escape sequence
-  }
+// Any web page can open a waken:// link. Some screens act as soon as they open (power a PC on, start a game,
+// which closes the running one), and a list of forbidden paths can always be bypassed: every link opens home.
+export function redirectSystemPath(_: { path: string; initial: boolean }): string {
+  return '/';
 }

@@ -1,38 +1,10 @@
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 
-/** The Waken network as the Go side reports it (tunnel/tunnel.go, Status). */
-export interface TunnelNode {
-  /** Network name, "waken-host-mac-de-enzo". */
-  name: string;
-  ip: string;
-  os?: string;
-  online: boolean;
-  /** Straight between the two devices. False: through a Tailscale relay, slow and narrow. */
-  direct: boolean;
-  relay?: string;
-}
+import type { TunnelApi, TunnelHello, TunnelStatus } from '@waken/core';
 
-export interface TunnelStatus {
-  state: 'starting' | 'needs-login' | 'running' | 'stopped' | 'error';
-  loginUrl?: string;
-  error?: string;
-  self?: TunnelNode;
-  /** The owner's computers running Waken. */
-  hosts: TunnelNode[];
-  /** The host the stream ports go to. */
-  peer?: string;
-}
-
-export interface TunnelHello {
-  name: string;
-  os: string;
-  agentToken: string;
-}
-
-/** Where a client reaches a host's agent: the proxy names the host in the path. */
-export const PROXY_BASE = 'http://127.0.0.1:47102/h/';
-export const agentUrlFor = (hostName: string) => `${PROXY_BASE}${encodeURIComponent(hostName)}`;
+export type { TunnelApi, TunnelHello, TunnelNode, TunnelStatus } from '@waken/core';
+export { agentUrlFor } from '@waken/core';
 
 interface Native {
   start(name?: string): Promise<string>;
@@ -65,7 +37,7 @@ function need(): Native {
   return native;
 }
 
-export const WakenTunnel = {
+export const WakenTunnel: TunnelApi = {
   start: async (name?: string) => parseStatus(await need().start(name)),
   status: async () => parseStatus(await need().status()),
   setPeer: async (peer: string) => {
@@ -75,5 +47,7 @@ export const WakenTunnel = {
   logout: async () => {
     parse(await need().logout());
   },
-  stop: () => need().stop(),
+  stop: async () => {
+    await need().stop();
+  },
 };

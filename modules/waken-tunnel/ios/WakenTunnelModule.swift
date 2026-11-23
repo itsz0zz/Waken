@@ -1,6 +1,6 @@
 import ExpoModulesCore
 import UIKit
-import WakenTunnelC
+@_implementationOnly import WakenTunnelC  // private: the app linking this module never needs the C header
 
 /// The Waken network inside the app (client side). Each call returns the Go side's JSON as is.
 public class WakenTunnelModule: Module {

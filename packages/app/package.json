@@ -1,0 +1,23 @@
+{
+  "name": "@waken/app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Waken state, hooks and screens, shared by the iPhone, Mac and Windows apps. Each app plugs in its storage, network and stream view (setPlatform).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@waken/core": "workspace:*",
+    "@waken/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "*",
+    "lucide-react-native": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-svg": "*",
+    "zustand": "*"
+  }
+}
