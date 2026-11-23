@@ -4,7 +4,7 @@ using Waken.Agent;
 using Waken.Agent.Games;
 
 var builder = WebApplication.CreateBuilder(args);
-// Written by install-agent.ps1, readable by SYSTEM and administrators only. Environment variables would be readable by every user.
+// Written by the Windows host app, readable by SYSTEM and administrators only. Environment variables would be readable by every user.
 if (OperatingSystem.IsWindows())
 {
     var configFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Waken", "agent.json");
