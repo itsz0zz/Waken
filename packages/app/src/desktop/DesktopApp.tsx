@@ -69,12 +69,15 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   useEffect(() => {
     if (host.up) onHostUp();
   }, [host.up, onHostUp]);
-  const immersive = route.name === 'stream';
+  // The stream connects under Réveil and covers it at its first picture: from then on, nothing over the game.
+  const [streamLive, setStreamLive] = useState(false);
+  useEffect(() => setStreamLive(false), [route]);
+  const immersive = route.name === 'stream' || (route.name === 'wake' && streamLive);
   return (
     <NavContext.Provider value={nav}>
       <FrameContext.Provider value={{ top: immersive ? 0 : TOP_BAR + 12, bottom: 12, wide: true }}>
         <View style={{ flex: 1, backgroundColor: colors.white }}>
-          <Content route={route} />
+          <Content route={route} onLive={setStreamLive} />
           {immersive ? null : (
             <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
               <TopBar tab={tab} leftInset={leftInset} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} />
@@ -89,7 +92,7 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   );
 }
 
-function Content({ route }: { route: Route }) {
+function Content({ route, onLive }: { route: Route; onLive: (live: boolean) => void }) {
   switch (route.name) {
     case 'home':
       return <HomeScreen />;
@@ -106,7 +109,7 @@ function Content({ route }: { route: Route }) {
     case 'settings':
       return <SettingsScreen />;
     case 'wake':
-      return <WakeScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} only={route.only} />;
+      return <WakeScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} only={route.only} onLiveChange={onLive} />;
     case 'stream':
       return <StreamScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} />;
   }

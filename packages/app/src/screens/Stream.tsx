@@ -36,7 +36,7 @@ export function StreamScreen({
   const device = useDevice(deviceId);
   const game = useGame(gameId);
   const chosen = useWaken((s) => s.settings.stream);
-  const { StreamView, toggleKeyboard, form } = platform();
+  const { StreamView, toggleKeyboard } = platform();
   // Lowered when the tunnel only has a relayed path: 40 Mb/s through a relay loses most of the video.
   const [q, setQ] = useState(chosen);
   const [relayed, setRelayed] = useState(false);
@@ -170,7 +170,7 @@ export function StreamScreen({
           </View>
           <View pointerEvents="none" style={[styles.pill, { bottom: 18, alignSelf: 'center' }]}>
             <Text style={[type.caption, { color: colors.white }]}>
-              {state.state === 'error' ? state.message : state.state === 'stopped' ? 'Stream terminé' : form === 'phone' ? 'Masque les contrôles pour jouer plein écran' : 'Ctrl + Alt + Maj + Q pour quitter'}
+              {state.state === 'error' ? state.message : state.state === 'stopped' ? 'Stream terminé' : 'Masque les contrôles pour jouer plein écran'}
             </Text>
           </View>
         </>

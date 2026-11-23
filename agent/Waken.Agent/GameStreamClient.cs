@@ -290,6 +290,9 @@ public sealed class GameStreamClient
     {
         await EnsurePairedAsync(ct);
         using var http = TlsClient();
+        // localAudioPlayMode=1: the computer keeps its own sound. With 0, Sunshine moves Windows' default outputs
+        // (normal and communication) to its virtual speaker during the stream, and apps like Discord stay stuck
+        // on it afterwards.
         var xml = await GetXml(http, $"{HttpsBase}/applist?{Common}", ct);
         return xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
     }
@@ -348,7 +351,7 @@ public sealed class GameStreamClient
         _lastLaunch = DateTime.UtcNow;
         var xml = await GetXml(http,
             $"{HttpsBase}/{verb}?{Common}&appid={app.Id}&mode={width}x{height}x{fps}&additionalStates=1&sops=0" +
-            $"&rikey={Convert.ToHexString(riKey)}&rikeyid={riKeyId}&corever=1&localAudioPlayMode=0&surroundAudioInfo=196610&remoteControllersBitmap=0&gcmap=0", ct);
+            $"&rikey={Convert.ToHexString(riKey)}&rikeyid={riKeyId}&corever=1&localAudioPlayMode=1&surroundAudioInfo=196610&remoteControllersBitmap=0&gcmap=0", ct);
 
         return new LaunchResult(
             AppVersion: (string?)info.Element("appversion") ?? "7.1.431.-1",
