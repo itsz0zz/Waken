@@ -13,3 +13,4 @@ export { WakeScreen } from './screens/Wake';
 export { StreamScreen } from './screens/Stream';
 export { Screen } from './screens/Screen';
 export { MachineEditScreen } from './screens/MachineEdit';
+export { GameSearch } from './screens/Search';

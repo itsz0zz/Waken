@@ -13,8 +13,9 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { Gamepad2, Laptop, Monitor, Play, Server, type LucideIcon } from 'lucide-react-native';
+import { Gamepad2, Laptop, Monitor, Play, Search, Server, X, type LucideIcon } from 'lucide-react-native';
 import { Art, Gradient, type ArtSource } from './primitives';
+import { PressScale, Skeleton } from './motion';
 import { colors, fonts, grounds, radius, shadows, type, type DeviceTint, type Ground } from './tokens';
 
 /* ---------- Ground and titles ---------- */
@@ -235,7 +236,11 @@ export function TiltedArt({
     >
       <View style={{ flex: 1, borderRadius: Math.max(0, rounded - border), overflow: 'hidden', backgroundColor: colors.sky }}>
         {source && !failed ? (
-          <Art source={source} style={StyleSheet.absoluteFill} onError={() => setFailed(true)} accessibilityLabel={title} />
+          <>
+            {/* Under the picture: what shows while it loads. */}
+            <Skeleton height={height} radius={0} style={StyleSheet.absoluteFill} />
+            <Art source={source} style={StyleSheet.absoluteFill} onError={() => setFailed(true)} accessibilityLabel={title} />
+          </>
         ) : (
           <View style={{ flex: 1, padding: 8, justifyContent: 'flex-end', backgroundColor: colors.blue }}>
             <Text numberOfLines={3} style={[type.display, { fontSize: Math.max(14, Math.min(28, width / 6)), lineHeight: Math.max(16, Math.min(30, width / 5.5)), color: colors.white }]}>
@@ -338,7 +343,7 @@ export function GameRow({ rank, title, art, machine, machineIcon: Icon, onPress,
   onPlay?: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.gameRow, shadows.card, pressed && { opacity: 0.9 }]}>
+    <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={title} scaleTo={0.98} style={[styles.gameRow, shadows.card]}>
       <View style={{ width: 96, height: 68 }}>
         <TiltedArt source={art} title={title} width={90} height={66} border={4} rounded={radius.md} />
         {rank != null ? (
@@ -354,7 +359,7 @@ export function GameRow({ rank, title, art, machine, machineIcon: Icon, onPress,
         <MachineChip name={machine} icon={Icon} style={{ alignSelf: 'flex-start' }} />
       </View>
       {onPlay ? <RoundButton icon={Play} filled label={`Jouer à ${title}`} variant="ink" size={46} onPress={onPlay} /> : null}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -406,6 +411,61 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
   );
 }
 
+/**
+ * The game search: a white pill whose height never moves. The border is there from the start (transparent) and
+ * only turns black while typing, the text has no line height (React Native shifts it inside a field), the caret is
+ * blue, a cross clears it, and the Mac's blue focus ring is off: the pill shows the focus itself.
+ */
+export function SearchField({
+  value,
+  onChangeText,
+  onSubmit,
+  onFocusChange,
+  placeholder = 'Rechercher un jeu',
+  height = 56,
+  style,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSubmit?: () => void;
+  onFocusChange?: (focused: boolean) => void;
+  placeholder?: string;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [focused, setFocused] = React.useState(false);
+  const focus = (on: boolean) => {
+    setFocused(on);
+    onFocusChange?.(on);
+  };
+  return (
+    <View style={[styles.search, { height, borderColor: focused ? colors.ink : 'transparent' }, shadows.card, style]}>
+      <Search size={18} color={focused ? colors.ink : colors.ink2} strokeWidth={2.2} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onSubmitEditing={onSubmit}
+        onFocus={() => focus(true)}
+        onBlur={() => focus(false)}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        selectionColor={colors.blue}
+        returnKeyType="search"
+        autoCorrect={false}
+        autoCapitalize="none"
+        accessibilityLabel={placeholder}
+        style={styles.searchInput}
+        {...({ enableFocusRing: false } as object)}
+      />
+      {value ? (
+        <Pressable onPress={() => onChangeText('')} accessibilityRole="button" accessibilityLabel="Effacer la recherche" hitSlop={10} style={styles.searchClear}>
+          <X size={14} color={colors.white} strokeWidth={3} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 /** Text field on a white card (machine editing). */
 export function Field({ label, hint, ...rest }: TextInputProps & { label: string; hint?: string }) {
   return (
@@ -451,4 +511,8 @@ const styles = StyleSheet.create({
   segmented: { flexDirection: 'row', padding: 4, borderRadius: radius.pill, backgroundColor: colors.soft, gap: 4 },
   segment: { flex: 1, height: 40, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   field: { padding: 14, borderRadius: 18, backgroundColor: colors.white, gap: 4 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 18, paddingRight: 12, borderRadius: radius.pill, borderWidth: 2, backgroundColor: colors.white },
+  // A fixed height, centered by the row: a stretched field puts its text at the top on the Mac.
+  searchInput: { flex: 1, height: 22, paddingVertical: 0, margin: 0, fontFamily: fonts.medium, fontSize: 15, color: colors.ink },
+  searchClear: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
 });

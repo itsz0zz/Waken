@@ -10,8 +10,12 @@ struct WakenApp: App {
   var body: some Scene {
     Window("Waken", id: "main") {
       ReactNativeView(factory: appDelegate.reactNativeFactory)
+        // Up to the window's top edge, under the traffic lights.
+        .ignoresSafeArea()
     }
     .defaultSize(width: 1280, height: 800)
+    // The Arcade ground runs under the traffic lights, like the mockups: no grey title bar.
+    .windowStyle(.hiddenTitleBar)
   }
 }
 

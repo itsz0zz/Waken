@@ -41,6 +41,12 @@ describe('mergeLibrary', () => {
     expect(games.map((g) => g.title)).toEqual(['Zelda', 'astro', 'Hades']);
   });
 
+  it('puts launchers after the games they launch', () => {
+    const steam = { ...host('launcher:steam', 'Steam Big Picture'), store: 'Launcher' };
+    const games = mergeLibrary({ mac: [steam, host('a', 'Zelda'), host('b', 'Hytale')] }, [], {});
+    expect(games.map((g) => g.title)).toEqual(['Hytale', 'Zelda', 'Steam Big Picture']);
+  });
+
   it('lists a host game once when the host reports it twice', () => {
     expect(mergeLibrary({ pc: [host('steam:1', 'Hades'), host('epic:2', 'HADES')] }, [], {})).toHaveLength(1);
   });

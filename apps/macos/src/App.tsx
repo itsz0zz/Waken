@@ -5,6 +5,7 @@ import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
 import {
   AddMachineScreen,
   FrameContext,
+  GameSearch,
   GameScreen,
   GamesScreen,
   HomeScreen,
@@ -17,9 +18,10 @@ import {
   setPlatform,
   useConfigLoad,
   useNetworkRunner,
+  useWaken,
 } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, StatusTag, type, Wordmark } from '@waken/ui';
-import { host, hostTunnel, type HostStatus } from './host';
+import { host, hostTunnel, localDevice, LOCAL_ID, type HostStatus } from './host';
 import { tabs, useDesktopNav, type Route, type Tab } from './nav';
 
 setPlatform({
@@ -35,8 +37,9 @@ setPlatform({
   deviceName: 'Mac',
 });
 
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-const TOP_BAR = 76;
+const TOP_BAR = 96;
 
 const labels: Record<Tab, string> = { home: 'Accueil', games: 'Jeux', machines: 'Machines', settings: 'Réglages' };
 
@@ -95,13 +98,16 @@ function Content({ route }: { route: Route }) {
   }
 }
 
-/** The Arcade top bar of the Mac mockups: wordmark, four tabs, and this Mac's server state. */
+/**
+ * The Arcade top bar of the Mac mockups: room for the traffic lights, wordmark, tabs in a frosted pill,
+ * the game search, and this Mac's server state.
+ */
 function TopBar({ tab, onSelect, status }: { tab: Tab; onSelect: (t: Tab) => void; status: HostStatus | null }) {
   const ready = !!status?.sunshine && !!status.agent;
   return (
-    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, gap: 28 }}>
-      <Wordmark height={24} />
-      <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
+    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 92, paddingRight: 44, gap: 16 }}>
+      <Wordmark height={30} />
+      <View style={{ flexDirection: 'row', gap: 2, marginLeft: 20, padding: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)' }}>
         {tabs.map((t) => {
           const on = t === tab;
           return (
@@ -110,14 +116,16 @@ function TopBar({ tab, onSelect, status }: { tab: Tab; onSelect: (t: Tab) => voi
               onPress={() => onSelect(t)}
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
-              style={{ height: 40, paddingHorizontal: 18, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? colors.ink : 'transparent' }}
+              style={{ height: 44, paddingHorizontal: 18, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? colors.ink : 'transparent' }}
             >
-              <Text style={[type.button, { fontSize: 15, color: on ? colors.white : colors.ink }]}>{labels[t]}</Text>
+              <Text style={[type.button, { fontSize: 14, fontFamily: fonts.bold, color: on ? colors.white : colors.ink }]}>{labels[t]}</Text>
             </Pressable>
           );
         })}
       </View>
-      <StatusTag status={!status ? 'unknown' : ready ? 'online' : status.error ? 'unreachable' : 'waking'} label={!status ? 'Ce Mac…' : ready ? 'Ce Mac est prêt' : status.error ? 'Ce Mac : erreur' : 'Ce Mac démarre…'} />
+      <View style={{ flex: 1 }} />
+      <GameSearch height={48} floating style={{ width: 300 }} />
+      <StatusTag status={!status ? 'unknown' : ready ? 'online' : status.error ? 'unreachable' : 'waking'} label={!status ? 'Ce Mac…' : ready ? 'Ce Mac est prêt' : status.error ? 'Ce Mac : erreur' : 'Ce Mac démarre…'} style={{ height: 34 }} />
     </View>
   );
 }
@@ -137,7 +145,7 @@ function HostBanner({ status }: { status: HostStatus | null }) {
   }
   if (items.length === 0) return null;
   return (
-    <View style={{ paddingHorizontal: 32, gap: 8 }}>
+    <View style={{ paddingHorizontal: 44, gap: 8 }}>
       {items.map((i) => (
         <View key={i.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, paddingLeft: 12, borderRadius: 999, backgroundColor: colors.white, ...shadows.card }}>
           <IconBubble icon={i.icon} color={colors.ink} fg={colors.lime} size={34} />
@@ -147,6 +155,14 @@ function HostBanner({ status }: { status: HostStatus | null }) {
       ))}
     </View>
   );
+}
+
+/** Keeps this Mac in the machine list, once the configuration is loaded and when its name or token changes. */
+function ensureLocalMachine(name: string, agentToken: string) {
+  const { devices, upsertDevice } = useWaken.getState();
+  const known = devices.find((d) => d.id === LOCAL_ID);
+  if (known?.stream?.agentToken === agentToken && known.name === name) return;
+  upsertDevice(localDevice(name, agentToken));
 }
 
 /** Polls this Mac's services and permissions; restarts the stream server once mouse control is granted. */
@@ -163,6 +179,7 @@ function useHostStatus() {
         // macOS only gives a new permission to processes started after it: restart Sunshine, not Waken.
         if (control.current === false && s.control && s.sunshine) void host.restartServer();
         control.current = s.control;
+        if (s.agentToken) ensureLocalMachine(s.deviceName, s.agentToken);
         setStatus(s);
       } catch {
         // The next tick tries again.

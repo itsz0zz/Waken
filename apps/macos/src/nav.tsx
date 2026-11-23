@@ -1,5 +1,20 @@
 import { useMemo, useState } from 'react';
-import type { WakenNav } from '@waken/app';
+import { Alert } from 'react-native';
+import { AgentClient } from '@waken/core';
+import { useWaken, type WakenNav } from '@waken/app';
+
+/** A game of this Mac starts here: the agent runs the command its scan found. */
+async function startHere(deviceId: string, gameId: string) {
+  const device = useWaken.getState().devices.find((d) => d.id === deviceId);
+  if (!device) return;
+  try {
+    await new AgentClient(device).startGame(gameId.slice(deviceId.length + 1));
+  } catch (e) {
+    Alert.alert('Lancement impossible', e instanceof Error ? e.message : String(e));
+  }
+}
+
+const isLocal = (deviceId: string) => !!useWaken.getState().devices.find((d) => d.id === deviceId)?.local;
 
 export type Route =
   | { name: 'home' }
@@ -29,7 +44,13 @@ export function useDesktopNav() {
       machine: (deviceId) => push({ name: 'machine', deviceId }),
       addMachine: () => push({ name: 'add' }),
       settings: () => root({ name: 'settings' }),
-      play: (deviceId, gameId, app) => push({ name: 'wake', deviceId, gameId, app }),
+      play: (deviceId, gameId, app) => {
+        if (isLocal(deviceId)) {
+          if (gameId) void startHere(deviceId, gameId);
+          return;
+        }
+        push({ name: 'wake', deviceId, gameId, app });
+      },
       wakeOnly: (deviceId) => push({ name: 'wake', deviceId, only: true }),
       stream: (deviceId, gameId, app) => setStack((s) => [...s.slice(0, -1), { name: 'stream', deviceId, gameId, app }]),
       back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),

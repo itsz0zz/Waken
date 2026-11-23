@@ -47,6 +47,11 @@ export class AgentClient {
     return { uri: `${this.base}${path}${small ? '?size=small' : ''}`, headers: this.headers };
   }
 
+  /** Starts a game of the host's library on the host itself (a desktop app playing on its own machine). */
+  startGame(gameId: string) {
+    return json(`${this.base}/games/${encodeURIComponent(gameId)}/start`, { method: 'POST', headers: this.headers });
+  }
+
   /** Rejects with a 409 HttpError when another game runs: closing it needs replace = true. */
   launch(appName: string, s: StreamSettings, replace = false) {
     return json<AgentLaunch>(`${this.base}/launch`, {

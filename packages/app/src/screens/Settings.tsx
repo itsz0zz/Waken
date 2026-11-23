@@ -30,9 +30,9 @@ export function SettingsScreen() {
           <Card lifted style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <AppMark size={56} />
             <View style={{ flex: 1 }}>
-              <Text style={[type.headline, { fontSize: 20, color: colors.ink }]}>{platform().deviceName ?? 'Cet appareil'}</Text>
+              <Text style={[type.headline, { fontSize: 20, color: colors.ink }]}>{devices.find((d) => d.local)?.name ?? platform().deviceName ?? 'Cet appareil'}</Text>
               <Text style={[type.caption, { color: colors.ink2 }]}>
-                {devices.length} {devices.length > 1 ? 'machines' : 'machine'}
+                {devices.filter((d) => !d.local).length} {devices.filter((d) => !d.local).length > 1 ? 'autres machines' : 'autre machine'}
               </Text>
             </View>
           </Card>

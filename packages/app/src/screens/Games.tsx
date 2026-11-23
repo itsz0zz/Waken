@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { colors, Display, GameRow, PillButton, type } from '@waken/ui';
+import { colors, Display, FadeIn, GameRow, GameRowSkeleton, PillButton, stagger, type } from '@waken/ui';
 import type { Game } from '@waken/core';
 import { useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
@@ -54,11 +54,17 @@ export function GamesScreen({ query }: { query?: string }) {
         </Text>
       ) : null}
       <View style={{ marginTop: 20, gap: 12, ...(wide ? { flexDirection: 'row', flexWrap: 'wrap' } : null) }}>
-        {shown.map((g, i) => (
-          <View key={g.id} style={wide ? { width: '48.5%' } : undefined}>
-            <Row game={g} rank={i + 1} />
-          </View>
-        ))}
+        {loading && shown.length === 0
+          ? [0, 1, 2, 3].map((i) => (
+              <View key={i} style={wide ? { width: '48.5%' } : undefined}>
+                <GameRowSkeleton />
+              </View>
+            ))
+          : shown.map((g, i) => (
+              <FadeIn key={g.id} delay={stagger(i)} style={wide ? { width: '48.5%' } : undefined}>
+                <Row game={g} rank={i + 1} />
+              </FadeIn>
+            ))}
       </View>
       {!loading && shown.length === 0 ? (
         <Text style={[type.body, { color: colors.ink2, textAlign: 'center', marginTop: 24 }]}>

@@ -7,7 +7,7 @@ export const hostGameId = (deviceId: string, game: HostGame) => `${deviceId}/${g
  * The library shown in the app: every game found on every host, plus the entries kept in the app
  * (the desktop, for instance). Sunshine launches by title, so a host game is its own Sunshine app;
  * a kept entry with the same app on the same host is a duplicate and is dropped.
- * Sorted by last played, then by title.
+ * Sorted by last played, then games before launchers, then by title.
  */
 export function mergeLibrary(found: Record<string, HostGame[]>, kept: Game[], lastPlayed: Record<string, string>): Game[] {
   const games: Game[] = [];
@@ -35,7 +35,12 @@ export function mergeLibrary(found: Record<string, HostGame[]>, kept: Game[], la
     games.push({ ...g, lastPlayedAt: lastPlayed[g.id] ?? g.lastPlayedAt });
   }
 
+  // Launchers (Steam Big Picture, CrossOver...) come after the games, unless one was played more recently.
+  const launcher = (g: Game) => (g.store === 'Launcher' ? 1 : 0);
   return games.sort(
-    (a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '') || a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' })
+    (a, b) =>
+      (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '') ||
+      launcher(a) - launcher(b) ||
+      a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' })
   );
 }

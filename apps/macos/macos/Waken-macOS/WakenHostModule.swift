@@ -25,6 +25,10 @@ final class WakenHostModule: NSObject {
       "deviceName": Host.current().localizedName ?? "Mac",
     ]
     if let error = services.startError { status["error"] = error }
+    // This Mac's own agent: the app shows its library and starts its games locally.
+    if let token = try? String(contentsOf: services.paths.root.appendingPathComponent("agent-token"), encoding: .utf8) {
+      status["agentToken"] = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     if let tunnel = services.currentTunnelStatus() { status["tunnel"] = tunnel }
     resolve(status)
   }

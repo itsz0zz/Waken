@@ -37,6 +37,8 @@ export interface WakenState {
   updateDevice: (d: Device) => void;
   /** A computer found on the Waken network, with its desktop as a first thing to stream. */
   addFoundComputer: (d: Device) => void;
+  /** Adds or replaces a machine (the desktop app's own machine). */
+  upsertDevice: (d: Device) => void;
   updateSettings: (s: Partial<Settings>) => void;
   markPlayed: (gameId: string) => void;
 }
@@ -78,6 +80,7 @@ export const useWaken = create<WakenState>()(
               : [...s.games, { id: `${d.id}/desktop`, title: 'Bureau', deviceId: d.id, sunshineApp: 'Desktop' }],
           };
         }),
+      upsertDevice: (d) => set((s) => ({ devices: s.devices.some((x) => x.id === d.id) ? s.devices.map((x) => (x.id === d.id ? d : x)) : [d, ...s.devices] })),
       updateSettings: (p) => set((s) => ({ settings: { ...s.settings, ...p } })),
       markPlayed: (id) => set((s) => ({ lastPlayed: { ...s.lastPlayed, [id]: new Date().toISOString() } })),
     }),

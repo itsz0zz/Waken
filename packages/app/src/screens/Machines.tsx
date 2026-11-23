@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native';
 import { Check, Monitor, Play, Plus, Power } from 'lucide-react-native';
 import { canWake, hostDisplayName, type Device } from '@waken/core';
-import { AppMark, Card, colors, Display, IconBubble, machineIcon, PillButton, shadows, StatusTag, type } from '@waken/ui';
+import { AppMark, Card, colors, Display, FadeIn, IconBubble, machineIcon, PillButton, shadows, stagger, StatusTag, type } from '@waken/ui';
 import { useDeviceStatus, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
 import { useNetwork } from '../network';
@@ -21,10 +21,10 @@ export function MachinesScreen() {
         {wide ? 'Tes machines' : 'Machines'}
       </Display>
       <View style={{ marginTop: 20, gap: 14, ...(wide ? { flexDirection: 'row', flexWrap: 'wrap' } : null) }}>
-        {devices.map((d) => (
-          <View key={d.id} style={wide ? { width: '48.5%' } : undefined}>
+        {devices.map((d, i) => (
+          <FadeIn key={d.id} delay={stagger(i)} style={wide ? { width: '48.5%' } : undefined}>
             <MachineCard device={d} />
-          </View>
+          </FadeIn>
         ))}
         <Pressable
           onPress={nav.addMachine}
@@ -63,7 +63,9 @@ function MachineCard({ device }: { device: Device }) {
         </View>
       </Pressable>
       {last ? <Text style={[type.caption, { color: colors.ink2 }]}>Dernière partie : {last.title}, {sinceLabel(last.lastPlayedAt)}.</Text> : null}
-      {device.kind === 'playstation' ? (
+      {device.local ? (
+        <Text style={[type.caption, { color: colors.ink2 }]}>Ce Mac : tes autres appareils peuvent y jouer. Ses jeux se lancent depuis l'onglet Jeux.</Text>
+      ) : device.kind === 'playstation' ? (
         <PillButton label="Ouvrir Remote Play" icon={Play} size="md" onPress={() => nav.play(device.id)} />
       ) : !device.stream ? null : ready || !wakeable ? (
         <PillButton label="Jouer au bureau" icon={Play} size="md" onPress={() => nav.play(device.id)} />

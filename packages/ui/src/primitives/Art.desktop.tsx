@@ -1,4 +1,5 @@
-import { Image, View, type ImageSourcePropType } from 'react-native';
+import { Animated, View, type ImageSourcePropType } from 'react-native';
+import { useFadeOnLoad } from '../motion';
 import type { ArtProps } from './types';
 
 /**
@@ -6,10 +7,13 @@ import type { ArtProps } from './types';
  * so the agent's token stays out of the URL like on the phone.
  */
 export function Art({ source, style, fit = 'cover', align = 'center', onError, accessibilityLabel }: ArtProps) {
+  // React Native's Image pops in: fade it like expo-image does on the phone.
+  const { opacity, onLoad } = useFadeOnLoad();
   const image = (
-    <Image
+    <Animated.Image
+      onLoad={onLoad}
       source={(typeof source === 'string' ? { uri: source } : source) as ImageSourcePropType}
-      style={[{ width: '100%', height: '100%' }, align === 'left bottom' ? null : style]}
+      style={[{ width: '100%', height: '100%' }, align === 'left bottom' ? null : style, { opacity }]}
       resizeMode={fit}
       onError={onError}
       accessibilityLabel={accessibilityLabel}

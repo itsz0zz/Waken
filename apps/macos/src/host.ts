@@ -1,5 +1,5 @@
 import { NativeModules } from 'react-native';
-import type { TunnelApi, TunnelHello, TunnelStatus } from '@waken/core';
+import type { Device, TunnelApi, TunnelHello, TunnelStatus } from '@waken/core';
 
 /** What the native WakenHost module (macos/Waken-macOS/WakenHostModule.swift) reports. */
 export interface HostStatus {
@@ -9,6 +9,8 @@ export interface HostStatus {
   screen: boolean;
   control: boolean;
   deviceName: string;
+  /** This Mac's own agent token: its library and local game starts. */
+  agentToken?: string;
   error?: string;
   /** The network helper's last status line, as JSON. */
   tunnel?: string;
@@ -52,3 +54,15 @@ export const hostTunnel: TunnelApi = {
   // The helper lives as long as the app: closing Waken stops it.
   stop: async () => {},
 };
+
+/** This Mac as a machine of the app: its library shows, its games start here (no stream to itself). */
+export const LOCAL_ID = 'this-mac';
+export const localDevice = (name: string, agentToken: string): Device => ({
+  id: LOCAL_ID,
+  name,
+  kind: 'pc',
+  detail: 'Mac',
+  wake: { type: 'none' },
+  local: true,
+  stream: { host: '127.0.0.1', sunshinePort: 47989, agentUrl: 'http://127.0.0.1:47100', agentToken },
+});

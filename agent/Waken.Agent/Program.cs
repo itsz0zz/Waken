@@ -82,6 +82,22 @@ app.MapGet("/games/{id}/{kind}", async (string id, string kind, string? size, Ga
     return Results.File(file, type, enableRangeProcessing: false);
 });
 
+// Starts a game of this machine's library right here, for the desktop app playing on its own machine.
+// Only ids from the library: the command is the one the scan found, never one sent by the caller.
+app.MapPost("/games/{id}/start", async (string id, GameLibrary library, CancellationToken ct) =>
+{
+    if (await library.FindAsync(id, ct) is not { } game) return Results.NotFound();
+    try
+    {
+        StartLocally(game.Detached);
+        return Results.Accepted();
+    }
+    catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+    {
+        return Results.Problem($"Impossible de lancer {game.Title} : {e.Message}", statusCode: StatusCodes.Status502BadGateway);
+    }
+});
+
 app.MapPost("/quit", (GameStreamClient gs, CancellationToken ct) =>
     CallSunshine(async () =>
     {
@@ -124,6 +140,15 @@ async Task TrySyncAsync(SunshineAppSync sync, IReadOnlyList<GameEntry> games, Ca
     {
         app.Logger.LogWarning(e, "Sunshine apps sync failed");
     }
+}
+
+// macOS commands are shell lines ("open -a ..."); on Windows a store URL or an executable path goes to the shell.
+static void StartLocally(string command)
+{
+    var start = OperatingSystem.IsWindows()
+        ? new ProcessStartInfo(command.Trim('"')) { UseShellExecute = true }
+        : new ProcessStartInfo("/bin/sh", ["-c", command]) { UseShellExecute = false };
+    Process.Start(start)?.Dispose();
 }
 
 static IResult Run(string file, string args)

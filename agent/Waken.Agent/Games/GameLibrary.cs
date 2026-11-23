@@ -56,17 +56,26 @@ public sealed class GameLibrary(IEnumerable<IGameSource> sources)
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (OperatingSystem.IsWindows())
         {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var programs = new WindowsInstalledPrograms();
             yield return new SteamSource([Path.Combine(programFilesX86, "Steam")], id => $"steam://rungameid/{id}");
             yield return new EpicSource(Path.Combine(programData, "Epic", "EpicGamesLauncher", "Data", "Manifests"), url => url);
             yield return new GogSource();
+            yield return new EaSource(programs, File.Exists);
+            yield return new UbisoftSource(programs, Directory.Exists);
+            yield return new BattleNetSource(programs, Path.Combine(programFilesX86, "Battle.net", "Battle.net.exe"), File.Exists);
+            yield return new XboxSource(XboxSource.DefaultFolders());
+            yield return new LauncherSource(LauncherSource.Windows(programFiles, programFilesX86), File.Exists);
         }
         else if (OperatingSystem.IsMacOS())
         {
             yield return new SteamSource([Path.Combine(home, "Library", "Application Support", "Steam")], id => $"open steam://rungameid/{id}");
             yield return new EpicSource(Path.Combine(home, "Library", "Application Support", "Epic", "EpicGamesLauncher", "Data", "Manifests"), url => $"open \"{url}\"");
             yield return new MacAppSource(MacAppSource.RunProcess);
+            yield return new CrossOverSource(Path.Combine(home, "Library", "Application Support", "CrossOver", "Bottles"), CrossOverSource.DefaultWine);
+            yield return new LauncherSource(LauncherSource.Mac(home), Directory.Exists);
         }
     }
 }

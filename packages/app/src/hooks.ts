@@ -17,6 +17,8 @@ export function useLibrary() {
       queryKey: ['games', device.id, device.stream?.agentUrl],
       staleTime: 5 * 60_000,
       retry: 1,
+      // A machine that just started (or was off) answers a bit later: ask again until it does, then each minute.
+      refetchInterval: (query: { state: { status: string } }) => (query.state.status === 'error' ? 5_000 : 60_000),
       queryFn: () => new AgentClient(device).games(),
     })),
   });

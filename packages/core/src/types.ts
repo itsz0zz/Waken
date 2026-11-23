@@ -39,6 +39,8 @@ export interface Device {
   detail?: string;
   wake: WakeMethod;
   stream?: StreamTarget;
+  /** The machine this app runs on (desktop apps): its games start right here, no stream. */
+  local?: boolean;
 }
 
 export interface Game {

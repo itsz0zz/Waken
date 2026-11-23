@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Animated, Easing, Linking, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Check, Cable, Clock, Gamepad2, Loader, Plug, Power, Rocket, Wifi, type LucideIcon } from 'lucide-react-native';
 import { wakeAndWait, withRelaySettings, type WakeProgress, type WakeStepId } from '@waken/core';
@@ -11,6 +11,8 @@ import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
 import { Screen } from './Screen';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const steps: { id: WakeStepId; label: string; icon: LucideIcon }[] = [
   { id: 'signal', label: 'Réveil', icon: Power },
@@ -34,6 +36,12 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const abort = useRef(new AbortController());
+  // The ring follows the steps smoothly instead of jumping from one to the next (an SVG prop: no native driver).
+  const ring = useRef(new Animated.Value(0.05)).current;
+  const done = steps.filter((st) => progress?.states[st.id] === 'done').length;
+  useEffect(() => {
+    Animated.timing(ring, { toValue: Math.max(0.05, done / steps.length), duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [done, ring]);
 
   useEffect(() => {
     if (!device) return;
@@ -89,7 +97,7 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
       <View style={{ width: 232, height: 232, alignSelf: 'center', marginTop: -26, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
           <Circle cx={116} cy={116} r={104} stroke={colors.white} strokeWidth={14} fill="none" />
-          <Circle cx={116} cy={116} r={104} stroke={colors.ink} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ}`} strokeDashoffset={circ * (1 - Math.max(0.05, doneCount / steps.length))} />
+          <AnimatedCircle cx={116} cy={116} r={104} stroke={colors.ink} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ}`} strokeDashoffset={ring.interpolate({ inputRange: [0, 1], outputRange: [circ, 0] })} />
         </Svg>
         <View style={{ transform: [{ rotate: '-8deg' }], ...shadows.lift }}>
           <AppMark size={66} />
