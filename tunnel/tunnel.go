@@ -346,7 +346,8 @@ func (t *Tunnel) watch() {
 		state, hasURL, forwarded := t.status.State, t.status.LoginURL != "", t.forwarded
 		t.mu.Unlock()
 
-		if state == StateNeedsLogin && !hasURL && time.Since(loginAsked) > 30*time.Second {
+		// On the Waken account network (or with a key) the app brings a key: a web login would replace it.
+		if state == StateNeedsLogin && !hasURL && t.cfg.AuthKey == "" && t.cfg.ControlURL == "" && time.Since(loginAsked) > 30*time.Second {
 			loginAsked = time.Now()
 			if err := t.lc.StartLoginInteractive(t.ctx); err != nil {
 				log.Printf("login: %v", err)

@@ -74,7 +74,7 @@ Les apps se connectent avec un e-mail et un mot de passe, jamais avec Tailscale.
   gèrent les appareils du compte.
 - Headscale (v0.29.7) : un utilisateur par compte, nommé d'après l'identifiant du compte (pas d'e-mail dans le réseau).
   La politique `server/headscale/policy.hujson` isole les comptes ; le tunnel le vérifie aussi de son côté.
-- Déploiement : `server/docker-stack.cloud.yml` (voir l'en-tête pour la clé d'API Headscale au premier lancement).
+- Déploiement avec Dokploy : `server/docker-compose.cloud.yml`, pas à pas dans `server/DEPLOY.md`.
   Le proxy du homelab sert les deux en HTTPS ; le service de comptes ne publie aucun port.
 - Le tunnel accepte `authKey` et `controlUrl` dans sa configuration : l'appareil rejoint le réseau sans page web.
   Une identité par serveur de coordination (`net-<hôte>` dans le dossier d'état) : celle de Tailscale reste intacte.

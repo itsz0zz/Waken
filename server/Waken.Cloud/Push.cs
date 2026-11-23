@@ -166,6 +166,7 @@ public sealed class Notifier(IServiceScopeFactory scopes, IPushSender sender, IL
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CloudDb>();
         var devices = await db.PushDevices.Where(d => d.UserId == userId && d.Token != exceptToken).ToListAsync(ct);
+        log.LogInformation("Notification {Kind} pour le compte {UserId} ({Devices} appareils) : {Title}", message.Kind, userId, devices.Count, message.Title);
         Sent.Enqueue((userId, message));
         while (Sent.Count > 100) Sent.TryDequeue(out _);
         foreach (var device in devices)
