@@ -64,7 +64,9 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>false</SDLCheck>
       <TreatWarningAsError>false</TreatWarningAsError>
-      <DisableSpecificWarnings>4244;4267;4996;4100;4127;4018;4146;4334</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4244;4267;4996;4100;4127;4018;4146;4334;4232;5105</DisableSpecificWarnings>
+      <!-- moonlight-common-c uses C11 atomics (stdatomic.h), still behind a flag in MSVC (as in its own CMakeLists.txt). -->
+      <AdditionalOptions>/experimental:c11atomics %(AdditionalOptions)</AdditionalOptions>
       <!-- Sockets, threads and timers: the Windows side of moonlight-common-c and enet (see their CMake files). -->
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;HAS_SOCKLEN_T=1;HAS_GETADDRINFO=1;HAS_GETNAMEINFO=1;HAS_INET_PTON=1;HAS_INET_NTOP=1;HAS_QOS_FLOWID=1;HAS_PQOS_FLOWID=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(MoonlightDir)src;$(MoonlightDir)enet\include;$(MoonlightDir)nanors;$(MoonlightDir)nanors\deps;$(MoonlightDir)nanors\deps\obl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
