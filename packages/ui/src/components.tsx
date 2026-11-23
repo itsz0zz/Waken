@@ -93,7 +93,7 @@ const roundVariants: Record<RoundVariant, { box: ViewStyle; fg: string }> = {
   outlineOn: { box: { backgroundColor: colors.ink, borderWidth: 3.5, borderColor: colors.ink }, fg: colors.white },
 };
 
-type PillVariant = 'ink' | 'outline' | 'white' | 'ghost';
+type PillVariant = 'ink' | 'outline' | 'white' | 'ghost' | 'frost';
 
 /** Pill button: "Réveiller et jouer", filters "Tous / PC / PS5", "Réessayer". */
 export function PillButton({
@@ -132,6 +132,8 @@ const pillVariants: Record<PillVariant, { box: ViewStyle; fg: string }> = {
   outline: { box: { backgroundColor: colors.white, borderWidth: 2.5, borderColor: colors.ink }, fg: colors.ink },
   white: { box: { backgroundColor: colors.white, ...shadows.card }, fg: colors.ink },
   ghost: { box: { backgroundColor: 'transparent' }, fg: colors.ink2 },
+  // On a dark screen (stream): see-through, white text.
+  frost: { box: { backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassLine }, fg: colors.white },
 };
 
 /* ---------- Navigation ---------- */

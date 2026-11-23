@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
 import {
   AddMachineScreen,
+  AccountOverlay,
   BootScreen,
   FrameContext,
   GameSearch,
@@ -17,6 +18,8 @@ import {
   StreamScreen,
   WakeScreen,
   setPlatform,
+  usePushRegistration,
+  useSessionRecaps,
   useConfigLoad,
   useLibrarySync,
   useNetworkRunner,
@@ -43,6 +46,8 @@ setPlatform({
   StreamView: null,
   form: 'desktop',
   deviceName: 'Mac',
+  pushToken: () => host.pushToken(),
+  pushPlatform: 'macos',
 });
 
 
@@ -74,6 +79,9 @@ export default function App() {
 
 function Shell({ onHostUp }: { onHostUp: () => void }) {
   useNetworkRunner();
+  usePushRegistration();
+  // This Mac streams: the end of a session here sends its recap to the account's other devices.
+  useSessionRecaps(useWaken((s) => s.devices.find((d) => d.local)));
   useLibrarySync();
   const { route, tab, nav } = useDesktopNav();
   const hostStatus = useHostStatus();
@@ -93,6 +101,7 @@ function Shell({ onHostUp }: { onHostUp: () => void }) {
               <HostBanner status={hostStatus} />
             </View>
           )}
+          <AccountOverlay />
         </View>
       </FrameContext.Provider>
     </NavContext.Provider>

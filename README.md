@@ -15,6 +15,8 @@ modules/waken-tunnel   Module natif du réseau Waken pour l'app iPhone
 tunnel/                Réseau Waken (Go, Tailscale embarqué via tsnet)
 agent/Waken.Agent      Agent (.NET 10) embarqué dans l'app hôte : appairage Sunshine, jeux installés, pochettes, lancement
 server/Waken.Api       API homelab (.NET 10) : relais Wake-on-LAN, gardée pour le réveil (hors V1)
+server/Waken.Cloud     Comptes Waken (.NET 10) : e-mail et mot de passe, clés d'appareil Headscale
+server/headscale       Configuration de Headscale (serveur de coordination du réseau Waken)
 ```
 
 ## Comment ça marche
@@ -61,6 +63,28 @@ pnpm exec expo run:ios                               # le module natif ne tourne
 | Glisser à deux doigts | Molette |
 | Bouton clavier | Clavier virtuel |
 | Quitter | Au choix : quitter le stream (le jeu continue) ou fermer le jeu |
+
+## Comptes Waken (serveur)
+
+Les apps se connectent avec un e-mail et un mot de passe, jamais avec Tailscale. Derrière :
+
+- `server/Waken.Cloud` (ASP.NET Core Identity, SQLite) : `/account/register`, `/account/login?useCookies=false`,
+  `/account/refresh`, `/account/delete` (redemande le mot de passe). `POST /network/join` donne l'adresse du réseau et
+  une clé d'appareil à usage unique, valable 10 minutes ; `GET /network/devices` et `DELETE /network/devices/{id}`
+  gèrent les appareils du compte.
+- Headscale (v0.29.7) : un utilisateur par compte, nommé d'après l'identifiant du compte (pas d'e-mail dans le réseau).
+  La politique `server/headscale/policy.hujson` isole les comptes ; le tunnel le vérifie aussi de son côté.
+- Déploiement : `server/docker-stack.cloud.yml` (voir l'en-tête pour la clé d'API Headscale au premier lancement).
+  Le proxy du homelab sert les deux en HTTPS ; le service de comptes ne publie aucun port.
+- Le tunnel accepte `authKey` et `controlUrl` dans sa configuration : l'appareil rejoint le réseau sans page web.
+  Une identité par serveur de coordination (`net-<hôte>` dans le dossier d'état) : celle de Tailscale reste intacte.
+- Adresses : `https://api.wakenplay.fr` (comptes, `CLOUD_URL` dans `packages/app/src/account.ts`) et
+  `https://net.wakenplay.fr` (Headscale).
+- Notifications (APNs, clé .p8 dans `Cloud:Apns`) : nouvel appareil sur le compte, machine de nouveau en ligne
+  (après 2 min hors ligne), récap de fin de partie (envoyé par la machine qui a fait tourner le jeu). Sans clé,
+  elles sont seulement journalisées.
+- Dans les apps : écran de compte tant que l'appareil n'est connecté à aucun compte (lien « Utiliser Tailscale à
+  la place » pour le développement), compte et appareils dans Réglages, suppression du compte (mot de passe redemandé).
 
 ## Tests
 

@@ -68,6 +68,8 @@ export interface HostStats {
   streakDays: number;
   monthSeconds: number;
   sessions: number;
+  /** The last streamed session that ended on this host. */
+  lastSession?: { gameId: string; title: string; seconds: number; endedAt: string } | null;
 }
 
 /** A game installed on a host, as listed by its agent (GET /games). */

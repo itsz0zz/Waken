@@ -36,12 +36,18 @@ func reply(v any, err error) *C.char {
 func WakenTunnelStart(configJSON *C.char) *C.char {
 	mu.Lock()
 	defer mu.Unlock()
-	if current != nil {
-		return reply(current.Status(), nil)
-	}
 	var cfg tunnel.Config
 	if err := json.Unmarshal([]byte(C.GoString(configJSON)), &cfg); err != nil {
 		return reply(nil, err)
+	}
+	if current != nil {
+		// Same network and nothing new to sign in with: the running tunnel's status.
+		if current.ControlURL() == cfg.ControlURL && cfg.AuthKey == "" {
+			return reply(current.Status(), nil)
+		}
+		// Moving to (or from) the Waken account's network, or signing in with a key: start over.
+		current.Stop()
+		current = nil
 	}
 	t, err := tunnel.Start(cfg)
 	if err != nil {

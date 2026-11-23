@@ -1,13 +1,13 @@
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 
-import type { TunnelApi, TunnelHello, TunnelStatus } from '@waken/core';
+import type { TunnelApi, TunnelHello, TunnelNetwork, TunnelStatus } from '@waken/core';
 
 export type { TunnelApi, TunnelHello, TunnelNode, TunnelStatus } from '@waken/core';
 export { agentUrlFor } from '@waken/core';
 
 interface Native {
-  start(name?: string): Promise<string>;
+  start(name: string | null, controlUrl: string | null, authKey: string | null): Promise<string>;
   status(): Promise<string>;
   setPeer(peer: string): Promise<string>;
   hello(peer: string): Promise<string>;
@@ -38,7 +38,8 @@ function need(): Native {
 }
 
 export const WakenTunnel: TunnelApi = {
-  start: async (name?: string) => parseStatus(await need().start(name)),
+  start: async (name?: string, network?: TunnelNetwork) =>
+    parseStatus(await need().start(name ?? null, network ? network.controlUrl : null, network?.authKey ?? null)),
   status: async () => parseStatus(await need().status()),
   setPeer: async (peer: string) => {
     parse(await need().setPeer(peer));

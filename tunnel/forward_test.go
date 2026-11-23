@@ -198,3 +198,15 @@ func TestClientsReachAgentsThroughTheProxyOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestStateDirFor(t *testing.T) {
+	if got := StateDirFor("/s", ""); got != "/s" {
+		t.Fatalf("Tailscale: %q", got)
+	}
+	if got := StateDirFor("/s", "https://net.wakenplay.fr"); got != "/s/net-net-wakenplay-fr" {
+		t.Fatalf("Waken: %q", got)
+	}
+	if got := StateDirFor("/s", "https://net.wakenplay.fr:443/"); got != "/s/net-net-wakenplay-fr-443" {
+		t.Fatalf("port: %q", got)
+	}
+}

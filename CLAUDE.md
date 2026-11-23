@@ -9,6 +9,7 @@ Réponds en français.
 - `packages/core` : types appareils, méthodes de réveil (`homelab-relay`, `shelly-cloud`, `playstation`, `none`), `wakeAndWait` (étapes signal → ping agent → Sunshine → stream), `AgentClient`, `WakenApi`.
 - `modules/waken-stream` : module Expo natif (V2). iOS : `Bridge/MLStreamSession.m` (moonlight-common-c + VideoToolbox → AVSampleBufferDisplayLayer), `WakenStreamView.swift` (manette/souris/clavier). Android = placeholder (V3). moonlight-common-c en sous-module dans `ios/vendor/` (GPLv3).
 - `server/Waken.Api` : .NET 10 minimal API sur le homelab (Docker Swarm, réseau host) : relais Wake-on-LAN, statut, jaquettes SteamGridDB en cache.
+- `server/Waken.Cloud` : comptes Waken (.NET 10, Identity + SQLite) devant Headscale v0.29.7 (`server/headscale`, `docker-stack.cloud.yml`). `/network/join` donne `controlUrl` + clé d'appareil à usage unique (10 min) que le tunnel prend dans `authKey`. Adresses `api.wakenplay.fr` / `net.wakenplay.fr`, pas encore déployé. Apps : `packages/app/src/account.ts` (mode compte ou Tailscale, `networkFor`), écran `AccountOverlay`, notifications APNs (expo-notifications sur iPhone, `PushRegistrar.swift` sur Mac, `NetworkWatcher` côté serveur).
 - `tunnel/` : réseau Waken (Go, tsnet = Tailscale embarqué). Hôte (Mac/PC) : Sunshine et l'agent restent sur 127.0.0.1, le tunnel n'accepte que les appareils du même compte et donne le jeton de l'agent (port 47101). Client (iPhone) : ports de stream relayés depuis 127.0.0.1 vers l'hôte choisi (`setPeer`), agents joints via le proxy `http://127.0.0.1:47102/h/<hôte>/`. `tunnel/build.sh` produit `waken-tunnel` (Mac) et `WakenTunnel.xcframework` (copié dans `modules/waken-tunnel`).
 - `agent/Waken.Agent` : .NET 10 sur le PC (tâche SYSTEM au démarrage, port 47100, limité à Tailscale). Appairage GameStream automatique avec Sunshine (PIN tapé via l'API admin 47990), /apps, /launch (renvoie rtspSessionUrl + riKey), /quit, /shutdown, /sleep.
 
@@ -32,7 +33,7 @@ Réponds en français.
 - `git submodule update --init --recursive` (après un clone : moonlight-common-c)
 - `cd apps/mobile && pnpm exec expo run:ios` (le module natif ne tourne pas dans Expo Go)
 - `cd apps/mobile && pnpm exec tsc --noEmit`
-- `dotnet build server/Waken.Api` / `dotnet build agent/Waken.Agent`
+- `dotnet build server/Waken.Api` / `dotnet build server/Waken.Cloud` / `dotnet build agent/Waken.Agent`
 - `pnpm test` (tous les tests) ; `cd tunnel && .cache/go/bin/go test ./...` (tunnel)
 - `sh tunnel/build.sh` puis `cd apps/mobile/ios && LANG=en_US.UTF-8 pod install` (après un changement du tunnel)
 - `sh apps/mac/build.sh` (Waken.app : Sunshine + agent + tunnel ; clé SteamGridDB lue dans ~/.config/waken/steamgriddb.key)

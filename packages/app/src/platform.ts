@@ -44,6 +44,13 @@ export interface WakenPlatform {
   form: 'phone' | 'desktop';
   /** This device's name on the network ("iPhone", "Mac de Enzo"). */
   deviceName?: string;
+  /**
+   * Asks for the permission to notify, then this device's push token (APNs, hex). Null when refused
+   * or when this build cannot receive notifications.
+   */
+  pushToken?: () => Promise<string | null>;
+  /** ios | macos: which app the server addresses the notifications to. */
+  pushPlatform?: 'ios' | 'macos';
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */
   canUseMoonlightApp?: boolean;
 }

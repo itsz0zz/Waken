@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { create } from 'zustand';
 import { agentUrlFor, type Device, type TunnelNode, type TunnelStatus } from '@waken/core';
+import { networkFor, useAccount } from './account';
 import { platform } from './platform';
 import { useWaken } from './store';
 
@@ -29,8 +30,21 @@ export function useNetworkRunner() {
 
     const tick = async () => {
       try {
-        // start() returns the running tunnel's status when it already runs.
-        const current = await tunnel.start(platform().deviceName);
+        // start() returns the running tunnel's status when it already runs; another network restarts it.
+        const name = platform().deviceName;
+        const network = await networkFor(false);
+        if (!network) {
+          // Account mode, signed out: no network at all until the account screen is done.
+          useNetwork.setState({ status: { state: 'needs-login', hosts: [] } });
+          if (!stopped && active) timer = setTimeout(tick, POLL_MS);
+          return;
+        }
+        let current = await tunnel.start(name, network);
+        if (current.state === 'needs-login' && useAccount.getState().mode === 'account') {
+          // Removed from the account, or a first start: a fresh key signs it in, no web page.
+          const network = await networkFor(true);
+          if (network?.authKey) current = await tunnel.start(name, network);
+        }
         useNetwork.setState({ status: { ...current, hosts: current.hosts ?? [] } });
         if (current.state === 'running') await addComputers(current.hosts ?? []);
       } catch (e) {

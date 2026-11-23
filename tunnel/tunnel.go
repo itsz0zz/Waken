@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
+	"net/url"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -61,6 +63,9 @@ type Config struct {
 	Name string `json:"name"`
 	// ControlURL is the coordination server; empty means Tailscale's.
 	ControlURL string `json:"controlUrl,omitempty"`
+	// AuthKey signs the device in without a web page: a single-use key from the Waken accounts (Headscale).
+	// Only used while the device has no identity yet; never written to disk by Waken.
+	AuthKey string `json:"authKey,omitempty"`
 	// AgentToken is given by a host to its owner's devices (Hello).
 	AgentToken string `json:"agentToken,omitempty"`
 	// Target is where a host's Sunshine and agent listen.
@@ -87,6 +92,8 @@ type Status struct {
 	State    string `json:"state"`
 	LoginURL string `json:"loginUrl,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// Control is the coordination server the tunnel runs on: "" for Tailscale's.
+	Control string `json:"control,omitempty"`
 	Self     *Node  `json:"self,omitempty"`
 	// Hosts are the owner's computers running Waken, online or not.
 	Hosts []Node `json:"hosts"`
@@ -102,7 +109,8 @@ type Hello struct {
 }
 
 type Tunnel struct {
-	cfg    Config
+	cfg     Config
+	baseDir string
 	server *tsnet.Server
 	lc     *local.Client
 	ctx    context.Context
@@ -159,11 +167,17 @@ func Start(cfg Config) (*Tunnel, error) {
 		cfg.UDPPorts = DefaultUDPPorts
 	}
 
-	t := &Tunnel{cfg: cfg, status: Status{State: StateStarting, Hosts: []Node{}}}
+	// One identity per coordination server: the Tailscale one stays as it was when the device moves to its
+	// Waken account, and coming back to it needs no new sign-in.
+	baseDir := cfg.Dir
+	cfg.Dir = StateDirFor(cfg.Dir, cfg.ControlURL)
+
+	t := &Tunnel{cfg: cfg, baseDir: baseDir, status: Status{State: StateStarting, Hosts: []Node{}}}
 	t.server = &tsnet.Server{
 		Hostname:   HostnameFor(cfg.Role, cfg.Name),
 		Dir:        cfg.Dir,
 		ControlURL: cfg.ControlURL,
+		AuthKey:    cfg.AuthKey,
 		Logf:       func(string, ...any) {},
 		UserLogf:   func(string, ...any) {},
 	}
@@ -182,6 +196,30 @@ func Start(cfg Config) (*Tunnel, error) {
 	return t, nil
 }
 
+// StateDirFor is where a node keeps its identity for one coordination server: the base folder for Tailscale's,
+// a sub-folder named after the server otherwise ("net-net.wakenplay.fr").
+func StateDirFor(base, controlURL string) string {
+	if controlURL == "" {
+		return base
+	}
+	name := controlURL
+	if u, err := url.Parse(controlURL); err == nil && u.Host != "" {
+		name = u.Host
+	}
+	return filepath.Join(base, "net-"+nameUnsafe.ReplaceAllString(strings.ToLower(name), "-"))
+}
+
+// ControlURL is the coordination server this tunnel runs with ("" for Tailscale's).
+func (t *Tunnel) ControlURL() string { return t.cfg.ControlURL }
+
+// Config is what the tunnel was started with, minus its single-use key.
+func (t *Tunnel) Config() Config {
+	c := t.cfg
+	c.AuthKey = ""
+	c.Dir = t.baseDir
+	return c
+}
+
 // Status is a snapshot, safe to call often.
 func (t *Tunnel) Status() Status {
 	t.mu.Lock()
@@ -190,6 +228,7 @@ func (t *Tunnel) Status() Status {
 	// Never nil: JSON would say null where the apps expect a list.
 	s.Hosts = append([]Node{}, t.status.Hosts...)
 	s.Peer = t.peer
+	s.Control = t.cfg.ControlURL
 	return s
 }
 

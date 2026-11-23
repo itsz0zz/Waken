@@ -30,6 +30,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+  func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    PushRegistrar.shared.received(deviceToken)
+  }
+
+  func application(_ application: NSApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    PushRegistrar.shared.failed(error)
+  }
   let reactNativeFactory: RCTReactNativeFactory
 
   override init() {

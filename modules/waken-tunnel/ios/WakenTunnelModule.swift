@@ -7,10 +7,18 @@ public class WakenTunnelModule: Module {
   public func definition() -> ModuleDefinition {
     Name("WakenTunnel")
 
-    AsyncFunction("start") { (name: String?) throws -> String in
+    // controlUrl: the Waken account's network ("" for Tailscale's, nil to keep the running one's).
+    // authKey: single-use, only to sign in; never stored on this side.
+    AsyncFunction("start") { (name: String?, controlUrl: String?, authKey: String?) throws -> String in
       let dir = try Self.stateFolder()
       let deviceName = (name?.isEmpty == false ? name : nil) ?? UIDevice.current.name
-      let config: [String: Any] = ["role": "client", "dir": dir.path, "name": deviceName]
+      var config: [String: Any] = ["role": "client", "dir": dir.path, "name": deviceName]
+      if let controlUrl {
+        config["controlUrl"] = controlUrl
+      } else if let running = Self.runningControl() {
+        config["controlUrl"] = running
+      }
+      if let authKey, !authKey.isEmpty { config["authKey"] = authKey }
       let json = String(decoding: try JSONSerialization.data(withJSONObject: config), as: UTF8.self)
       return json.withCString { Self.take(WakenTunnelStart(UnsafeMutablePointer(mutating: $0))) }
     }
@@ -34,6 +42,16 @@ public class WakenTunnelModule: Module {
     AsyncFunction("stop") {
       WakenTunnelStop()
     }
+  }
+
+  /// The network the running tunnel is on, so a start without one keeps it.
+  private static func runningControl() -> String? {
+    let status = take(WakenTunnelStatus())
+    guard let data = status.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      (object["state"] as? String) != "stopped"
+    else { return nil }
+    return object["control"] as? String ?? ""
   }
 
   /// The node's identity lives in Application Support, out of iCloud backups: signing in is per device.

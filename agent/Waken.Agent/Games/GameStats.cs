@@ -6,7 +6,10 @@ namespace Waken.Agent.Games;
 public sealed record PlayRecord(DateTimeOffset? LastPlayed, long Seconds, int Sessions);
 
 /// <summary>Totals shown on the home and game screens.</summary>
-public sealed record PlaySummary(int StreakDays, long MonthSeconds, int Sessions);
+public sealed record PlaySummary(int StreakDays, long MonthSeconds, int Sessions, SessionEnd? LastSession = null);
+
+/// <summary>The last streamed session that ended: the desktop app sends its recap to the account's devices.</summary>
+public sealed record SessionEnd(string GameId, string Title, long Seconds, DateTimeOffset EndedAt);
 
 /// <summary>
 /// Play history of this machine, kept by its agent: every device reads the same figures, no server needed.
@@ -21,6 +24,7 @@ public sealed class GameStats
         public SortedSet<string> Days { get; set; } = new(StringComparer.Ordinal);
         /// <summary>Seconds played per month, "yyyy-MM".</summary>
         public Dictionary<string, long> Months { get; set; } = new();
+        public SessionEnd? LastSession { get; set; }
     }
 
     private readonly string _file;
@@ -81,6 +85,7 @@ public sealed class GameStats
         _data.Games[open.GameId] = record with { Seconds = record.Seconds + seconds };
         var month = open.Started.ToString("yyyy-MM");
         _data.Months[month] = _data.Months.GetValueOrDefault(month) + seconds;
+        _data.LastSession = new SessionEnd(open.GameId, open.Title, seconds, now);
     }
 
     public PlayRecord? Of(string gameId)
@@ -109,7 +114,7 @@ public sealed class GameStats
                 streak++;
                 day = day.AddDays(-1);
             }
-            return new PlaySummary(streak, month, _data.Games.Values.Sum(g => g.Sessions));
+            return new PlaySummary(streak, month, _data.Games.Values.Sum(g => g.Sessions), _data.LastSession);
         }
     }
 

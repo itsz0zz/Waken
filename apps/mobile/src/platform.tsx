@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
@@ -26,6 +27,21 @@ function StreamView({ launch, settings, remote, onStateChange, onStats }: Stream
   );
 }
 
+// A notification arriving while Waken is open still shows (new device on the account, machine ready).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
+});
+
+/** Asks once, then Apple's own token for this device (hex): the Waken server talks to APNs directly. */
+async function pushToken(): Promise<string | null> {
+  if (Platform.OS !== 'ios') return null;
+  const current = await Notifications.getPermissionsAsync();
+  const granted = current.granted || (current.canAskAgain && (await Notifications.requestPermissionsAsync()).granted);
+  if (!granted) return null;
+  const token = await Notifications.getDevicePushTokenAsync();
+  return typeof token.data === 'string' ? token.data : null;
+}
+
 /** iPhone and iPad: Keychain for the configuration (it holds tokens), the tunnel and stream native modules. */
 export const mobilePlatform: WakenPlatform = {
   storage: {
@@ -51,4 +67,6 @@ export const mobilePlatform: WakenPlatform = {
   form: 'phone',
   deviceName: Platform.OS === 'ios' ? (Platform.isPad ? 'iPad' : 'iPhone') : 'Android',
   canUseMoonlightApp: true,
+  pushToken,
+  pushPlatform: 'ios',
 };

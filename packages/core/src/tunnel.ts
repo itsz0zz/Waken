@@ -14,6 +14,8 @@ export interface TunnelStatus {
   state: 'starting' | 'needs-login' | 'running' | 'stopped' | 'error';
   loginUrl?: string;
   error?: string;
+  /** The coordination server: the Waken account's network, or absent for Tailscale's. */
+  control?: string;
   self?: TunnelNode;
   /** The owner's computers running Waken. */
   hosts: TunnelNode[];
@@ -27,9 +29,17 @@ export interface TunnelHello {
   agentToken: string;
 }
 
+/** Which network to run on: the account's (Headscale) or Tailscale's (controlUrl ""), and a key to sign in. */
+export interface TunnelNetwork {
+  controlUrl: string;
+  /** Single-use: only when the device has to sign in. */
+  authKey?: string;
+}
+
 /** What an app gives the shared code to use the Waken network (native module on iOS, helper process on desktop). */
 export interface TunnelApi {
-  start(name?: string): Promise<TunnelStatus>;
+  /** Starts the tunnel, or returns the running one's status. Another network, or a key, restarts it. */
+  start(name?: string, network?: TunnelNetwork): Promise<TunnelStatus>;
   status(): Promise<TunnelStatus>;
   setPeer(peer: string): Promise<void>;
   hello(peer: string): Promise<TunnelHello>;

@@ -234,12 +234,16 @@ final class HostServices {
     tunnel = process
     tunnelInput = input.fileHandleForWriting
     // The configuration holds the agent token: sent on stdin, never on the command line.
-    let config: [String: String] = [
+    var config: [String: String] = [
       "role": "host",
       "dir": paths.tunnel.path,
       "name": Host.current().localizedName ?? "Mac",
       "agentToken": token,
     ]
+    // The Waken account's network once this Mac joined it (Tailscale's otherwise).
+    if let control = UserDefaults.standard.string(forKey: Self.controlURLKey), !control.isEmpty {
+      config["controlUrl"] = control
+    }
     try send(config)
   }
 
@@ -270,7 +274,20 @@ final class HostServices {
   }
 
   /// A command to the network helper: hello, setPeer, logout.
-  func tunnelCommand(_ cmd: String, peer: String?, completion: @escaping (Result<Any, Error>) -> Void) {
+  /// The coordination server this Mac's network runs on, kept for the next launches.
+  static let controlURLKey = "WakenControlURL"
+
+  /// Restarts the network on the account's coordination server, signed in with a single-use key.
+  func tunnelJoin(controlURL: String, authKey: String, completion: @escaping (Result<Any, Error>) -> Void) {
+    if controlURL.isEmpty {
+      UserDefaults.standard.removeObject(forKey: Self.controlURLKey)
+    } else {
+      UserDefaults.standard.set(controlURL, forKey: Self.controlURLKey)
+    }
+    tunnelCommand("join", peer: nil, extra: ["controlUrl": controlURL, "authKey": authKey], completion: completion)
+  }
+
+  func tunnelCommand(_ cmd: String, peer: String?, extra: [String: Any] = [:], completion: @escaping (Result<Any, Error>) -> Void) {
     lock.lock()
     let id = nextCommand
     nextCommand += 1
@@ -278,6 +295,7 @@ final class HostServices {
     lock.unlock()
     var object: [String: Any] = ["id": id, "cmd": cmd]
     if let peer { object["peer"] = peer }
+    object.merge(extra) { _, new in new }
     do {
       guard tunnelInput != nil else { throw NSError(domain: "Waken", code: 2, userInfo: [NSLocalizedDescriptionKey: "Le réseau Waken n'est pas démarré."]) }
       try send(object)

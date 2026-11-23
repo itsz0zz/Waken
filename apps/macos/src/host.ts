@@ -23,6 +23,10 @@ interface Native {
   openSettings(kind: 'screen' | 'control'): Promise<void>;
   restartServer(): Promise<void>;
   tunnelCommand(cmd: 'hello' | 'setPeer' | 'logout', peer: string | null): Promise<string>;
+  /** Restarts the network on the account's coordination server ("" for Tailscale's), signed in with a key. */
+  tunnelJoin(controlUrl: string, authKey: string): Promise<void>;
+  /** Asks the permission to notify, then this Mac's APNs token (null when refused). */
+  pushToken(): Promise<string | null>;
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;
@@ -34,9 +38,16 @@ const command = async <T>(cmd: 'hello' | 'setPeer' | 'logout', peer: string | nu
 
 /** The Waken network as the shared screens use it, through the host's helper process. */
 export const hostTunnel: TunnelApi = {
-  start: async () => {
+  start: async (_name, network) => {
     await host.start();
-    return hostTunnel.status();
+    const status = await hostTunnel.status();
+    // The helper is up (it reported a status) and runs on another network, or has a key to sign in with.
+    const running = status.state !== 'starting' || status.self != null;
+    if (network && running && (network.authKey || (status.control ?? '') !== network.controlUrl)) {
+      await host.tunnelJoin(network.controlUrl, network.authKey ?? '');
+      return hostTunnel.status();
+    }
+    return status;
   },
   status: async () => {
     const s = await host.status();

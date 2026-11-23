@@ -34,6 +34,22 @@ public sealed class GameStatsTests : IDisposable
 
         Assert.Equal(600, stats.Of("steam:620")!.Seconds);
         Assert.Equal(600, stats.Summary().MonthSeconds);
+        // Not ended yet: no recap.
+        Assert.Null(stats.Summary().LastSession);
+    }
+
+    [Fact]
+    public void An_ended_session_is_kept_for_its_recap()
+    {
+        var stats = Stats();
+        stats.Begin("steam:620", "Portal 2");
+        _now = _now.AddMinutes(25);
+        stats.End();
+
+        var last = stats.Summary().LastSession;
+        Assert.NotNull(last);
+        Assert.Equal(("steam:620", "Portal 2", 1500L), (last.GameId, last.Title, last.Seconds));
+        Assert.Equal(_now, last.EndedAt);
     }
 
     [Fact]

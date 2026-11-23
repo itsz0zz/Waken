@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
-import { Gamepad2, LogOut, Server, Wifi } from 'lucide-react-native';
+import { Gamepad2, LogOut, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { cloud, setNetworkMode, signOutAccount, useAccount } from '../account';
 import { hostDisplayName, validateApiUrl } from '@waken/core';
 import { AppMark, Card, colors, Display, Field, IconBubble, PillButton, Segmented, SettingRow, type } from '@waken/ui';
 import { useBestStreak } from '../hooks';
@@ -18,6 +20,7 @@ export function SettingsScreen() {
   const update = useWaken((s) => s.updateSettings);
   const devices = useWaken((s) => s.devices);
   const status = useNetwork((s) => s.status);
+  const mode = useAccount((s) => s.mode);
   const quality = qualityOf(settings.stream);
   // The longest run of days played, across the machines (each one keeps its own).
   const streak = useBestStreak(devices);
@@ -54,6 +57,8 @@ export function SettingsScreen() {
             </Text>
           </Card>
 
+          <AccountCard />
+
           {hasTunnel() ? (
             <Card style={{ gap: 8 }}>
               <SettingRow
@@ -77,10 +82,10 @@ export function SettingsScreen() {
                       </Text>
                     ))
                 : null}
-              {status?.state === 'needs-login' && status.loginUrl ? (
-                <PillButton label="Se connecter" size="sm" onPress={() => Linking.openURL(status.loginUrl!)} />
+              {mode === 'tailscale' && status?.state === 'needs-login' && status.loginUrl ? (
+                <PillButton label="Se connecter à Tailscale" size="sm" onPress={() => Linking.openURL(status.loginUrl!)} />
               ) : null}
-              {status?.state === 'running' ? <PillButton label="Se déconnecter" icon={LogOut} variant="ghost" size="sm" onPress={confirmSignOut} /> : null}
+              {mode === 'tailscale' && status?.state === 'running' ? <PillButton label="Se déconnecter de Tailscale" icon={LogOut} variant="ghost" size="sm" onPress={confirmSignOut} /> : null}
             </Card>
           ) : null}
         </View>
@@ -90,6 +95,97 @@ export function SettingsScreen() {
         </View>
       </View>
     </Screen>
+  );
+}
+
+/** The Waken account: who is signed in, the account's devices, sign out, delete. */
+function AccountCard() {
+  const { mode, email, session } = useAccount();
+  const queryClient = useQueryClient();
+  const devices = useQuery({ queryKey: ['account-devices', email], queryFn: () => cloud().devices(), enabled: mode === 'account' && !!session, refetchInterval: 30_000 });
+  const [deleting, setDeleting] = useState(false);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const self = useNetwork((s) => s.status?.self?.name);
+
+  if (mode === 'tailscale') {
+    return (
+      <Card style={{ gap: 10 }}>
+        <SettingRow icon={UserRound} color={colors.muted} label="Compte Waken" hint="Cet appareil utilise Tailscale directement." />
+        <PillButton label="Utiliser un compte Waken" size="sm" onPress={() => setNetworkMode('account')} />
+      </Card>
+    );
+  }
+  if (!session) return null;
+
+  const remove = (id: string, name: string) =>
+    Alert.alert(`Retirer ${name} ?`, "Il ne pourra plus joindre tes machines. Pour le remettre, reconnecte-le à ton compte.", [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Retirer',
+        style: 'destructive',
+        onPress: () =>
+          void cloud()
+            .removeDevice(id)
+            .then(() => queryClient.invalidateQueries({ queryKey: ['account-devices'] }))
+            .catch((e: Error) => Alert.alert('Appareil non retiré', e.message)),
+      },
+    ]);
+
+  const signOut = () =>
+    Alert.alert('Se déconnecter ?', "Tes machines disparaissent de cet appareil jusqu'à la prochaine connexion.", [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Se déconnecter', style: 'destructive', onPress: () => void signOutAccount().catch((e: Error) => Alert.alert('Déconnexion', e.message)) },
+    ]);
+
+  const deleteAccount = async () => {
+    setBusy(true);
+    try {
+      await cloud().deleteAccount(password);
+      await signOutAccount().catch(() => {});
+    } catch (e) {
+      Alert.alert('Compte non supprimé', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      setPassword('');
+    }
+  };
+
+  return (
+    <Card style={{ gap: 10 }}>
+      <SettingRow icon={UserRound} color={colors.violet} label="Compte Waken" hint={email ?? 'Connecté'} />
+      <Text style={[type.label, { color: colors.ink, marginTop: 4 }]}>Appareils du compte</Text>
+      {devices.isLoading ? <Text style={[type.caption, { color: colors.ink2 }]}>Chargement…</Text> : null}
+      {devices.error ? <Text style={[type.caption, { color: colors.danger }]}>{(devices.error as Error).message}</Text> : null}
+      {devices.data?.map((d) => (
+        <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <IconBubble icon={d.name.startsWith('waken-host-') ? Server : Smartphone} color={d.online ? colors.online : colors.muted} size={32} />
+          <View style={{ flex: 1 }}>
+            <Text style={[type.body, { color: colors.ink, textTransform: 'capitalize' }]} numberOfLines={1}>
+              {hostDisplayName(d.name).replace(/^waken /, '')}
+              {d.name === self ? ' (cet appareil)' : ''}
+            </Text>
+            <Text style={[type.caption, { color: colors.ink2 }]}>{d.online ? 'En ligne' : 'Hors ligne'}</Text>
+          </View>
+          {d.name === self ? null : <PillButton label="Retirer" size="sm" variant="ghost" onPress={() => remove(d.id, hostDisplayName(d.name))} />}
+        </View>
+      ))}
+      <PillButton label="Se déconnecter" icon={LogOut} variant="outline" size="sm" onPress={signOut} />
+      {deleting ? (
+        <View style={{ gap: 10 }}>
+          <Text style={[type.caption, { color: colors.ink2 }]}>
+            Tous tes appareils quittent le réseau Waken et le compte est effacé. Ça ne se rattrape pas.
+          </Text>
+          <Field label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <PillButton label="Annuler" variant="ghost" size="sm" onPress={() => setDeleting(false)} />
+            <PillButton label="Supprimer définitivement" icon={Trash2} size="sm" loading={busy} disabled={!password || busy} onPress={() => void deleteAccount()} />
+          </View>
+        </View>
+      ) : (
+        <PillButton label="Supprimer le compte" variant="ghost" size="sm" onPress={() => setDeleting(true)} />
+      )}
+    </Card>
   );
 }
 

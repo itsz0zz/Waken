@@ -2,7 +2,8 @@
 //
 // Protocol, one JSON object per line:
 //   stdin, first line : the configuration (it holds the agent token, so never on the command line).
-//   stdin, then       : commands {"id":1,"cmd":"hello"|"setPeer"|"logout","peer":"..."}.
+//   stdin, then       : commands {"id":1,"cmd":"hello"|"setPeer"|"logout","peer":"..."},
+//                       {"id":2,"cmd":"join","controlUrl":"...","authKey":"..."} (restarts on that network).
 //   stdout            : STATUS {status} on every change, REPLY {"id":1,"result":...} or {"id":1,"error":"..."}.
 // The helper stops when stdin closes, so it never outlives the app.
 package main
@@ -23,12 +24,46 @@ import (
 )
 
 type command struct {
-	ID   int    `json:"id"`
-	Cmd  string `json:"cmd"`
-	Peer string `json:"peer,omitempty"`
+	ID         int    `json:"id"`
+	Cmd        string `json:"cmd"`
+	Peer       string `json:"peer,omitempty"`
+	ControlURL string `json:"controlUrl,omitempty"`
+	AuthKey    string `json:"authKey,omitempty"`
 }
 
-var out sync.Mutex
+var (
+	out sync.Mutex
+	// The running tunnel: "join" swaps it for one on another network.
+	curMu sync.Mutex
+	cur   *tunnel.Tunnel
+)
+
+func current() *tunnel.Tunnel {
+	curMu.Lock()
+	defer curMu.Unlock()
+	return cur
+}
+
+// join restarts the tunnel on a coordination server, signed in with a single-use key when one is given.
+func join(controlURL, authKey string) error {
+	curMu.Lock()
+	defer curMu.Unlock()
+	cfg := cur.Config()
+	cfg.ControlURL, cfg.AuthKey = controlURL, authKey
+	cur.Stop()
+	t, err := tunnel.Start(cfg)
+	if err != nil {
+		// Back on the previous network rather than nothing.
+		prev := cfg
+		prev.ControlURL, prev.AuthKey = cur.ControlURL(), ""
+		if again, err2 := tunnel.Start(prev); err2 == nil {
+			cur = again
+		}
+		return err
+	}
+	cur = t
+	return nil
+}
 
 func emit(prefix string, v any) {
 	b, err := json.Marshal(v)
@@ -55,7 +90,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer t.Stop()
+	cur = t
+	defer func() { current().Stop() }()
 
 	done := make(chan struct{})
 	go func() {
@@ -65,7 +101,7 @@ func main() {
 			if err := json.Unmarshal(in.Bytes(), &c); err != nil {
 				continue
 			}
-			go run(t, c)
+			go run(c)
 		}
 	}()
 
@@ -75,7 +111,7 @@ func main() {
 	defer tick.Stop()
 	last := ""
 	for {
-		if b, err := json.Marshal(t.Status()); err == nil && string(b) != last {
+		if b, err := json.Marshal(current().Status()); err == nil && string(b) != last {
 			last = string(b)
 			emit("STATUS", json.RawMessage(b))
 		}
@@ -89,12 +125,16 @@ func main() {
 	}
 }
 
-func run(t *tunnel.Tunnel, c command) {
+func run(c command) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	t := current()
 	var result any
 	var err error
 	switch c.Cmd {
+	case "join":
+		err = join(c.ControlURL, c.AuthKey)
+		result = true
 	case "hello":
 		result, err = t.Hello(ctx, c.Peer)
 	case "setPeer":

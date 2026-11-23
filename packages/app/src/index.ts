@@ -16,3 +16,6 @@ export { MachineEditScreen } from './screens/MachineEdit';
 export { GameSearch } from './screens/Search';
 export { useLibraryCache } from './libraryCache';
 export { BootScreen } from './screens/Boot';
+export { AccountOverlay, AccountScreen } from './screens/Account';
+export * from './account';
+export { useSessionRecaps } from './recaps';

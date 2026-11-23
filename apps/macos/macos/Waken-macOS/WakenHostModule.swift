@@ -51,6 +51,24 @@ final class WakenHostModule: NSObject {
     resolve(nil)
   }
 
+  @objc func pushToken(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    PushRegistrar.shared.requestToken { result in
+      switch result {
+      case .success(let token): resolve(token)
+      case .failure(let error): reject("waken", error.localizedDescription, error)
+      }
+    }
+  }
+
+  @objc func tunnelJoin(_ controlUrl: String, authKey: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    services.tunnelJoin(controlURL: controlUrl, authKey: authKey) { result in
+      switch result {
+      case .success: resolve(nil)
+      case .failure(let error): reject("waken", error.localizedDescription, error)
+      }
+    }
+  }
+
   @objc func tunnelCommand(_ cmd: String, peer: String?, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard ["hello", "setPeer", "logout"].contains(cmd) else { return reject("waken", "Commande inconnue", nil) }
     services.tunnelCommand(cmd, peer: peer) { result in

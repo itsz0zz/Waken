@@ -1,0 +1,46 @@
+# Headscale v0.29 for the Waken network. Only the lines Waken depends on; the rest keeps Headscale's defaults.
+# The public address comes from the stack: HEADSCALE_SERVER_URL (Headscale reads HEADSCALE_* variables).
+server_url: https://net.wakenplay.fr
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+
+# Tailscale's public relays: they carry the traffic only when two devices cannot reach each other directly
+# (hard NAT), and it stays end-to-end encrypted.
+derp:
+  server:
+    enabled: false
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  paths: []
+  auto_update_enabled: true
+  update_frequency: 3h
+
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
+
+# Each account sees and reaches its own devices only.
+policy:
+  mode: file
+  path: /etc/headscale/policy.hujson
+
+dns:
+  magic_dns: true
+  # Must differ from server_url's domain.
+  base_domain: waken.internal
+  override_local_dns: false
+
+log:
+  level: info
+
