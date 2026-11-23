@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -53,10 +55,22 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
             {
                 sunshine = SunshineRunning,
                 tunnel = _tunnelStatus is null ? null : JsonNode.Parse(_tunnelStatus),
-                error = _error,
+                error = _error ?? (OtherSunshineListening(agent.SunshinePort) ? OtherSunshine : null),
             };
         }
     }
+
+    public const string OtherSunshine =
+        "Un autre Sunshine tourne sur ce PC (installé à part) et prend les ports du stream : arrête-le et désactive-le "
+        + "(service « SunshineService »), puis relance Waken.";
+
+    /// <summary>
+    /// Waken's Sunshine listens on 127.0.0.1 only: a listener on every address (0.0.0.0 or ::) on its ports is
+    /// another Sunshine, installed apart, that takes the stream's connections.
+    /// </summary>
+    public static bool OtherSunshineListening(int port) =>
+        IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
+            .Any(e => (e.Port == port || e.Port == port + 1) && (e.Address.Equals(IPAddress.Any) || e.Address.Equals(IPAddress.IPv6Any)));
 
     protected override async Task ExecuteAsync(CancellationToken stopping)
     {

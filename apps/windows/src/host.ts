@@ -39,15 +39,28 @@ async function agent<T>(path: string, init: RequestInit = {}) {
   return json<T>(`${AGENT}${path}`, { ...init, headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` } }, 15_000);
 }
 
+let lastNote = '';
+/** What this PC's services report, in waken.log when it changes. */
+function note(text: string) {
+  if (text === lastNote) return;
+  lastNote = text;
+  console.log(`[hôte] ${text}`);
+}
+
 export async function hostStatus(): Promise<HostStatus> {
   const own = JSON.parse(await native.status()) as NativeStatus;
   token = own.agentToken ?? token;
-  if (!own.agent || !token) return { ...own, sunshine: false };
+  if (!own.agent || !token) {
+    note(`agent ${own.agent ? 'sans jeton' : 'arrêté'}${own.error ? ` : ${own.error}` : ''}`);
+    return { ...own, sunshine: false };
+  }
   try {
     const services = await agent<{ sunshine: boolean; tunnel: TunnelStatus | null; error?: string }>('/host/status');
+    note(`Sunshine ${services.sunshine ? 'prêt' : 'arrêté'}, réseau ${services.tunnel ? services.tunnel.state : 'sans état'}${services.error ? ` : ${services.error}` : ''}`);
     return { ...own, sunshine: services.sunshine, tunnel: services.tunnel, error: own.error ?? services.error ?? undefined };
-  } catch {
+  } catch (e) {
     // The agent is starting: its port answers a moment later.
+    note(`agent injoignable : ${(e as Error).message}`);
     return { ...own, sunshine: false };
   }
 }
