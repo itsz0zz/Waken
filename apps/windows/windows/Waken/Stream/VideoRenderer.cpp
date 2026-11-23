@@ -236,6 +236,8 @@ bool VideoRenderer::EnsureProcessor(UINT inputWidth, UINT inputHeight) {
   output.RGB_Range = 0;
   m_videoContext->VideoProcessorSetOutputColorSpace(m_processor.get(), &output);
   m_videoContext->VideoProcessorSetStreamAutoProcessingMode(m_processor.get(), 0, FALSE);
+  // An opaque picture: the video has no alpha, and a transparent one would let the black behind show through.
+  m_videoContext->VideoProcessorSetOutputAlphaFillMode(m_processor.get(), D3D11_VIDEO_PROCESSOR_ALPHA_FILL_MODE_OPAQUE, 0);
   // Our own RGB texture as the processor's output: a view on the compositor's shared texture is refused by some drivers.
   D3D11_TEXTURE2D_DESC frameDesc{};
   frameDesc.Width = static_cast<UINT>(m_width);
@@ -291,6 +293,14 @@ bool VideoRenderer::Present(IMFSample *sample) {
   POINT offset{};
   if (FAILED(m_target->BeginDraw(nullptr, __uuidof(ID3D11Texture2D), surface.put_void(), &offset))) return false;
   m_context->CopySubresourceRegion(surface.get(), 0, static_cast<UINT>(offset.x), static_cast<UINT>(offset.y), 0, m_frame.get(), 0, nullptr);
+  // Our commands reach the GPU before the compositor reads the surface.
+  m_context->Flush();
+  if (frames == 0) {
+    D3D11_TEXTURE2D_DESC desc{};
+    surface->GetDesc(&desc);
+    Log("[stream] première image : surface " + std::to_string(desc.Width) + "x" + std::to_string(desc.Height) + " format " +
+        std::to_string(desc.Format) + ", décalage " + std::to_string(offset.x) + "," + std::to_string(offset.y));
+  }
   // The compositor shows the newest picture at its next frame: the decoder never waits for the screen.
   return SUCCEEDED(m_target->EndDraw());
 }

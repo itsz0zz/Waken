@@ -152,7 +152,10 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   }
 
   void UpdateLayout(LayoutMetrics const &metrics) {
-    if (m_visual) m_visual.Size({metrics.Frame.Width * metrics.PointScaleFactor, metrics.Frame.Height * metrics.PointScaleFactor});
+    if (!m_visual) return;
+    m_visual.Size({metrics.Frame.Width * metrics.PointScaleFactor, metrics.Frame.Height * metrics.PointScaleFactor});
+    Log("[stream] vue " + std::to_string(static_cast<int>(metrics.Frame.Width)) + "x" + std::to_string(static_cast<int>(metrics.Frame.Height)) +
+        " (échelle " + std::to_string(metrics.PointScaleFactor) + ")");
   }
 
   void SetEmitter(EventEmitter const &emitter) {
@@ -213,7 +216,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       auto surface = graphics.CreateDrawingSurface(
           {static_cast<float>(m_videoWidth), static_cast<float>(m_videoHeight)},
           winrt::Microsoft::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
-          winrt::Microsoft::Graphics::DirectX::DirectXAlphaMode::Premultiplied);
+          winrt::Microsoft::Graphics::DirectX::DirectXAlphaMode::Ignore);
       m_session->Video().SetTarget(surface.as<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop>());
       auto brush = compositor.CreateSurfaceBrush(surface);
       brush.Stretch(winrt::Microsoft::UI::Composition::CompositionStretch::Uniform);
