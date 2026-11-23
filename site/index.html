@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waken : tes jeux PC, partout</title>
+<meta name="description" content="Waken réveille ton PC ou ton Mac et te laisse jouer à tes jeux depuis ton iPhone, ton iPad ou un autre ordinateur.">
+<style>
+@font-face { font-family: Anton; src: url(fonts/Anton-Regular.ttf); font-display: swap; }
+@font-face { font-family: Inter; src: url(fonts/Inter-Medium.ttf); font-weight: 500; font-display: swap; }
+@font-face { font-family: Inter; src: url(fonts/Inter-Bold.ttf); font-weight: 700; font-display: swap; }
+@font-face { font-family: Inter; src: url(fonts/Inter-ExtraBold.ttf); font-weight: 800; font-display: swap; }
+
+:root {
+  --ink: #0B0B0F; --ink2: #3F424D; --muted: #8A8D96; --white: #fff; --soft: #F1F2F6;
+  --blue: #2F7BFF; --lime: #C8FF2E; --online: #1FBF6A; --violet: #7A5CFF; --hot: #FF7A1A;
+  --sun: linear-gradient(165deg, #EFFF3A 0%, #F6FF9E 42%, #fff 100%);
+  --sky: linear-gradient(180deg, #4E97FF 0%, #A6CBFF 52%, #fff 100%);
+  --lime-g: linear-gradient(180deg, #BDFF2E 0%, #E6FFA6 50%, #fff 100%);
+  --lift: 0 18px 40px rgba(11,11,15,.18);
+}
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: Inter, system-ui, sans-serif; font-weight: 500; color: var(--ink); background: #fff; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 1192px; margin: 0 auto; padding: 0 28px; }
+.display { font-family: Anton, Impact, sans-serif; text-transform: uppercase; letter-spacing: -1px; line-height: .95; font-weight: 400; }
+
+/* Top bar */
+.top { position: sticky; top: 16px; z-index: 10; margin-top: 16px; }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; }
+.pill { display: flex; gap: 4px; padding: 6px; border-radius: 999px; background: rgba(255,255,255,.75); backdrop-filter: blur(14px); box-shadow: 0 6px 20px rgba(11,11,15,.08); }
+.pill a { padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 15px; transition: background .2s, transform .2s; }
+.pill a:hover { background: var(--white); transform: translateY(-1px); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 12px; height: 60px; padding: 0 26px 0 10px; border-radius: 999px; background: var(--ink); color: #fff; font-weight: 800; font-size: 16px; box-shadow: var(--lift); transition: transform .25s cubic-bezier(.3,1.6,.5,1); }
+.btn:hover { transform: scale(1.04); }
+.btn:active { transform: scale(.96); }
+.btn .dot { width: 42px; height: 42px; border-radius: 50%; background: var(--lime); display: grid; place-items: center; }
+.btn.ghost { background: transparent; color: var(--ink); border: 3px solid var(--ink); box-shadow: none; padding: 0 26px; }
+.btn.small { height: 46px; padding: 0 20px; font-size: 15px; box-shadow: none; }
+
+/* Hero */
+.hero { background: var(--sun); margin-top: -82px; padding: 150px 0 90px; overflow: hidden; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 30px; align-items: center; }
+.hero h1 { font-size: clamp(76px, 11vw, 150px); }
+.hero p { font-size: 19px; line-height: 1.45; color: var(--ink2); max-width: 470px; margin: 22px 0 30px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.collage { position: relative; height: 460px; }
+.tilt { position: absolute; border: 8px solid #fff; border-radius: 32px; box-shadow: var(--lift); overflow: hidden; transition: transform .4s cubic-bezier(.3,1.6,.5,1); }
+.tilt:hover { transform: rotate(0deg) scale(1.03) !important; }
+.art { width: 100%; height: 100%; display: flex; align-items: flex-end; padding: 18px; color: #fff; font-family: Anton, sans-serif; text-transform: uppercase; font-size: 30px; letter-spacing: -.5px; }
+.a1 { background: radial-gradient(circle at 30% 20%, #FF9E5E, transparent 55%), linear-gradient(135deg, #7A5CFF, #2F7BFF); }
+.a2 { background: radial-gradient(circle at 70% 30%, #C8FF2E, transparent 50%), linear-gradient(135deg, #1FBF6A, #0B0B0F); }
+.a3 { background: radial-gradient(circle at 20% 80%, #FF5A36, transparent 55%), linear-gradient(135deg, #FFB13D, #FF7A1A); }
+.mark { position: absolute; filter: drop-shadow(0 14px 22px rgba(11,11,15,.25)); }
+@keyframes land { from { transform: rotate(-24deg) scale(.4); opacity: 0; } 60% { transform: rotate(8deg) scale(1.05); opacity: 1; } to { transform: rotate(-10deg) scale(1); } }
+.mark.anim { animation: land .9s cubic-bezier(.3,1.4,.5,1) both .2s; }
+
+/* Sections */
+section { padding: 100px 0; }
+.kicker { display: inline-block; padding: 6px 12px; border-radius: 9px; background: var(--ink); color: var(--lime); font-weight: 800; font-size: 13px; letter-spacing: .5px; text-transform: uppercase; }
+h2.display { font-size: clamp(54px, 7vw, 96px); margin: 18px 0 14px; }
+.lead { font-size: 18px; line-height: 1.5; color: var(--ink2); max-width: 560px; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 46px; }
+.card { background: #fff; border-radius: 24px; padding: 26px; box-shadow: 0 10px 30px rgba(11,11,15,.08); transition: transform .3s cubic-bezier(.3,1.6,.5,1); }
+.card:hover { transform: translateY(-4px) rotate(-.5deg); }
+.num { font-family: Anton, sans-serif; font-size: 82px; line-height: .9; color: var(--ink); -webkit-text-stroke: 0; }
+.ill { width: 100%; aspect-ratio: 10/7; object-fit: cover; border-radius: 16px; margin-bottom: 14px; display: block; }
+.card h3 { font-weight: 800; font-size: 20px; margin: 14px 0 6px; }
+.card p { color: var(--ink2); line-height: 1.5; }
+.bubble { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; }
+
+.sky { background: var(--sky); }
+.sky .lead { color: #1d2433; }
+.features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 46px; }
+.feature { display: flex; gap: 16px; align-items: flex-start; }
+
+.platforms { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.chip { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; background: #fff; font-weight: 700; box-shadow: 0 6px 18px rgba(11,11,15,.08); }
+.chip .soon { font-size: 12px; color: var(--muted); }
+
+.cta { background: var(--lime-g); text-align: center; }
+.cta .lead { margin: 0 auto 30px; }
+.cta .actions { justify-content: center; }
+
+footer { padding: 34px 0 50px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s cubic-bezier(.2,.8,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .hero .wrap, .steps, .features { grid-template-columns: 1fr; }
+  .collage { height: 360px; }
+  .pill a:not(.keep) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } .reveal { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="w" d="M8.2265625 0.0 1.0283203125 -67.03125H14.1298828125L17.82421875 -24.7177734375L21.5947265625 -67.03125H34.0869140625L37.6669921875 -24.7177734375L41.2470703125 -67.03125H54.5009765625L47.1884765625 0.0H31.1162109375L27.7646484375 -32.2587890625L24.5654296875 0.0Z"/>
+    <symbol id="mark" viewBox="0 0 128 128">
+      <rect width="128" height="128" rx="34" fill="#fff"/>
+      <rect x="6" y="6" width="116" height="116" rx="29" fill="#0B0B0F"/>
+      <g transform="rotate(-6 64 64)" stroke-linejoin="round">
+        <use href="#w" transform="translate(41.2 103.5)" fill="#C8FF2E" stroke="#C8FF2E" stroke-width="10"/>
+        <use href="#w" transform="translate(36.2 97.5)" fill="#fff" stroke="#fff" stroke-width="10"/>
+        <use href="#w" transform="translate(36.2 97.5)" fill="#2F7BFF"/>
+      </g>
+    </symbol>
+    <symbol id="wordmark" viewBox="0 0 274 86">
+      <path transform="translate(0 85.9)" d="M10.546875 0.0 1.318359375 -85.9375H18.115234375L22.8515625 -31.689453125L27.685546875 -85.9375H43.701171875L48.291015625 -31.689453125L52.880859375 -85.9375H69.873046875L60.498046875 0.0H39.892578125L35.595703125 -41.357421875L31.494140625 0.0Z M76.65625 0.0 84.95703125 -85.9375H114.107421875L122.26171875 0.0H106.001953125L104.78125 -13.8671875H94.4296875L93.35546875 0.0ZM95.650390625 -27.587890625H103.462890625L99.703125 -71.2890625H98.921875Z M131.53515625 0.0V-85.9375H148.52734375V-51.513671875L156.53515625 -85.9375H173.8203125L164.201171875 -46.58203125L175.822265625 0.0H158.0L148.625 -41.6015625V0.0Z M182.751953125 0.0V-85.9375H217.126953125V-69.3359375H200.232421875V-52.587890625H216.443359375V-36.42578125H200.232421875V-16.748046875H218.25V0.0Z M227.9140625 0.0V-85.9375H245.58984375L253.5 -44.775390625V-85.9375H270.1015625V0.0H253.3046875L244.7109375 -42.96875V0.0Z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a href="#" aria-label="Waken, accueil"><svg width="104" height="33" fill="#0B0B0F"><use href="#wordmark"/></svg></a>
+    <nav class="pill" aria-label="Sections">
+      <a href="#comment">Comment ça marche</a>
+      <a href="#atouts">Atouts</a>
+      <a href="#appareils">Appareils</a>
+      <a class="keep" href="#telecharger" style="background:#0B0B0F;color:#fff">Télécharger</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <h1 class="display">On joue&nbsp;?</h1>
+        <p>Waken réveille ton PC ou ton Mac et lance tes jeux sur ton iPhone, ton iPad ou un autre ordinateur. Un compte, rien à configurer.</p>
+        <div class="actions">
+          <a class="btn" href="#telecharger"><span class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0B0B0F"><path d="M7 4v16l13-8z"/></svg></span>Essayer Waken</a>
+          <a class="btn ghost" href="#comment">Comment ça marche</a>
+        </div>
+      </div>
+      <div class="collage" aria-hidden="true">
+        <div class="tilt" style="left:30px;top:10px;width:440px;height:290px;transform:rotate(-5deg)"><img src="img/game-sunset.svg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+        <div class="tilt" style="right:0;top:230px;width:250px;height:170px;transform:rotate(8deg);border-width:7px;border-radius:26px"><img src="img/couch.svg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+        <svg class="mark anim" style="left:0;top:270px" width="112" height="112"><use href="#mark"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <section id="comment">
+    <div class="wrap">
+      <span class="kicker reveal">En 3 étapes</span>
+      <h2 class="display reveal">Simple comme&nbsp;un&nbsp;clic</h2>
+      <p class="lead reveal">Pas de port à ouvrir, pas d'adresse IP à retenir. Waken relie tes appareils entre eux, de façon chiffrée.</p>
+      <div class="steps">
+        <div class="card reveal"><img class="ill" src="img/setup.svg" alt="Un PC de jeu allumé avec sa manette"><div class="num">1</div><h3>Installe Waken sur ta machine</h3><p>Sur ton PC ou ton Mac. Tout est inclus : le serveur de stream et le réseau.</p></div>
+        <div class="card reveal"><img class="ill" src="img/couch.svg" alt="Quelqu'un joue sur son téléphone dans le canapé"><div class="num">2</div><h3>Connecte-toi partout</h3><p>Le même compte sur ton iPhone ou ton iPad : tes jeux arrivent tout seuls, avec leurs pochettes.</p></div>
+        <div class="card reveal"><img class="ill" src="img/game-sunset.svg" alt="Une scène de jeu au coucher du soleil"><div class="num">3</div><h3>Joue</h3><p>Un appui et la machine se réveille, le jeu se lance, l'image arrive. Manette, souris et clavier.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="atouts" class="sky">
+    <div class="wrap">
+      <span class="kicker reveal">Pourquoi Waken</span>
+      <h2 class="display reveal">Ta machine, ta&nbsp;bibliothèque</h2>
+      <p class="lead reveal">Steam, Epic, GOG, EA, Ubisoft, Battle.net, Xbox : Waken trouve tes jeux installés et les range au même endroit.</p>
+      <div class="features">
+        <div class="card feature reveal"><div class="bubble" style="background:var(--lime)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B0F" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></div><div><h3>Réveil à distance</h3><p>Ta machine dort, Waken la rallume quand tu veux jouer.</p></div></div>
+        <div class="card feature reveal"><div class="bubble" style="background:#D6CCFF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B0F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><div><h3>Rien que toi</h3><p>Chaque compte ne voit que ses machines. Le trafic est chiffré de bout en bout.</p></div></div>
+        <div class="card feature reveal"><div class="bubble" style="background:#A6CBFF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B0F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></div><div><h3>Faible latence</h3><p>Image décodée par le matériel, qualité qui s'adapte au réseau.</p></div></div>
+        <div class="card feature reveal"><div class="bubble" style="background:#FFC9AE"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B0F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></div><div><h3>Tes stats</h3><p>Dernière partie, temps de jeu, série de jours : partagés sur tous tes appareils.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="appareils">
+    <div class="wrap">
+      <span class="kicker reveal">Appareils</span>
+      <h2 class="display reveal">Partout, tout&nbsp;de&nbsp;suite</h2>
+      <p class="lead reveal">Ta machine en hôte, tes autres appareils pour jouer.</p>
+      <div class="platforms reveal">
+        <span class="chip">Mac <span class="soon">hôte et client</span></span>
+        <span class="chip">Windows <span class="soon">hôte, bientôt</span></span>
+        <span class="chip">iPhone</span>
+        <span class="chip">iPad</span>
+        <span class="chip">Android <span class="soon">bientôt</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="telecharger" class="cta">
+    <div class="wrap">
+      <svg class="reveal" width="96" height="96" style="transform:rotate(-8deg)"><use href="#mark"/></svg>
+      <h2 class="display reveal">Prêt à jouer&nbsp;?</h2>
+      <p class="lead reveal">Waken est en test. Laisse ton e-mail pour recevoir l'accès.</p>
+      <form class="actions reveal" onsubmit="event.preventDefault(); this.innerHTML='<p class=lead style=font-weight:800;color:var(--ink)>Merci, on te prévient très vite.</p>'">
+        <input type="email" required placeholder="ton@email.fr" aria-label="E-mail" style="height:60px;min-width:280px;padding:0 24px;border-radius:999px;border:3px solid var(--ink);font:inherit;font-size:16px;background:#fff">
+        <button class="btn" type="submit" style="border:0;cursor:pointer;font-family:inherit"><span class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B0F" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>Je veux tester</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <svg width="80" height="25" fill="#8A8D96"><use href="#wordmark"/></svg>
+    <span>Un projet Monarch. Page de test.</span>
+  </div>
+</footer>
+
+<script>
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .15 });
+  document.querySelectorAll('.reveal').forEach((el, i) => { el.style.transitionDelay = (i % 4) * 70 + 'ms'; io.observe(el); });
+</script>
+</body>
+</html>
