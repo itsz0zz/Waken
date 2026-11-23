@@ -32,6 +32,16 @@ using winrt::Microsoft::ReactNative::ReactPromise;
 
 inline constexpr unsigned short AgentPort = 47100;
 
+/// The app's window and its UI thread, set by WinMain: the full screen of a stream is the window's.
+inline winrt::Microsoft::UI::Windowing::AppWindow &MainWindow() {
+  static winrt::Microsoft::UI::Windowing::AppWindow window{nullptr};
+  return window;
+}
+inline winrt::Microsoft::UI::Dispatching::DispatcherQueue &UiQueue() {
+  static winrt::Microsoft::UI::Dispatching::DispatcherQueue queue{nullptr};
+  return queue;
+}
+
 /// Everything Waken writes, in the user's own profile: %LOCALAPPDATA%\Waken.
 inline fs::path DataRoot() {
   PWSTR local = nullptr;
@@ -284,6 +294,19 @@ struct WakenHost {
     } catch (std::exception const &e) {
       result.Reject(e.what());
     }
+  }
+
+  /// The window full screen (a stream) or back to normal. On the UI thread, which owns the window.
+  REACT_METHOD(setFullscreen)
+  void setFullscreen(bool on) noexcept {
+    auto queue = UiQueue();
+    if (!queue) return;
+    queue.TryEnqueue([on] {
+      auto window = MainWindow();
+      if (!window) return;
+      using winrt::Microsoft::UI::Windowing::AppWindowPresenterKind;
+      window.SetPresenter(on ? AppWindowPresenterKind::FullScreen : AppWindowPresenterKind::Default);
+    });
   }
 
   REACT_METHOD(storageRemove)

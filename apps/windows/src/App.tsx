@@ -21,6 +21,7 @@ setPlatform({
   tunnel: hostTunnel,
   // Playing from this PC on another computer: the native view, through the Waken network on ::1.
   StreamView,
+  setFullscreen: (on) => native.setFullscreen(on),
   form: 'desktop',
   deviceName: 'PC',
 });

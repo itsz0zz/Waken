@@ -58,6 +58,8 @@ export interface WakenPlatform {
    * make the stream stutter. Only the user can turn it off (an administrator command).
    */
   wifiInfo?: () => Promise<{ wifi: boolean; awdl: boolean }>;
+  /** The window full screen or back (a desktop playing): the stream's HUD shows the button when this is there. */
+  setFullscreen?: (on: boolean) => void;
   /** Puts a text on the clipboard. */
   copyText?: (text: string) => Promise<void>;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */

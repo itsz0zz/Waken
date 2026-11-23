@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { ChevronDown, ChevronUp, Keyboard, X } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Keyboard, Maximize2, Minimize2, X } from 'lucide-react-native';
 import { AgentClient, HttpError } from '@waken/core';
 import { colors, fonts, PillButton, PressScale, RoundButton, type } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
@@ -36,7 +36,14 @@ export function StreamScreen({
   const device = useDevice(deviceId);
   const game = useGame(gameId);
   const chosen = useWaken((s) => s.settings.stream);
-  const { StreamView, toggleKeyboard } = platform();
+  const { StreamView, toggleKeyboard, setFullscreen } = platform();
+  // The desktop's full screen: the window's, given back when the stream ends.
+  const [fullscreen, setFullscreenState] = useState(false);
+  const toggleFullscreen = () => {
+    setFullscreen?.(!fullscreen);
+    setFullscreenState(!fullscreen);
+  };
+  useEffect(() => () => setFullscreen?.(false), []);
   // Lowered when the tunnel only has a relayed path: 40 Mb/s through a relay loses most of the video.
   const [q, setQ] = useState(chosen);
   const [relayed, setRelayed] = useState(false);
@@ -162,6 +169,9 @@ export function StreamScreen({
           </View>
           <View style={{ position: 'absolute', top: 18, right: 24, flexDirection: 'row', gap: 8 }}>
             {toggleKeyboard ? <RoundButton icon={Keyboard} label="Clavier" size={44} variant="frost" onPress={toggleKeyboard} /> : null}
+            {setFullscreen ? (
+              <RoundButton icon={fullscreen ? Minimize2 : Maximize2} label={fullscreen ? 'Quitter le plein écran' : 'Plein écran'} size={44} variant="frost" onPress={toggleFullscreen} />
+            ) : null}
             <RoundButton icon={ChevronUp} label="Masquer les contrôles" size={44} variant="frost" onPress={() => setHud(false)} />
             <PressScale onPress={leave} style={styles.quit} accessibilityRole="button" accessibilityLabel="Quitter">
               <X size={16} color={colors.white} strokeWidth={3} />

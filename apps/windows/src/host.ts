@@ -14,6 +14,7 @@ interface NativeStatus {
 interface Native {
   start(): Promise<void>;
   status(): Promise<string>;
+  setFullscreen(on: boolean): void;
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;

@@ -199,6 +199,9 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   auto appWindow{reactNativeWin32App.AppWindow()};
   appWindow.Title(L"Waken");
   appWindow.Resize({1280, 800});
+  // For the stream's full screen (WakenHost.setFullscreen).
+  Waken::MainWindow() = appWindow;
+  Waken::UiQueue() = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread();
 
   // Get the ReactViewOptions so we can set the initial RN component to load
   auto viewOptions{reactNativeWin32App.ReactViewOptions()};
