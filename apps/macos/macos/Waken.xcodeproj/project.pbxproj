@@ -11,9 +11,9 @@
 		5142014D2437B4B30078DB4F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5142014C2437B4B30078DB4F /* AppDelegate.swift */; };
 		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
 		5A1E0C0D9B2F4A7E8C3D1F01 /* PushRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D9B2F4A7E8C3D1F02 /* PushRegistrar.swift */; };
+		5A1E0C0D9B2F4A7E8C3D1F03 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D9B2F4A7E8C3D1F04 /* AppleSignIn.swift */; };
 		71E391236D830D9B45D733E5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4FF51AD7395923ADBC75EC13 /* PrivacyInfo.xcprivacy */; };
 		74BBC99EBF041BBCF8FC5E32 /* WakenHostModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76FAAF86B0DE5CBDB6EE080 /* WakenHostModule.swift */; };
-		5A1E0C0D9B2F4A7E8C3D1F03 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D9B2F4A7E8C3D1F04 /* AppleSignIn.swift */; };
 		7CCCD94035CCE628B8CA3784 /* HostServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C460D141BB56C8C9DDA8F9 /* HostServices.swift */; };
 		80AD487A580775F2EA5E37BE /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 2EF3583CE15D9FEFA2095AC6 /* Fonts */; };
 		AE5CE2210A8393159E7EAAA7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4FF51AD7395923ADBC75EC13 /* PrivacyInfo.xcprivacy */; };
@@ -31,9 +31,9 @@
 		514201562437B4B40078DB4F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		514201592437B4B40078DB4F /* Waken.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Waken.entitlements; sourceTree = "<group>"; };
 		5A1E0C0D9B2F4A7E8C3D1F02 /* PushRegistrar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PushRegistrar.swift; sourceTree = "<group>"; };
+		5A1E0C0D9B2F4A7E8C3D1F04 /* AppleSignIn.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
 		A2A829CB9865CB45FD8D4980 /* Pods-Waken-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Waken-macOS.debug.xcconfig"; path = "Target Support Files/Pods-Waken-macOS/Pods-Waken-macOS.debug.xcconfig"; sourceTree = "<group>"; };
 		BDB1949ADA682D16062D37D3 /* Pods-Waken-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Waken-macOS.release.xcconfig"; path = "Target Support Files/Pods-Waken-macOS/Pods-Waken-macOS.release.xcconfig"; sourceTree = "<group>"; };
-		5A1E0C0D9B2F4A7E8C3D1F04 /* AppleSignIn.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
 		C1C460D141BB56C8C9DDA8F9 /* HostServices.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostServices.swift; sourceTree = "<group>"; };
 		EC8B1CE266F720226323D740 /* libPods-Waken-macOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Waken-macOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -356,6 +356,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BPA8N94FHP;
@@ -368,7 +369,6 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = fr.wakenplay.mac;
-				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				PRODUCT_NAME = Waken;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -381,6 +381,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BPA8N94FHP;
@@ -392,7 +393,6 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = fr.wakenplay.mac;
-				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				PRODUCT_NAME = Waken;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -405,6 +405,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = NO;
@@ -418,7 +419,6 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = fr.wakenplay.mac;
-				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				PRODUCT_NAME = Waken;
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -432,6 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BPA8N94FHP;
@@ -444,7 +445,6 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = fr.wakenplay.mac;
-				CODE_SIGN_ENTITLEMENTS = "Waken-macOS/Waken.entitlements";
 				PRODUCT_NAME = Waken;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
