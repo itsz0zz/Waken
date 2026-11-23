@@ -141,7 +141,12 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   winrt::Microsoft::UI::Composition::Visual CreateVisual(ComponentView const &view) {
     auto compositor = view.as<winrt::Microsoft::ReactNative::Composition::ComponentView>().Compositor();
     m_visual = compositor.CreateSpriteVisual();
-    m_visual.Brush(compositor.CreateColorBrush(winrt::Windows::UI::Color{255, 0, 0, 0}));
+    // The picture lives in a visual of its own, inside the component's: React Native Windows sets the component
+    // visual's brush itself (its background colour) at each update, which wiped the picture out.
+    m_content = compositor.CreateSpriteVisual();
+    m_content.RelativeSizeAdjustment({1.0f, 1.0f});
+    m_content.Brush(compositor.CreateColorBrush(winrt::Windows::UI::Color{255, 0, 0, 0}));
+    m_visual.Children().InsertAtTop(m_content);
     // The props came first: the stream waited for its visual.
     if (m_pending) {
       auto launch = std::move(*m_pending);
@@ -220,7 +225,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       m_session->Video().SetTarget(surface.as<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop>());
       auto brush = compositor.CreateSurfaceBrush(surface);
       brush.Stretch(winrt::Microsoft::UI::Composition::CompositionStretch::Uniform);
-      m_visual.Brush(brush);
+      m_content.Brush(brush);
       m_graphics = graphics;
     } catch (winrt::hresult_error const &e) {
       Log("[stream] affichage : " + winrt::to_string(e.message()));
@@ -390,6 +395,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
 
   ComponentView m_view{nullptr};
   winrt::Microsoft::UI::Composition::SpriteVisual m_visual{nullptr};
+  winrt::Microsoft::UI::Composition::SpriteVisual m_content{nullptr};
   winrt::Microsoft::UI::Composition::CompositionGraphicsDevice m_graphics{nullptr};
   std::shared_ptr<StreamSession> m_session;
   std::optional<LaunchInfo> m_pending;
