@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Flame, Gauge, Play, Power, Wifi, WifiOff } from 'lucide-react-native';
+import { Copy, Flame, Gauge, Play, Power, Wifi, WifiOff } from 'lucide-react-native';
 import { canWake } from '@waken/core';
-import { AppMark, Art, colors, Display, IconBubble, PillButton, PlatformIcon, shadows, StatusTag, TiltedArt, type } from '@waken/ui';
+import { AppMark, Art, Card, colors, Display, IconBubble, PillButton, PlatformIcon, shadows, StatusTag, TiltedArt, type } from '@waken/ui';
 import { formatPlayTime, useDeviceStatus, useGame, useGameArt, useHostStats } from '../hooks';
 import { useFrame, useNav } from '../nav';
+import { platform } from '../platform';
 import { useHostNode } from '../network';
 import { qualities, qualityOf } from '../quality';
 import { useWaken } from '../store';
@@ -87,6 +89,7 @@ export function GameScreen({ gameId }: { gameId: string }) {
     <View style={{ gap: 10 }}>
       <PillButton label={ready || !wakeable ? 'Jouer' : 'Réveiller et jouer'} icon={ready || !wakeable ? Play : Power} size="lg" onPress={play} />
       {wakeable && !ready ? <PillButton label="Réveiller seulement" variant="ghost" onPress={() => nav.wakeOnly(game.deviceId)} /> : null}
+      {machine.device?.local ? null : <WifiAdvice />}
     </View>
   );
 
@@ -153,3 +156,55 @@ function Stat({ icon, color, value, caption }: { icon: typeof Wifi; color: strin
     </View>
   );
 }
+
+const AWDL_OFF = 'sudo ifconfig awdl0 down';
+
+/**
+ * The Mac on Wi-Fi with AWDL up: its scans for AirDrop and Handoff take the radio away several times a second, and
+ * the stream stutters. Turning it off needs an administrator command, so the app says how, as Parsec does.
+ */
+function WifiAdvice() {
+  const { wifiInfo, copyText } = platform();
+  const [shown, setShown] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!wifiInfo) return;
+    let alive = true;
+    const check = () =>
+      void wifiInfo()
+        .then((info) => alive && setShown(info.wifi && info.awdl))
+        .catch(() => {});
+    check();
+    const timer = setInterval(check, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [wifiInfo]);
+  if (!shown) return null;
+  return (
+    <Card style={{ gap: 8, padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <IconBubble icon={Wifi} color={colors.hot} size={34} />
+        <Text style={[type.label, { flex: 1, color: colors.ink }]}>En Wi-Fi, AirDrop peut faire saccader l'image</Text>
+      </View>
+      <Text style={[type.caption, { color: colors.ink2 }]}>
+        Pour une partie fluide, lance cette commande dans le Terminal avant de jouer. AirDrop et Handoff reviennent au
+        prochain redémarrage. Un câble évite tout ça.
+      </Text>
+      <Text selectable style={{ fontFamily: 'Menlo', fontSize: 13, color: colors.ink }}>
+        {AWDL_OFF}
+      </Text>
+      {copyText ? (
+        <PillButton
+          label={copied ? 'Copiée' : 'Copier la commande'}
+          icon={Copy}
+          variant="white"
+          size="sm"
+          onPress={() => void copyText(AWDL_OFF).then(() => setCopied(true))}
+        />
+      ) : null}
+    </Card>
+  );
+}
+

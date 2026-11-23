@@ -29,6 +29,8 @@ interface Native {
   pushToken(): Promise<string | null>;
   /** Apple's sign-in sheet: Apple's identity token and one-time code, or null when closed. */
   appleSignIn(): Promise<{ identityToken: string; authorizationCode?: string } | null>;
+  wifiInfo(): Promise<{ wifi: boolean; awdl: boolean }>;
+  copyText(text: string): Promise<void>;
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;

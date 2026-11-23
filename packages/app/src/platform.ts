@@ -53,6 +53,13 @@ export interface WakenPlatform {
   appleSignIn?: () => Promise<AppleCredential | null>;
   /** ios | macos: which app the server addresses the notifications to. */
   pushPlatform?: 'ios' | 'macos';
+  /**
+   * The Mac: on Wi-Fi with AWDL up (AirDrop, Handoff), whose scans take the radio away several times a second and
+   * make the stream stutter. Only the user can turn it off (an administrator command).
+   */
+  wifiInfo?: () => Promise<{ wifi: boolean; awdl: boolean }>;
+  /** Puts a text on the clipboard. */
+  copyText?: (text: string) => Promise<void>;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */
   canUseMoonlightApp?: boolean;
 }

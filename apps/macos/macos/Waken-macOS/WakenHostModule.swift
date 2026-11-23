@@ -1,5 +1,7 @@
 import AppKit
+import Darwin
 import Foundation
+import Network
 import React
 
 /// The Mac host, seen from JavaScript: starts the services, reports their state and the permissions,
@@ -9,6 +11,12 @@ final class WakenHostModule: NSObject {
   @objc static func requiresMainQueueSetup() -> Bool { false }
 
   private var services: HostServices { HostServices.shared }
+
+  override init() {
+    super.init()
+    // Follows the network from the start: its first answer comes a moment later.
+    _ = NetworkPath.shared
+  }
 
   @objc func start(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
     services.startOnce()
@@ -68,6 +76,20 @@ final class WakenHostModule: NSObject {
       case .failure(let error): reject("waken", error.localizedDescription, error)
       }
     }
+  }
+
+  /// {wifi, awdl}: this Mac reaches the network over Wi-Fi, and AWDL (AirDrop, Handoff) is up on the same radio.
+  /// Together they make a stream stutter: AWDL takes the radio away several times a second.
+  @objc func wifiInfo(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    resolve(["wifi": NetworkPath.shared.onWifi, "awdl": NetworkPath.interfaceUp("awdl0")])
+  }
+
+  @objc func copyText(_ text: String, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    DispatchQueue.main.async {
+      NSPasteboard.general.clearContents()
+      NSPasteboard.general.setString(text, forType: .string)
+    }
+    resolve(nil)
   }
 
   @objc func tunnelJoin(_ controlUrl: String, authKey: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -136,5 +158,44 @@ final class WakenHostModule: NSObject {
     } catch {
       reject("waken", error.localizedDescription, error)
     }
+  }
+}
+
+/// How this Mac reaches the network right now, followed from the start of the app.
+final class NetworkPath {
+  static let shared = NetworkPath()
+  private let monitor = NWPathMonitor()
+  private let lock = NSLock()
+  private var wifi = false
+
+  private init() {
+    monitor.pathUpdateHandler = { [weak self] path in
+      guard let self else { return }
+      // A cable wins: with both, the stream goes through the Ethernet port.
+      let onWifi = path.status == .satisfied && path.usesInterfaceType(.wifi) && !path.usesInterfaceType(.wiredEthernet)
+      self.lock.lock()
+      self.wifi = onWifi
+      self.lock.unlock()
+    }
+    monitor.start(queue: DispatchQueue(label: "fr.wakenplay.network-path"))
+  }
+
+  var onWifi: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return wifi
+  }
+
+  /// Whether a network interface is up: readable by any app, no permission needed.
+  static func interfaceUp(_ name: String) -> Bool {
+    var list: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&list) == 0, let first = list else { return false }
+    defer { freeifaddrs(list) }
+    var item: UnsafeMutablePointer<ifaddrs>? = first
+    while let entry = item {
+      if String(cString: entry.pointee.ifa_name) == name, (Int32(entry.pointee.ifa_flags) & IFF_UP) != 0 { return true }
+      item = entry.pointee.ifa_next
+    }
+    return false
   }
 }

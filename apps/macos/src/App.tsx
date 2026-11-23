@@ -25,6 +25,8 @@ setPlatform({
   deviceName: 'Mac',
   pushToken: () => host.pushToken(),
   appleSignIn: () => host.appleSignIn(),
+  wifiInfo: () => host.wifiInfo(),
+  copyText: (text) => host.copyText(text),
   pushPlatform: 'macos',
 });
 
