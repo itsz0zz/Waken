@@ -1,7 +1,7 @@
-# Builds and starts Waken for Windows: the React Native app with the stream server (Sunshine), the Waken agent
+﻿# Builds and starts Waken for Windows: the React Native app with the stream server (Sunshine), the Waken agent
 # and the Waken network inside. Nothing else to install on the PC once it runs.
 #
-# Needs, once: Node.js 22+, pnpm, the .NET 10 SDK, Visual Studio 2022 with "Desktop development with C++"
+# Needs, once: Node.js 22+, pnpm, PowerShell 7, the .NET 10 SDK, Visual Studio 2022 with "Desktop development with C++"
 # (and the Windows App SDK / UWP C++ tools it proposes for React Native Windows). Go is fetched if missing.
 #
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1            # Release, installed and started
@@ -40,6 +40,9 @@ Step 'Outils'
 Need node 'installe Node.js 22 ou plus (https://nodejs.org)'
 Need pnpm 'installe-le : npm install -g pnpm'
 Need dotnet 'installe le SDK .NET 10 (https://dot.net)'
+# React Native Windows runs its tools with PowerShell 7 (pwsh.exe), not Windows PowerShell: without it the
+# CLI has no run-windows command at all.
+Need pwsh 'installe PowerShell 7 : winget install --id Microsoft.PowerShell -e, puis rouvre la fenêtre'
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path $vswhere) -or -not (& $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)) {
   throw 'Visual Studio 2022 avec « Développement Desktop en C++ » introuvable.'
