@@ -1,0 +1,15 @@
+diff --git a/windows/RNSVG/ReactPackageProvider.cpp b/windows/RNSVG/ReactPackageProvider.cpp
+index e796524df831f7f773d374a3b6a81219f9800402..a7846a755a9b68291eb1d7f3fbba33dbcc43658c 100644
+--- a/windows/RNSVG/ReactPackageProvider.cpp
++++ b/windows/RNSVG/ReactPackageProvider.cpp
+@@ -50,7 +50,9 @@ namespace winrt::RNSVG::implementation
+ {
+   void ReactPackageProvider::CreatePackage(IReactPackageBuilder const &packageBuilder) noexcept
+   {
+-    AddAttributedModules(packageBuilder);
++    // Waken: as TurboModules. React Native Windows 0.83 removed the old module registration and closes the app
++    // (std::terminate) when a package still uses it, which react-native-svg 15.16 does for its RNSVG module.
++    AddAttributedModules(packageBuilder, true);
+ 
+ #ifdef USE_FABRIC
+     auto fabricPackageBuilder = packageBuilder.as<winrt::Microsoft::ReactNative::IReactPackageBuilderFabric>();

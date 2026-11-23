@@ -2,3 +2,5 @@ packages:
   - apps/*
   - packages/*
   - modules/*
+patchedDependencies:
+  react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
