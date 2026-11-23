@@ -3,7 +3,7 @@ import { Animated, Easing, Linking, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Check, Cable, Clock, Gamepad2, Loader, Plug, Power, Rocket, Wifi, type LucideIcon } from 'lucide-react-native';
 import { wakeAndWait, withRelaySettings, type WakeProgress, type WakeStepId } from '@waken/core';
-import { AppMark, colors, Display, IconBubble, MachineChip, PillButton, RoundButton, shadows, type, Wordmark } from '@waken/ui';
+import { AppMark, colors, Display, IconBubble, MachineChip, nativeDriver, PillButton, RoundButton, shadows, type, Wordmark } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { pointStreamAt } from '../network';
@@ -11,6 +11,7 @@ import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
 import { Screen } from './Screen';
+import { StreamScreen } from './Stream';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -22,10 +23,23 @@ const steps: { id: WakeStepId; label: string; icon: LucideIcon }[] = [
 ];
 
 /**
- * "RÉVEIL": waits for the machine (waking it when it can), then hands over to the stream.
- * A PlayStation opens PS Remote Play; the Moonlight engine hands over to Moonlight.
+ * "RÉVEIL": waits for the machine (waking it when it can), then starts the stream underneath, invisible, and
+ * stays until its first picture: the player never sees a half-connected stream. A PlayStation opens PS Remote
+ * Play; the Moonlight engine hands over to Moonlight. onLiveChange: the stream shows (the iPhone turns landscape).
  */
-export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; gameId?: string; app?: string; only?: boolean }) {
+export function WakeScreen({
+  deviceId,
+  gameId,
+  app,
+  only,
+  onLiveChange,
+}: {
+  deviceId: string;
+  gameId?: string;
+  app?: string;
+  only?: boolean;
+  onLiveChange?: (live: boolean) => void;
+}) {
   const nav = useNav();
   const device = useDevice(deviceId);
   const game = useGame(gameId);
@@ -35,10 +49,36 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
   const [progress, setProgress] = useState<WakeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // The machine answered: the stream connects underneath. live: its first picture is there, it covers this screen.
+  const [streaming, setStreaming] = useState(false);
+  const [live, setLive] = useState(false);
+  useEffect(() => onLiveChange?.(live), [live]);
   const abort = useRef(new AbortController());
   // The ring follows the steps smoothly instead of jumping from one to the next (an SVG prop: no native driver).
   const ring = useRef(new Animated.Value(0.05)).current;
   const done = steps.filter((st) => progress?.states[st.id] === 'done').length;
+  // Something always moves while it waits: an arc running round the ring, the W breathing, the clock ticking.
+  const spin = useRef(new Animated.Value(0)).current;
+  const breath = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loops = [
+      Animated.loop(Animated.timing(spin, { toValue: 1, duration: 1300, easing: Easing.linear, useNativeDriver: nativeDriver })),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(breath, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+          Animated.timing(breath, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+        ])
+      ),
+    ];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [spin, breath]);
+  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     Animated.timing(ring, { toValue: Math.max(0.05, done / steps.length), duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
   }, [done, ring]);
@@ -50,6 +90,9 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
     abort.current = ctrl;
     setError(null);
     setProgress(null);
+    setStreaming(false);
+    setLive(false);
+    setStartedAt(Date.now());
     const useMoonlight = !only && settings.engine === 'moonlight-app' && platform().canUseMoonlightApp;
 
     const run = async () => {
@@ -68,7 +111,7 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
         await Linking.openURL(settings.moonlightUrl);
         nav.back();
       } else {
-        nav.stream(device.id, gameId, app);
+        setStreaming(true);
       }
     };
 
@@ -79,13 +122,31 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
   }, [deviceId, attempt]);
 
   if (!device) return null;
-  if (error) return <WakeError name={device.name} message={error} found={!!device.stream?.tunnelHost} onRetry={() => setAttempt((a) => a + 1)} />;
+  if (error && !live) return <WakeError name={device.name} message={error} found={!!device.stream?.tunnelHost} onRetry={() => setAttempt((a) => a + 1)} />;
 
-  const elapsed = Math.floor((progress?.elapsedMs ?? 0) / 1000);
+  // Its own clock: the steps stop reporting while the stream connects, the time keeps going.
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
   const doneCount = steps.filter((s) => progress?.states[s.id] === 'done').length;
   const circ = 2 * Math.PI * 104;
 
+  const stream = streaming ? (
+    <StreamScreen
+      deviceId={device.id}
+      gameId={gameId}
+      app={app}
+      onLive={setLive}
+      onFail={(message) => {
+        setStreaming(false);
+        setError(message);
+      }}
+    />
+  ) : null;
+  // Same native views before and after the first picture. The stream stops as soon as its view leaves its
+  // parent: this container must neither remount nor be flattened away by React Native (a container whose
+  // style only places things has no native view, and gets one, moving its children, when a colour appears).
   return (
+    <View collapsable={false} style={{ flex: 1, backgroundColor: '#000' }}>
+    {live ? null : (
     <Screen ground="lime" maxWidth={720}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Wordmark height={26} />
@@ -94,18 +155,31 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
       <Display size={104} style={{ marginTop: 14 }}>
         Réveil
       </Display>
-      <View style={{ width: 232, height: 232, alignSelf: 'center', marginTop: -26, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 232, height: 232, alignSelf: 'center', marginTop: 22, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
           <Circle cx={116} cy={116} r={104} stroke={colors.white} strokeWidth={14} fill="none" />
           <AnimatedCircle cx={116} cy={116} r={104} stroke={colors.ink} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ}`} strokeDashoffset={ring.interpolate({ inputRange: [0, 1], outputRange: [circ, 0] })} />
         </Svg>
-        <View style={{ transform: [{ rotate: '-8deg' }], ...shadows.lift }}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ position: 'absolute', width: 232, height: 232, transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }}
+        >
+          <Svg width={232} height={232} viewBox="0 0 232 232">
+            <Circle cx={116} cy={116} r={104} stroke={colors.blue} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ * 0.1} ${circ}`} />
+          </Svg>
+        </Animated.View>
+        <Animated.View
+          style={{
+            transform: [{ rotate: '-8deg' }, { scale: breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }],
+            ...shadows.lift,
+          }}
+        >
           <AppMark size={66} />
-        </View>
+        </Animated.View>
         <Text style={[type.display, { fontSize: 46, lineHeight: 58, marginTop: 2, color: colors.ink }]}>{`${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}</Text>
       </View>
       <Text style={[type.title, { color: colors.ink, textAlign: 'center', marginTop: 14 }]}>
-        {progress?.states.signal === 'done' || !progress ? `${device.name} se prépare` : `${device.name} se réveille`}
+        {streaming ? `${game?.title ?? (app && app !== 'Desktop' ? app : 'Le bureau')} arrive` : progress?.states.signal === 'done' || !progress ? `${device.name} se prépare` : `${device.name} se réveille`}
       </Text>
       <View style={{ alignItems: 'center', marginTop: 10 }}>
         <MachineChip name={game?.title ?? app ?? 'Bureau'} icon={machine.icon} />
@@ -133,6 +207,9 @@ export function WakeScreen({ deviceId, gameId, app, only }: { deviceId: string; 
         })}
       </View>
     </Screen>
+    )}
+    {stream}
+    </View>
   );
 }
 

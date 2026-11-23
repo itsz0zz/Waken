@@ -8,7 +8,7 @@ public sealed class MacAppSource(Func<string, string[], string> run) : IGameSour
     private const string Query = "kMDItemAppStoreCategoryType == \"public.app-category.*games\"";
 
     /// <summary>Apps in the games category that are not games to stream.</summary>
-    private static readonly string[] Excluded = ["com.moonlight-stream.Moonlight", "com.apple.games", "com.valvesoftware.steam", "fr.hdmsoft."];
+    private static readonly string[] Excluded = ["com.moonlight-stream.Moonlight", "com.apple.games", "com.valvesoftware.steam", "fr.wakenplay."];
 
     public static string RunProcess(string file, string[] args)
     {

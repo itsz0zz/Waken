@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
-group = 'fr.hdmsoft.wakenstream'
+group = 'fr.wakenplay.stream'
 version = '0.1.0'
 
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
@@ -11,6 +11,6 @@ useCoreDependencies()
 useExpoPublishing()
 
 android {
-  namespace "fr.hdmsoft.wakenstream"
+  namespace "fr.wakenplay.stream"
   defaultConfig { minSdkVersion 26 }
 }

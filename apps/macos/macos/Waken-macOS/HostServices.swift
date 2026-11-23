@@ -108,7 +108,7 @@ final class HostServices {
   private(set) var agent: Process?
   private(set) var tunnel: Process?
   private var tunnelInput: FileHandle?
-  private let queue = DispatchQueue(label: "fr.hdmsoft.waken.host")
+  private let queue = DispatchQueue(label: "fr.wakenplay.mac.host")
   private var started = false
   private(set) var startError: String?
 
@@ -139,6 +139,7 @@ final class HostServices {
 
   private func start() throws {
     guard embedded else { throw ServiceError.missing("Sunshine") }
+    stopOrphans()
     try Setup.privateFolder(paths.root)
     try Setup.privateFolder(paths.sunshine)
     try Setup.privateFolder(paths.agent)
@@ -181,6 +182,30 @@ final class HostServices {
     guard waitForPort(agentPort) else { throw ServiceError.notStarted("L'agent") }
 
     try startTunnel(token: token)
+  }
+
+  /// A Waken killed without quitting (crash, kill, an update replacing the app) leaves its Sunshine and agent
+  /// running. They hold the ports: the new Sunshine cannot start, and the old one, cut from its app, sends no
+  /// picture. Any left over from a previous run goes before this one starts.
+  private func stopOrphans() {
+    let names = ["Contents/Resources/Sunshine.app/Contents/MacOS/Sunshine", "Contents/Resources/agent/Waken.Agent", "Contents/Resources/waken-tunnel"]
+    for name in names {
+      let pkill = Process()
+      pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+      // Our own processes only (pkill never touches another user's), matched on their full path.
+      pkill.arguments = ["-TERM", "-f", name]
+      try? pkill.run()
+      pkill.waitUntilExit()
+    }
+    let deadline = Date().addingTimeInterval(8)
+    while (Self.isListening(sunshinePort) || Self.isListening(agentPort)) && Date() < deadline { usleep(200_000) }
+    for name in names where Self.isListening(sunshinePort) || Self.isListening(agentPort) {
+      let pkill = Process()
+      pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+      pkill.arguments = ["-KILL", "-f", name]
+      try? pkill.run()
+      pkill.waitUntilExit()
+    }
   }
 
   private func launchSunshine() throws {

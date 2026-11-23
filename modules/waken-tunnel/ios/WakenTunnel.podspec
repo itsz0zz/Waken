@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
   s.summary        = "Waken's private network: an embedded Tailscale node (tsnet), built from tunnel/ in this repository"
   s.license        = 'BSD-3-Clause'
   s.author         = 'Monarch'
-  s.homepage       = 'https://github.com/hdm-soft/waken'
+  s.homepage       = 'https://wakenplay.fr'
   s.platforms      = { :ios => '17.0' }
   s.source         = { git: '' }
   s.static_framework = true

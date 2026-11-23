@@ -23,7 +23,7 @@ static const double kPreferredIOBufferSeconds = 0.005;
   if (!_decoder) return nil;
 
   _maxBacklog = (long)(sampleRate * kMaxBacklogSeconds);
-  _queue = dispatch_queue_create("fr.hdmsoft.waken.audio", DISPATCH_QUEUE_SERIAL);
+  _queue = dispatch_queue_create("fr.wakenplay.stream.audio", DISPATCH_QUEUE_SERIAL);
   _observers = [NSMutableArray array];
   _engine = [AVAudioEngine new];
   _node = [AVAudioPlayerNode new];

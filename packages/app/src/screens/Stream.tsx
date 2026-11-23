@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
-import { Check, ChevronDown, ChevronUp, Keyboard, X } from 'lucide-react-native';
-import { AgentClient, HttpError, type Game } from '@waken/core';
-import { Art, colors, FadeIn, fonts, PillButton, PressScale, RoundButton, TiltedArt, type } from '@waken/ui';
-import { useDevice, useGame, useGameArt } from '../hooks';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { ChevronDown, ChevronUp, Keyboard, X } from 'lucide-react-native';
+import { AgentClient, HttpError } from '@waken/core';
+import { colors, fonts, PillButton, PressScale, RoundButton, type } from '@waken/ui';
+import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { pathTo, pointStreamAt } from '../network';
 import { platform, type LaunchInfo, type StreamState, type StreamStats } from '../platform';
@@ -11,9 +11,27 @@ import { forPath } from '../quality';
 import { useWaken } from '../store';
 
 const CONFLICT = 409;
+/** Connected without a single picture for this long: something is wrong on the computer. */
+const NO_PICTURE_MS = 20_000;
 
-/** In game: the native video view, and a small HUD (game, connection, keyboard, quit). */
-export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: string; gameId?: string; app?: string }) {
+/**
+ * In game: the native video view, and a small HUD (game, connection, keyboard, quit).
+ * Until the first picture it shows nothing: it sits, invisible, over the screen that started it (Réveil), which
+ * keeps the player waiting. onLive says when the picture is there; onFail, why it never came.
+ */
+export function StreamScreen({
+  deviceId,
+  gameId,
+  app: appParam,
+  onLive,
+  onFail,
+}: {
+  deviceId: string;
+  gameId?: string;
+  app?: string;
+  onLive?: (live: boolean) => void;
+  onFail?: (message: string) => void;
+}) {
   const nav = useNav();
   const device = useDevice(deviceId);
   const game = useGame(gameId);
@@ -44,6 +62,7 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
       setLaunch({ ...launched, address: device.stream!.host });
     };
     const fail = (e: Error) => setState({ state: 'error', message: `Lancement impossible : ${e.message}` });
+    setState({ state: 'connecting' });
 
     start(false).catch((e: Error) => {
       if (!(e instanceof HttpError && e.status === CONFLICT)) return fail(e);
@@ -61,12 +80,28 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
     run();
   }, []);
 
-  const retry = () => {
-    setLaunch(null);
-    setStats(null);
-    setState({ state: 'connecting' });
-    run();
-  };
+  // Live from the first picture on: from then, a problem shows in the HUD instead of sending back to Réveil.
+  const [everLive, setEverLive] = useState(false);
+  // Live when pictures arrive, not when the connection is up: a computer that connects but sends nothing
+  // (screen recording not allowed, a stale stream server) must not show a black screen.
+  const live = state.state === 'streaming' && (stats?.fps ?? 0) > 0;
+  useEffect(() => {
+    if (everLive || state.state !== 'streaming') return;
+    const timer = setTimeout(
+      () => onFail?.("Ta machine est connectée mais n'envoie aucune image. Sur le Mac, vérifie que Waken peut enregistrer l'écran, puis relance Waken."),
+      NO_PICTURE_MS
+    );
+    return () => clearTimeout(timer);
+  }, [state.state, everLive]);
+  useEffect(() => {
+    if (live) setEverLive(true);
+    onLive?.(live || everLive);
+  }, [live]);
+  useEffect(() => {
+    if (everLive) return;
+    if (state.state === 'error') onFail?.(state.message);
+    else if (state.state === 'stopped') onFail?.('La machine a arrêté le stream avant la première image.');
+  }, [state, everLive]);
 
   const closeGame = async () => {
     try {
@@ -87,7 +122,14 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
     ]);
   };
 
-  if (!StreamView || !device) {
+  const unavailable = !StreamView || !device;
+  useEffect(() => {
+    // Inside Réveil: it says it, with its own error screen.
+    if (unavailable) onFail?.(!device ? 'Machine introuvable.' : 'Ce build ne contient pas le module de stream.');
+  }, [unavailable]);
+
+  if (unavailable) {
+    if (onFail) return null;
     return (
       <View style={[styles.root, { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 }]}>
         <Text style={[type.title, { color: colors.white, textAlign: 'center' }]}>Stream indisponible</Text>
@@ -99,27 +141,16 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
     );
   }
 
-  // Until the first picture, the player sees a loading screen, never a black screen with a status line.
-  const live = state.state === 'streaming';
   const quality = state.state === 'error' ? 'Erreur' : state.state !== 'streaming' ? 'Connexion…' : relayed ? 'Relais · 720p' : 'Connexion top';
   const dot = state.state === 'error' ? colors.danger : state.state !== 'streaming' ? colors.waking : relayed ? colors.hot : colors.online;
 
   return (
-    <View style={styles.root}>
+    // Not live yet: there, connecting, but invisible and untouchable over the screen underneath.
+    <View collapsable={false} style={[styles.root, !everLive && styles.hidden]} pointerEvents={everLive ? 'auto' : 'none'}>
       {launch ? (
         <StreamView launch={launch} settings={q} remote onStateChange={setState} onStats={setStats} />
       ) : null}
-      {!live ? (
-        <StreamLoading
-          game={game}
-          title={title}
-          machine={device.name}
-          step={!launch ? 'launch' : 'connect'}
-          error={state.state === 'error' ? state.message : state.state === 'stopped' ? 'La machine a arrêté le stream.' : undefined}
-          onCancel={nav.back}
-          onRetry={retry}
-        />
-      ) : hud ? (
+      {!everLive ? null : hud ? (
         <>
           <View pointerEvents="none" style={[styles.pill, { top: 18, left: 24 }]}>
             <Text numberOfLines={1} style={[type.display, { fontSize: 20, lineHeight: 26, color: colors.white, maxWidth: 260 }]}>
@@ -139,7 +170,7 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
           </View>
           <View pointerEvents="none" style={[styles.pill, { bottom: 18, alignSelf: 'center' }]}>
             <Text style={[type.caption, { color: colors.white }]}>
-              {form === 'phone' ? 'Masque les contrôles pour jouer plein écran' : 'Ctrl + Alt + Maj + Q pour quitter'}
+              {state.state === 'error' ? state.message : state.state === 'stopped' ? 'Stream terminé' : form === 'phone' ? 'Masque les contrôles pour jouer plein écran' : 'Ctrl + Alt + Maj + Q pour quitter'}
             </Text>
           </View>
         </>
@@ -153,66 +184,8 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
   );
 }
 
-type Step = 'launch' | 'connect';
-const steps: { id: Step | 'play'; label: string }[] = [
-  { id: 'launch', label: 'Lancement du jeu sur ta machine' },
-  { id: 'connect', label: 'Connexion au stream' },
-  { id: 'play', label: "Première image" },
-];
-
-/** Over the stream until its first picture: the game, what is happening, and a way out. */
-function StreamLoading({ game, title, machine, step, error, onCancel, onRetry }: {
-  game?: Game;
-  title: string;
-  machine: string;
-  step: Step;
-  error?: string;
-  onCancel: () => void;
-  onRetry: () => void;
-}) {
-  const hero = useGameArt(game, 'hero');
-  const cover = useGameArt(game, 'cover');
-  const current = steps.findIndex((s) => s.id === step);
-  return (
-    <View style={[StyleSheet.absoluteFill, styles.loading]}>
-      {hero ? <Art source={hero} blur={30} style={[StyleSheet.absoluteFill, { opacity: 0.35 }]} /> : null}
-      <FadeIn style={{ alignItems: 'center', gap: 22, maxWidth: 440, width: '100%', paddingHorizontal: 28 }}>
-        <TiltedArt source={cover} title={title} width={150} height={196} rotate={-4} />
-        <View style={{ alignItems: 'center', gap: 4 }}>
-          <Text numberOfLines={2} style={[type.display, { fontSize: 30, lineHeight: 38, color: colors.white, textAlign: 'center' }]}>{title}</Text>
-          <Text style={[type.caption, { color: colors.sky }]}>{machine}</Text>
-        </View>
-        {error ? (
-          <View style={{ alignItems: 'center', gap: 16 }}>
-            <Text style={[type.body, { color: colors.white, textAlign: 'center' }]}>{error}</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <PillButton label="Retour" variant="frost" onPress={onCancel} />
-              <PillButton label="Réessayer" variant="white" onPress={onRetry} />
-            </View>
-          </View>
-        ) : (
-          <>
-            <View style={{ alignSelf: 'stretch', gap: 12 }}>
-              {steps.map((s, i) => (
-                <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: i > current ? 0.45 : 1 }}>
-                  <View style={styles.stepDot}>
-                    {i < current ? <Check size={14} color={colors.ink} strokeWidth={3} /> : i === current ? <ActivityIndicator size="small" color={colors.ink} /> : null}
-                  </View>
-                  <Text style={[type.body, { color: colors.white }]}>{s.label}</Text>
-                </View>
-              ))}
-            </View>
-            <PillButton label="Annuler" variant="frost" onPress={onCancel} />
-          </>
-        )}
-      </FadeIn>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  loading: { backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  stepDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' },
+  hidden: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, backgroundColor: 'transparent' },
   root: { flex: 1, backgroundColor: '#000' },
   pill: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 10, height: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassLine },
   metric: { fontFamily: fonts.semibold, fontSize: 12, color: colors.sky },

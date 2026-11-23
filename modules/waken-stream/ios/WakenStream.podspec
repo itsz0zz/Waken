@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
   s.summary        = 'Waken native game streaming (Sunshine / GameStream) built on moonlight-common-c'
   s.license        = 'GPL-3.0'
   s.author         = 'Monarch'
-  s.homepage       = 'https://github.com/hdm-soft/waken'
+  s.homepage       = 'https://wakenplay.fr'
   s.platforms      = { :ios => '16.0', :tvos => '16.0' }
   s.source         = { git: '' }
   s.static_framework = true

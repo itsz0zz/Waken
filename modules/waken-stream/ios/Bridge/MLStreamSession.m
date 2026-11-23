@@ -19,7 +19,7 @@ static __weak MLStreamSession *gSession;
 static dispatch_queue_t ConnectionQueue(void) {
   static dispatch_queue_t queue;
   static dispatch_once_t once;
-  dispatch_once(&once, ^{ queue = dispatch_queue_create("fr.hdmsoft.waken.connection", DISPATCH_QUEUE_SERIAL); });
+  dispatch_once(&once, ^{ queue = dispatch_queue_create("fr.wakenplay.stream.connection", DISPATCH_QUEUE_SERIAL); });
   return queue;
 }
 

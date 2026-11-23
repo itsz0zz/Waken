@@ -17,6 +17,7 @@ import {
 import { Gamepad2, Laptop, Monitor, Play, Search, Server, X, type LucideIcon } from 'lucide-react-native';
 import { Art, Gradient, type ArtSource } from './primitives';
 import { PressScale, Skeleton } from './motion';
+import { SecureTextInput } from './secureInput';
 import { PlatformIcon, platformNames, type Platform } from './platforms';
 import { colors, fonts, grounds, radius, shadows, type, type DeviceTint, type Ground } from './tokens';
 
@@ -492,12 +493,14 @@ export function Field({ label, hint, ...rest }: TextInputProps & { label: string
   return (
     <View style={[styles.field, shadows.card]}>
       <Text style={[type.caption, { color: colors.ink2 }]}>{label}</Text>
-      <TextInput
+      <SecureTextInput
         accessibilityLabel={label}
         placeholderTextColor={colors.muted}
         autoCapitalize="none"
         autoCorrect={false}
         style={[type.body, { color: colors.ink, paddingVertical: 4 }]}
+        // macOS: no blue focus ring, the card is the field.
+        {...({ enableFocusRing: false } as object)}
         {...rest}
       />
       {hint ? <Text style={[type.caption, { color: colors.ink2 }]}>{hint}</Text> : null}

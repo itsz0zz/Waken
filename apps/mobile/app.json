@@ -10,7 +10,7 @@
     "backgroundColor": "#07080C",
     "newArchEnabled": true,
     "ios": {
-      "bundleIdentifier": "fr.hdmsoft.waken",
+      "bundleIdentifier": "fr.wakenplay.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Waken cherche et réveille ton PC et ta console sur le réseau.",
@@ -41,7 +41,7 @@
       "deploymentTarget": "17.0"
     },
     "android": {
-      "package": "fr.hdmsoft.waken",
+      "package": "fr.wakenplay.android",
       "adaptiveIcon": {
         "backgroundColor": "#0E1017",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -23,5 +23,8 @@
     "expo-image": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "@waken/core": "workspace:*"
   }
 }

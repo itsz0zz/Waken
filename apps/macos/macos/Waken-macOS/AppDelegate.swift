@@ -12,6 +12,7 @@ struct WakenApp: App {
       ReactNativeView(factory: appDelegate.reactNativeFactory)
         // Up to the window's top edge, under the traffic lights.
         .ignoresSafeArea()
+        .preferredColorScheme(.light)
     }
     .defaultSize(width: 1280, height: 800)
     // The Arcade ground runs under the traffic lights, like the mockups: no grey title bar.
@@ -23,6 +24,29 @@ struct WakenApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
   private let reactNativeDelegate: ReactNativeDelegate
+
+  /// Waken is drawn light (Arcade): system-colored parts (the text caret, selection, menus) follow it, not the
+  /// Mac's dark mode, or the caret would be white on the white fields.
+  func applicationWillFinishLaunching(_ notification: Notification) {
+    NSApp.appearance = NSAppearance(named: .aqua)
+    stopServicesOnSignals()
+  }
+
+  /// Killed instead of quit (kill, an update, logging out): Sunshine, the agent and the network still stop,
+  /// or they would be left running without the app.
+  private var signalSources: [DispatchSourceSignal] = []
+  private func stopServicesOnSignals() {
+    for sig in [SIGTERM, SIGINT, SIGHUP] {
+      signal(sig, SIG_IGN)
+      let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+      source.setEventHandler {
+        HostServices.shared.stop()
+        exit(0)
+      }
+      source.resume()
+      signalSources.append(source)
+    }
+  }
 
   /// Sunshine, the agent and the network helper stop with the app, never orphaned.
   func applicationWillTerminate(_ notification: Notification) {

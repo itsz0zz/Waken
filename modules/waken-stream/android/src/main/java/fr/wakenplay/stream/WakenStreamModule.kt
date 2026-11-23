@@ -1,4 +1,4 @@
-package fr.hdmsoft.wakenstream
+package fr.wakenplay.stream
 
 import android.content.Context
 import android.graphics.Color
