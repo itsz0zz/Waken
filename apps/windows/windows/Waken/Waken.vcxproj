@@ -20,6 +20,9 @@
     <!-- The JavaScript bundle through pnpm, like the rest of the repository (the default runs npx, whose failure
          MSBuild ignores and only surfaces later, when Hermes compiles a missing bundle). -->
     <BundleCliCommand>pnpm exec react-native bundle</BundleCliCommand>
+    <!-- Same for the native code generation: npx misreads pnpm's links (it looked for apps\@react-native-community). -->
+    <CodegenCommand>pnpm exec react-native codegen-windows</CodegenCommand>
+    <AutolinkCommand>pnpm exec react-native autolink-windows</AutolinkCommand>
     <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
   </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" />
