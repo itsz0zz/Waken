@@ -51,6 +51,11 @@ services:
       Cloud__Apns__TeamId: ${APNS_TEAM_ID:-}
       Cloud__Apns__IosTopic: ${APNS_IOS_TOPIC:-}
       Cloud__Apns__MacTopic: ${APNS_MAC_TOPIC:-}
+      # Continuer avec Apple: the key that revokes Apple's tokens when an account is deleted (it may be the APNs
+      # key, with "Sign in with Apple" enabled). Left empty, sign-in works, deletion revokes nothing.
+      Cloud__Apple__KeyPath: ${APPLE_KEY_PATH:-}
+      Cloud__Apple__KeyId: ${APPLE_KEY_ID:-}
+      Cloud__Apple__TeamId: ${APPLE_TEAM_ID:-}
     volumes:
       - ${WAKEN_DATA:-/srv/iscsi/docker-data/waken}/accounts:/data
     expose:

@@ -116,6 +116,17 @@ Il faut l'Apple Developer Program (équipe payante) : l'équipe personnelle n'a 
 
 Sans ces variables, les notifications sont seulement écrites dans les logs.
 
+## 7. Continuer avec Apple (révocation)
+
+La connexion avec Apple marche sans rien régler. Pour qu'Apple oublie Waken quand un compte est supprimé (règle
+App Store 5.1.1), le serveur a besoin d'une clé avec « Sign in with Apple » coché (la clé APNs peut l'avoir aussi) :
+
+```
+APPLE_KEY_PATH=/data/apns.p8
+APPLE_KEY_ID=<Key ID>
+APPLE_TEAM_ID=<Team ID>
+```
+
 ## Tester en local
 
 Avec Docker Desktop, la même pile tourne sur le Mac. Un fichier d'override publie les ports en local et pointe
