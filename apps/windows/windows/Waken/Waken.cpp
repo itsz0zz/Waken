@@ -12,6 +12,8 @@
 #pragma comment(lib, "dbghelp.lib")
 
 #include "NativeModules.h"
+#include "Stream/StreamLog.h"
+#include "Stream/StreamView.h"
 #include "WakenHost.h"
 
 // What happened before a crash, in %LOCALAPPDATA%\Waken\waken.log (for this packaged app, Windows keeps it in
@@ -122,12 +124,18 @@ void LogReactNative(winrt::Microsoft::ReactNative::LogLevel level, winrt::hstrin
 }
 } // namespace
 
+void Waken::Stream::Log(std::string const &line) noexcept {
+  ::Log(line);
+}
+
 // A PackageProvider containing any turbo modules you define within this app project
 struct CompReactPackageProvider
     : winrt::implements<CompReactPackageProvider, winrt::Microsoft::ReactNative::IReactPackageProvider> {
  public: // IReactPackageProvider
   void CreatePackage(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
     AddAttributedModules(packageBuilder, true);
+    // Playing from this PC on another of the owner's computers (Stream/StreamView.cpp).
+    Waken::Stream::RegisterStreamView(packageBuilder);
   }
 };
 

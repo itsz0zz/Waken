@@ -4,6 +4,7 @@ import { TriangleAlert } from 'lucide-react-native';
 import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
+import { StreamView } from './stream';
 
 setPlatform({
   // The app's folder in the user's profile (%LOCALAPPDATA%\Waken\app): one file per key.
@@ -18,8 +19,8 @@ setPlatform({
     removeItem: (k) => native.storageRemove(k),
   },
   tunnel: hostTunnel,
-  // Playing FROM this PC on another computer needs a native stream view for Windows: a later step.
-  StreamView: null,
+  // Playing from this PC on another computer: the native view, through the Waken network on ::1.
+  StreamView,
   form: 'desktop',
   deviceName: 'PC',
 });

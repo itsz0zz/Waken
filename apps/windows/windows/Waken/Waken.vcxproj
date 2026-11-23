@@ -86,11 +86,13 @@
       <DisableSpecificWarnings>4453;28204</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>
         $(MSBuildThisFileDirectory);
+        $(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\moonlight-common-c\src;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>shell32.lib;user32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- ws2_32 and winmm: moonlight-common-c (Moonlight project). The stream view's own libraries are in its sources. -->
+      <AdditionalDependencies>shell32.lib;user32.lib;windowsapp.lib;ws2_32.lib;winmm.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
@@ -109,6 +111,11 @@
   <ItemGroup>
     <ClInclude Include="Waken.h" />
     <ClInclude Include="WakenHost.h" />
+    <ClInclude Include="Stream\AudioRenderer.h" />
+    <ClInclude Include="Stream\StreamLog.h" />
+    <ClInclude Include="Stream\StreamSession.h" />
+    <ClInclude Include="Stream\StreamView.h" />
+    <ClInclude Include="Stream\VideoRenderer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />
     <ClInclude Include="pch.h" />
@@ -116,6 +123,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Waken.cpp" />
+    <ClCompile Include="Stream\AudioRenderer.cpp" />
+    <ClCompile Include="Stream\StreamSession.cpp" />
+    <ClCompile Include="Stream\StreamView.cpp" />
+    <ClCompile Include="Stream\VideoRenderer.cpp" />
     <ClCompile Include="AutolinkedNativeModules.g.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -128,6 +139,12 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Waken.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- moonlight-common-c, for the stream view: a static library of its own (Moonlight\Moonlight.vcxproj). -->
+    <ProjectReference Include="..\Moonlight\Moonlight.vcxproj">
+      <Project>{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}</Project>
+    </ProjectReference>
   </ItemGroup>
   <!-- Sunshine, the agent and the network helper, put in host\ by scripts\build.ps1: shipped beside Waken.exe. -->
   <ItemGroup>

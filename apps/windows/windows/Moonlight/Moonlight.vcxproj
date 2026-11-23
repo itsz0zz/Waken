@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  moonlight-common-c (the GameStream client the iPhone and Mac apps use too, GPLv3), built as a static library for
+  the Windows app's stream view. Apart from the app project, so its C sources keep plain C settings. Its crypto runs
+  on Windows' BCrypt (WinCrypto.c and openssl\ here): no OpenSSL to ship.
+-->
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}</ProjectGuid>
+    <ProjectName>Moonlight</ProjectName>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Moonlight</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <MoonlightDir>$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\moonlight-common-c\</MoonlightDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\Moonlight\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4244;4267;4996;4100;4127;4018;4146;4334</DisableSpecificWarnings>
+      <!-- Sockets, threads and timers: the Windows side of moonlight-common-c and enet (see their CMake files). -->
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;HAS_SOCKLEN_T=1;HAS_GETADDRINFO=1;HAS_GETNAMEINFO=1;HAS_INET_PTON=1;HAS_INET_NTOP=1;HAS_QOS_FLOWID=1;HAS_PQOS_FLOWID=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(MoonlightDir)src;$(MoonlightDir)enet\include;$(MoonlightDir)nanors;$(MoonlightDir)nanors\deps;$(MoonlightDir)nanors\deps\obl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MoonlightDir)src\*.c" />
+    <ClCompile Include="$(MoonlightDir)enet\callbacks.c" />
+    <ClCompile Include="$(MoonlightDir)enet\compress.c" />
+    <ClCompile Include="$(MoonlightDir)enet\host.c" />
+    <ClCompile Include="$(MoonlightDir)enet\list.c" />
+    <ClCompile Include="$(MoonlightDir)enet\packet.c" />
+    <ClCompile Include="$(MoonlightDir)enet\peer.c" />
+    <ClCompile Include="$(MoonlightDir)enet\protocol.c" />
+    <ClCompile Include="$(MoonlightDir)enet\win32.c" />
+    <ClCompile Include="$(MoonlightDir)nanors\rs.c" />
+    <ClCompile Include="$(MoonlightDir)nanors\deps\obl\oblas_common.c" />
+    <ClCompile Include="$(MoonlightDir)nanors\deps\obl\oblas_lite.c" />
+    <ClCompile Include="WinCrypto.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="openssl\evp.h" />
+    <ClInclude Include="openssl\rand.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

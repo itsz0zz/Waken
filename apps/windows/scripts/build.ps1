@@ -40,6 +40,7 @@ Step 'Outils'
 Need node 'installe Node.js 22 ou plus (https://nodejs.org)'
 Need pnpm 'installe-le : npm install -g pnpm'
 Need dotnet 'installe le SDK .NET 10 (https://dot.net)'
+Need git 'installe Git : winget install --id Git.Git -e, puis rouvre la fenêtre'
 # React Native Windows runs its tools with PowerShell 7 (pwsh.exe), not Windows PowerShell: without it the
 # CLI has no run-windows command at all.
 Need pwsh 'installe PowerShell 7 : winget install --id Microsoft.PowerShell -e, puis rouvre la fenêtre'
@@ -48,6 +49,11 @@ if (-not (Test-Path $vswhere) -or -not (& $vswhere -latest -requires Microsoft.V
   throw 'Visual Studio 2022 avec « Développement Desktop en C++ » introuvable.'
 }
 New-Item -ItemType Directory -Force $cache | Out-Null
+
+Step 'moonlight-common-c (le stream, sous-module Git)'
+# The stream view's client library: a Git submodule, absent from a plain clone or a ZIP.
+git -C $repo submodule update --init --recursive
+if ($LASTEXITCODE -ne 0) { throw "Sous-module moonlight-common-c introuvable : le dossier doit être un clone Git (git clone)." }
 
 Step 'Dépendances JavaScript'
 Push-Location $repo
