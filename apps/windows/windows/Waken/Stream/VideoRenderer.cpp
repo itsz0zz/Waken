@@ -4,6 +4,7 @@
 
 #include <codecapi.h>
 #include <mferror.h>
+#include <strmif.h> // ICodecAPI (codecapi.h only names its settings)
 
 #include "StreamLog.h"
 
