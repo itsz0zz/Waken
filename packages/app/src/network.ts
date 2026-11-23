@@ -14,6 +14,15 @@ export const useNetwork = create<{ status: TunnelStatus | null }>(() => ({ statu
 
 const lastHello = new Map<string, number>();
 
+let lastReport = '';
+/** Each change of the network's state, once, in the app's log (waken.log on Windows, the console elsewhere). */
+function report(status: TunnelStatus, network: string) {
+  const line = `${status.state} via ${network}${status.control ? ` (serveur ${status.control})` : ''}${status.error ? ` : ${status.error}` : ''}, ${status.hosts?.length ?? 0} machine(s)`;
+  if (line === lastReport) return;
+  lastReport = line;
+  console.log(`[réseau] ${line}`);
+}
+
 export const hasTunnel = () => platform().tunnel != null;
 
 /**
@@ -45,9 +54,11 @@ export function useNetworkRunner() {
           const network = await networkFor(true);
           if (network?.authKey) current = await tunnel.start(name, network);
         }
+        report(current, network.authKey ? 'clé' : network.controlUrl || 'Tailscale');
         useNetwork.setState({ status: { ...current, hosts: current.hosts ?? [] } });
         if (current.state === 'running') await addComputers(current.hosts ?? []);
       } catch (e) {
+        report({ state: 'error', error: (e as Error).message, hosts: [] }, '');
         useNetwork.setState({ status: { state: 'error', error: (e as Error).message, hosts: [] } });
       }
       if (!stopped && active) timer = setTimeout(tick, POLL_MS);

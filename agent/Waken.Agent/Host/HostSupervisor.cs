@@ -168,7 +168,10 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
         var info = Info(host.TunnelExe, []);
         info.RedirectStandardInput = true;
         var process = Process.Start(info) ?? throw new InvalidOperationException("Le réseau Waken n'a pas démarré");
-        process.StandardError.BaseStream.CopyToAsync(Stream.Null, _stopping);
+        // What the helper says about itself (sign-in, control server, paths): tunnel\tunnel.log, rewritten at each start.
+        Directory.CreateDirectory(TunnelFolder);
+        var tunnelLog = new FileStream(Path.Combine(TunnelFolder, "tunnel.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        _ = process.StandardError.BaseStream.CopyToAsync(new AutoFlushStream(tunnelLog), _stopping).ContinueWith(_ => tunnelLog.Dispose(), TaskScheduler.Default);
         lock (_lock) _tunnel = process;
         _ = Task.Run(() => ReadTunnelAsync(process), _stopping);
         var config = new JsonObject
@@ -308,3 +311,27 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
 public sealed record TunnelCommand(string Cmd, string? Peer = null, string? ControlUrl = null, string? AuthKey = null);
 
 public sealed class TunnelException(string message) : Exception(message);
+
+/// <summary>Writes through at once: the log is readable while the helper runs, and complete if it dies.</summary>
+internal sealed class AutoFlushStream(Stream inner) : Stream
+{
+    public override bool CanRead => false;
+    public override bool CanSeek => false;
+    public override bool CanWrite => true;
+    public override long Length => inner.Length;
+    public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+    public override void Flush() => inner.Flush();
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        inner.Write(buffer, offset, count);
+        inner.Flush();
+    }
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+    {
+        await inner.WriteAsync(buffer, ct);
+        await inner.FlushAsync(ct);
+    }
+}
