@@ -27,9 +27,8 @@ class StreamSession : public std::enable_shared_from_this<StreamSession> {
   StreamSession(LaunchInfo launch, StateListener listener);
   ~StreamSession();
 
-  /// On the UI thread: the device and the swap chain, before the view shows them.
+  /// On the UI thread: the device the view's drawing surface is made on, before the connection.
   bool CreateVideo(std::string &error);
-  IDXGISwapChain1 *SwapChain() const { return m_video.SwapChain(); }
 
   /// Both return at once: connections start and stop one after the other, on a thread of their own.
   void Start();

@@ -44,32 +44,15 @@ bool VideoRenderer::Create(int width, int height, std::string &error) {
     return false;
   }
 
-  winrt::com_ptr<IDXGIDevice> dxgiDevice = m_device.as<IDXGIDevice>();
-  winrt::com_ptr<IDXGIAdapter> adapter;
-  winrt::check_hresult(dxgiDevice->GetAdapter(adapter.put()));
-  winrt::com_ptr<IDXGIFactory2> factory;
-  winrt::check_hresult(adapter->GetParent(IID_PPV_ARGS(factory.put())));
-
-  DXGI_SWAP_CHAIN_DESC1 desc{};
-  desc.Width = static_cast<UINT>(width);
-  desc.Height = static_cast<UINT>(height);
-  desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  desc.SampleDesc.Count = 1;
-  desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  desc.BufferCount = 2;
-  desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-  desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-  desc.Scaling = DXGI_SCALING_STRETCH;
-  hr = factory->CreateSwapChainForComposition(m_device.get(), &desc, nullptr, m_swapChain.put());
-  if (FAILED(hr)) {
-    error = "Affichage de la vidéo impossible (" + Hex(hr) + ")";
-    return false;
-  }
-
   winrt::check_hresult(MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET));
   winrt::check_hresult(MFCreateDXGIDeviceManager(&m_resetToken, m_manager.put()));
   winrt::check_hresult(m_manager->ResetDevice(m_device.get(), m_resetToken));
   return true;
+}
+
+void VideoRenderer::SetTarget(winrt::com_ptr<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop> target) {
+  std::lock_guard lock(m_lock);
+  m_target = std::move(target);
 }
 
 int VideoRenderer::Setup(int videoFormat, int width, int height, int fps) {
@@ -241,6 +224,22 @@ bool VideoRenderer::EnsureProcessor(UINT inputWidth, UINT inputHeight) {
   output.RGB_Range = 0;
   m_videoContext->VideoProcessorSetOutputColorSpace(m_processor.get(), &output);
   m_videoContext->VideoProcessorSetStreamAutoProcessingMode(m_processor.get(), 0, FALSE);
+  // Our own RGB texture as the processor's output: a view on the compositor's shared texture is refused by some drivers.
+  D3D11_TEXTURE2D_DESC frameDesc{};
+  frameDesc.Width = static_cast<UINT>(m_width);
+  frameDesc.Height = static_cast<UINT>(m_height);
+  frameDesc.MipLevels = 1;
+  frameDesc.ArraySize = 1;
+  frameDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  frameDesc.SampleDesc.Count = 1;
+  frameDesc.Usage = D3D11_USAGE_DEFAULT;
+  frameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+  m_frame = nullptr;
+  m_frameView = nullptr;
+  if (FAILED(m_device->CreateTexture2D(&frameDesc, nullptr, m_frame.put()))) return false;
+  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outputDesc{};
+  outputDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
+  if (FAILED(m_videoDevice->CreateVideoProcessorOutputView(m_frame.get(), m_enumerator.get(), &outputDesc, m_frameView.put()))) return false;
   m_processorWidth = inputWidth;
   m_processorHeight = inputHeight;
   return true;
@@ -267,21 +266,21 @@ bool VideoRenderer::Present(IMFSample *sample) {
   winrt::com_ptr<ID3D11VideoProcessorInputView> inputView;
   if (FAILED(m_videoDevice->CreateVideoProcessorInputView(texture.get(), m_enumerator.get(), &inputDesc, inputView.put()))) return false;
 
-  winrt::com_ptr<ID3D11Texture2D> backBuffer;
-  if (FAILED(m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.put())))) return false;
-  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outputDesc{};
-  outputDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
-  winrt::com_ptr<ID3D11VideoProcessorOutputView> outputView;
-  if (FAILED(m_videoDevice->CreateVideoProcessorOutputView(backBuffer.get(), m_enumerator.get(), &outputDesc, outputView.put()))) return false;
-
+  if (!m_target) return false;
   RECT source{0, 0, m_width, m_height};
   m_videoContext->VideoProcessorSetStreamSourceRect(m_processor.get(), 0, TRUE, &source);
   D3D11_VIDEO_PROCESSOR_STREAM stream{};
   stream.Enable = TRUE;
   stream.pInputSurface = inputView.get();
-  if (FAILED(m_videoContext->VideoProcessorBlt(m_processor.get(), outputView.get(), 0, 1, &stream))) return false;
-  // No wait for the screen's refresh: the compositor shows the newest picture, the decoder never waits.
-  return SUCCEEDED(m_swapChain->Present(0, 0));
+  if (FAILED(m_videoContext->VideoProcessorBlt(m_processor.get(), m_frameView.get(), 0, 1, &stream))) return false;
+
+  // Into the surface's texture for this frame: an atlas shared by the compositor, ours at the given offset.
+  winrt::com_ptr<ID3D11Texture2D> surface;
+  POINT offset{};
+  if (FAILED(m_target->BeginDraw(nullptr, __uuidof(ID3D11Texture2D), surface.put_void(), &offset))) return false;
+  m_context->CopySubresourceRegion(surface.get(), 0, static_cast<UINT>(offset.x), static_cast<UINT>(offset.y), 0, m_frame.get(), 0, nullptr);
+  // The compositor shows the newest picture at its next frame: the decoder never waits for the screen.
+  return SUCCEEDED(m_target->EndDraw());
 }
 
 void VideoRenderer::Cleanup() {
@@ -293,6 +292,9 @@ void VideoRenderer::Cleanup() {
   }
   m_processor = nullptr;
   m_enumerator = nullptr;
+  m_frameView = nullptr;
+  m_frame = nullptr;
+  m_target = nullptr;
 }
 
 } // namespace Waken::Stream

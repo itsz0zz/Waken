@@ -6,6 +6,7 @@
 #include <winrt/Microsoft.ReactNative.Composition.Input.h>
 #include <winrt/Microsoft.ReactNative.Composition.h>
 #include <winrt/Microsoft.UI.Composition.h>
+#include <winrt/Microsoft.Graphics.DirectX.h>
 #include <winrt/Microsoft.UI.Composition.interop.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.h>
@@ -202,15 +203,22 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       EmitState("error", error);
       return;
     }
-    // The swap chain as the visual's content, scaled to fit (black bars around a picture of another shape).
+    // A drawing surface on the stream's own D3D11 device, as the visual's content, scaled to fit (black bars
+    // around a picture of another shape). The decoder draws each picture into it.
     try {
       auto compositor = m_visual.Compositor();
-      winrt::Microsoft::UI::Composition::ICompositionSurface surface{nullptr};
-      winrt::check_hresult(compositor.as<winrt::Microsoft::UI::Composition::ICompositorInterop>()->CreateCompositionSurfaceForSwapChain(
-          m_session->SwapChain(), &surface));
+      winrt::Microsoft::UI::Composition::CompositionGraphicsDevice graphics{nullptr};
+      winrt::check_hresult(compositor.as<winrt::Microsoft::UI::Composition::ICompositorInterop>()->CreateGraphicsDevice(
+          m_session->Video().Device(), &graphics));
+      auto surface = graphics.CreateDrawingSurface(
+          {static_cast<float>(m_videoWidth), static_cast<float>(m_videoHeight)},
+          winrt::Microsoft::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+          winrt::Microsoft::Graphics::DirectX::DirectXAlphaMode::Premultiplied);
+      m_session->Video().SetTarget(surface.as<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop>());
       auto brush = compositor.CreateSurfaceBrush(surface);
       brush.Stretch(winrt::Microsoft::UI::Composition::CompositionStretch::Uniform);
       m_visual.Brush(brush);
+      m_graphics = graphics;
     } catch (winrt::hresult_error const &e) {
       Log("[stream] affichage : " + winrt::to_string(e.message()));
       EmitState("error", "Affichage de la vidéo impossible");
@@ -379,6 +387,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
 
   ComponentView m_view{nullptr};
   winrt::Microsoft::UI::Composition::SpriteVisual m_visual{nullptr};
+  winrt::Microsoft::UI::Composition::CompositionGraphicsDevice m_graphics{nullptr};
   std::shared_ptr<StreamSession> m_session;
   std::optional<LaunchInfo> m_pending;
   std::mutex m_emitterLock;
