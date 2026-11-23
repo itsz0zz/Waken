@@ -79,6 +79,8 @@ export function PressScale({
 /** Layout keys place the pressable itself; everything else (colours, padding, radius) is the animated surface. */
 const layoutKeys = new Set([
   'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'minWidth', 'maxWidth',
+  // The height too: without it the pressable has none of its own and a row can stretch it (the Mac's top bar did).
+  'height', 'minHeight', 'maxHeight',
   'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'marginHorizontal', 'marginVertical',
   'position', 'top', 'left', 'right', 'bottom', 'zIndex',
 ]);
@@ -89,7 +91,7 @@ function splitLayout(style: StyleProp<ViewStyle>) {
   const inner: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(flat)) (layoutKeys.has(key) ? outer : inner)[key] = value;
   // A sized pressable: the surface fills it.
-  if ('width' in outer || 'flex' in outer || 'flexGrow' in outer) inner.flexGrow = 1;
+  if ('width' in outer || 'height' in outer || 'flex' in outer || 'flexGrow' in outer) inner.flexGrow = 1;
   return { outer: outer as ViewStyle, inner: inner as ViewStyle };
 }
 
