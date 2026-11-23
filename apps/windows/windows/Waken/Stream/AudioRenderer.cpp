@@ -15,8 +15,11 @@ namespace Waken::Stream {
 namespace {
 // MFAudioFormat_Opus ('Opus' as a wave format tag, 0x704F), spelled out: older SDKs do not name it.
 constexpr GUID kOpus = {0x0000704F, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
-// Held in the device: enough to cover a late packet, never more (the sound must stay with the picture).
-constexpr double kMaxBacklogSeconds = 0.06;
+// A packet is 5 ms and Windows mixes by about 10 ms: the output starts once this much is queued, and gets it back
+// (as silence) when it ran dry, so that one late packet from the network is not a gap every time.
+constexpr double kCushionSeconds = 0.03;
+// Held at most: beyond, packets are dropped so that the sound stays with the picture.
+constexpr double kMaxBacklogSeconds = 0.1;
 
 void EnsureCom() {
   thread_local bool done = false;
@@ -121,7 +124,7 @@ bool AudioRenderer::CreateOutput() {
     return false;
   }
   if (FAILED(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, m_client.put_void()))) return false;
-  const REFERENCE_TIME buffer = 1'000'000; // 100 ms of room, kept mostly empty (kMaxBacklogSeconds)
+  const REFERENCE_TIME buffer = 2'000'000; // 200 ms of room, kept between kCushionSeconds and kMaxBacklogSeconds
   HRESULT hr = m_client->Initialize(
       AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, buffer, 0, m_format, nullptr);
   if (FAILED(hr)) {
@@ -183,6 +186,15 @@ void AudioRenderer::Play(const char *data, int length) {
 void AudioRenderer::Write(const BYTE *pcm, UINT32 frameCount) {
   UINT32 padding = 0;
   if (FAILED(m_client->GetCurrentPadding(&padding))) return;
+  const UINT32 cushion = static_cast<UINT32>(m_sampleRate * kCushionSeconds);
+  // Ran dry (a late packet): the cushion again, as silence, rather than a gap at each packet that follows.
+  if (m_started && padding == 0 && cushion < m_bufferFrames) {
+    BYTE *silence = nullptr;
+    if (SUCCEEDED(m_render->GetBuffer(cushion, &silence))) {
+      m_render->ReleaseBuffer(cushion, AUDCLNT_BUFFERFLAGS_SILENT);
+      padding = cushion;
+    }
+  }
   // Late: the device already holds enough. Dropping this packet brings the sound back with the picture.
   if (padding > static_cast<UINT32>(m_sampleRate * kMaxBacklogSeconds)) return;
   UINT32 frames = (std::min)(frameCount, m_bufferFrames - padding);
@@ -191,7 +203,8 @@ void AudioRenderer::Write(const BYTE *pcm, UINT32 frameCount) {
   if (FAILED(m_render->GetBuffer(frames, &target))) return;
   memcpy(target, pcm, static_cast<size_t>(frames) * m_bytesPerFrame);
   m_render->ReleaseBuffer(frames, 0);
-  if (!m_started) {
+  // Starts once the cushion is there.
+  if (!m_started && padding + frames >= cushion) {
     m_client->Start();
     m_started = true;
   }
