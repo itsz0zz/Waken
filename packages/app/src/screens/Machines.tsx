@@ -1,7 +1,7 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Check, Monitor, Play, Plus, Power } from 'lucide-react-native';
 import { canWake, hostDisplayName, type Device } from '@waken/core';
-import { AppMark, Art, Card, colors, Gradient, Display, FadeIn, IconBubble, machineIcon, PillButton, shadows, stagger, StatusTag, type } from '@waken/ui';
+import { AppMark, Art, Card, colors, Gradient, Display, FadeIn, IconBubble, machineIcon, PillButton, PressScale, shadows, stagger, StatusTag, type } from '@waken/ui';
 import { useDeviceStatus, useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
 import { useNetwork } from '../network';
@@ -26,8 +26,9 @@ export function MachinesScreen() {
             <MachineCard device={d} />
           </FadeIn>
         ))}
-        <Pressable
+        <PressScale
           onPress={nav.addMachine}
+          hoverTo={1.015}
           accessibilityRole="button"
           accessibilityLabel="Ajouter une machine"
           style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 24, borderWidth: 2.5, borderStyle: 'dashed', borderColor: colors.ink, backgroundColor: colors.frostLight }, wide && { width: '48.5%' }]}
@@ -37,7 +38,7 @@ export function MachinesScreen() {
             <Text style={[type.headline, { color: colors.ink }]}>Ajouter une machine</Text>
             <Text style={[type.caption, { color: colors.ink2 }]}>Mac ou PC avec Waken</Text>
           </View>
-        </Pressable>
+        </PressScale>
       </View>
     </Screen>
   );
@@ -61,7 +62,7 @@ function MachineCard({ device }: { device: Device }) {
           <Gradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']} locations={[0.35, 1]} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
         </View>
       ) : null}
-      <Pressable onPress={nav.machine ? () => nav.machine!(device.id) : undefined} accessibilityRole="button" accessibilityLabel={device.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <PressScale hoverTo={1.015} onPress={nav.machine ? () => nav.machine!(device.id) : undefined} accessibilityRole="button" accessibilityLabel={device.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <IconBubble icon={Icon} color={device.kind === 'playstation' ? colors.blue : colors.violet} size={52} />
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
           <Text numberOfLines={1} style={[type.headline, { fontSize: 20, color: colors.ink }]}>
@@ -69,7 +70,7 @@ function MachineCard({ device }: { device: Device }) {
           </Text>
           <StatusTag status={status} style={{ alignSelf: 'flex-start' }} />
         </View>
-      </Pressable>
+      </PressScale>
       {last ? <Text style={[type.caption, { color: colors.ink2 }]}>Dernière partie : {last.title}, {sinceLabel(last.lastPlayedAt)}.</Text> : null}
       {device.local ? (
         <Text style={[type.caption, { color: colors.ink2 }]}>Ce Mac : tes autres appareils peuvent y jouer. Ses jeux se lancent depuis l'onglet Jeux.</Text>

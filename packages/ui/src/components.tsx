@@ -477,9 +477,9 @@ export function SearchField({
         {...({ enableFocusRing: false } as object)}
       />
       {value ? (
-        <Pressable onPress={() => onChangeText('')} accessibilityRole="button" accessibilityLabel="Effacer la recherche" hitSlop={10} style={styles.searchClear}>
+        <PressScale onPress={() => onChangeText('')} accessibilityRole="button" accessibilityLabel="Effacer la recherche" hitSlop={10} hoverTo={1.12} style={styles.searchClear}>
           <X size={14} color={colors.white} strokeWidth={3} />
-        </Pressable>
+        </PressScale>
       ) : null}
     </View>
   );
@@ -508,9 +508,9 @@ export function SectionTitle({ title, action, onAction }: { title: string; actio
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Text style={[type.title, { color: colors.ink, fontSize: 22 }]}>{title}</Text>
       {action ? (
-        <Pressable onPress={onAction} accessibilityRole="button" hitSlop={10}>
+        <PressScale onPress={onAction} accessibilityRole="button" hitSlop={10}>
           <Text style={[type.button, { fontSize: 14, color: colors.ink, textDecorationLine: 'underline' }]}>{action}</Text>
-        </Pressable>
+        </PressScale>
       ) : null}
     </View>
   );

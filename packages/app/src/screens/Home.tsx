@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Play, Power } from 'lucide-react-native';
 import { AppMark, colors, CoverSkeleton, Display, FadeIn, GameTitle, PillButton, PressScale, RankNumber, SectionTitle, shadows, Skeleton, stagger, TiltedArt, type } from '@waken/ui';
 import { canWake, type Game } from '@waken/core';
@@ -137,16 +137,16 @@ function HeroActions({ game }: { game: Game }) {
   const Icon = ready || !wakeable ? Play : Power;
   return (
     <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-      <Pressable
+      <PressScale
         onPress={() => nav.play(game.deviceId, game.id, game.sunshineApp)}
         accessibilityRole="button"
-        style={({ pressed }) => [{ height: 60, paddingLeft: 10, paddingRight: 26, borderRadius: 999, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 12, ...shadows.lift }, pressed && { transform: [{ scale: 0.97 }] }]}
+        style={{ height: 60, paddingLeft: 10, paddingRight: 26, borderRadius: 999, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 12, ...shadows.lift }}
       >
         <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={20} color={colors.ink} strokeWidth={2.4} fill={Icon === Play ? colors.ink : 'none'} />
         </View>
         <Text style={[type.button, { fontSize: 16, color: colors.white }]}>{ready || !wakeable ? 'Jouer' : 'Allumer et jouer'}</Text>
-      </Pressable>
+      </PressScale>
       {wakeable && !ready ? <PillButton label="Allumer seulement" variant="outline" size="lg" style={{ height: 60, borderWidth: 3 }} onPress={() => nav.wakeOnly(game.deviceId)} /> : null}
     </View>
   );

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { colors, FadeIn, GameTitle, SearchField, shadows, TiltedArt, type } from '@waken/ui';
+import { colors, FadeIn, GameTitle, PressScale, SearchField, shadows, TiltedArt, type } from '@waken/ui';
 import type { Game } from '@waken/core';
 import { useGameArt, useLibrary } from '../hooks';
 import { useNav } from '../nav';
@@ -52,9 +52,9 @@ export function GameSearch({ height = 56, floating, tone, style }: { height?: nu
             matches.slice(0, MAX).map((g) => <Result key={g.id} game={g} onPress={() => pick(g)} />)
           )}
           {matches.length > MAX ? (
-            <Pressable onPress={() => { nav.games(query.trim()); setQuery(''); }} accessibilityRole="button" style={{ paddingHorizontal: 18, paddingVertical: 10 }}>
+            <PressScale onPress={() => { nav.games(query.trim()); setQuery(''); }} accessibilityRole="button" hoverTo={1.02} style={{ paddingHorizontal: 18, paddingVertical: 10 }}>
               <Text style={[type.button, { fontSize: 14, color: colors.ink }]}>Voir les {matches.length} résultats</Text>
-            </Pressable>
+            </PressScale>
           ) : null}
         </FadeIn>
       ) : null}
@@ -66,7 +66,11 @@ function Result({ game, onPress }: { game: Game; onPress: () => void }) {
   const art = useGameArt(game, 'cover');
   const machine = useMachineOf(game);
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={game.title} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: pressed ? colors.soft : 'transparent' })}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={game.title} style={(state) => {
+        // A list row: no growing on hover, the row lights up instead (and the hand cursor says it is clickable).
+        const { pressed, hovered } = state as { pressed: boolean; hovered?: boolean };
+        return { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: pressed || hovered ? colors.soft : 'transparent', cursor: 'pointer' } as ViewStyle;
+      }}>
       <TiltedArt source={art} title={game.title} width={40} height={52} rotate={0} border={2} rounded={10} lifted={false} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <GameTitle title={game.title} platform={machine.platform} size={15} />

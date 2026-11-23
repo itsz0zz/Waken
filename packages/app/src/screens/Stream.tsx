@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ChevronDown, ChevronUp, Keyboard, X } from 'lucide-react-native';
 import { AgentClient, HttpError } from '@waken/core';
-import { colors, fonts, PillButton, RoundButton, type } from '@waken/ui';
+import { colors, fonts, PillButton, PressScale, RoundButton, type } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { pathTo, pointStreamAt } from '../network';
@@ -110,10 +110,10 @@ export function StreamScreen({ deviceId, gameId, app: appParam }: { deviceId: st
           <View style={{ position: 'absolute', top: 18, right: 24, flexDirection: 'row', gap: 8 }}>
             {toggleKeyboard ? <RoundButton icon={Keyboard} label="Clavier" size={44} variant="frost" onPress={toggleKeyboard} /> : null}
             <RoundButton icon={ChevronUp} label="Masquer les contrôles" size={44} variant="frost" onPress={() => setHud(false)} />
-            <Pressable onPress={leave} style={styles.quit} accessibilityRole="button" accessibilityLabel="Quitter">
+            <PressScale onPress={leave} style={styles.quit} accessibilityRole="button" accessibilityLabel="Quitter">
               <X size={16} color={colors.white} strokeWidth={3} />
               <Text style={[type.button, { fontSize: 14, color: colors.white }]}>Quitter</Text>
-            </Pressable>
+            </PressScale>
           </View>
           <View pointerEvents="none" style={[styles.pill, { bottom: 18, alignSelf: 'center' }]}>
             <Text style={[type.caption, { color: colors.white }]}>
