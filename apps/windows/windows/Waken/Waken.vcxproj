@@ -11,7 +11,8 @@
     <ProjectName>Waken</ProjectName>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Waken</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!-- Same Windows SDK as react-native-svg (10.0 = the latest installed, 10.0.26100.0): with two versions, its WinMD is refused (MSB3851) and winrt/RNSVG.h is never generated. -->
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <DefaultLanguage>en-US</DefaultLanguage>
     <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
     <AppxPackage>false</AppxPackage>
