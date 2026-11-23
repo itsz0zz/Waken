@@ -115,11 +115,24 @@ else { Write-Host 'Pas de clé SteamGridDB : seuls les jeux Steam auront leur po
 
 Step 'App Waken (React Native Windows)'
 Push-Location $here
-if ($Debug) {
-  pnpm exec react-native run-windows --arch x64 --logging
-} else {
-  pnpm exec react-native run-windows --release --arch x64 --logging
+$runArgs = @('exec', 'react-native', 'run-windows', '--arch', 'x64', '--logging')
+if (-not $Debug) { $runArgs += '--release' }
+# Windows PowerShell turns each stderr line into an error once redirected: with 'Stop', the first one would end
+# the script. Only the exit code counts here.
+$ErrorActionPreference = 'Continue'
+& pnpm @runArgs 2>&1 | Tee-Object -Variable runOutput
+$failed = $LASTEXITCODE -ne 0
+$ErrorActionPreference = 'Stop'
+# The last step, CheckNetIsolation (local network exemption, only for Metro in Debug), sometimes fails with
+# "error code 6" although the app is built and installed: then Waken is started here instead.
+if ($failed -and -not $Debug -and ($runOutput -join "`n") -match 'CheckNetIsolationFailure') {
+  Write-Host "Exemption réseau locale refusée par Windows (sans effet pour Waken) : lancement direct." -ForegroundColor Yellow
+  $package = Get-AppxPackage -Name Waken | Select-Object -First 1
+  if ($package) {
+    Start-Process "shell:AppsFolder\$($package.PackageFamilyName)!App"
+    $failed = $false
+  }
 }
-if ($LASTEXITCODE -ne 0) { Pop-Location; throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
+if ($failed) { Pop-Location; throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
 Pop-Location
 Write-Host "`nWaken est installé et lancé." -ForegroundColor Green
