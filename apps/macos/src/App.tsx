@@ -20,7 +20,7 @@ import {
   useNetworkRunner,
   useWaken,
 } from '@waken/app';
-import { colors, fonts, IconBubble, PillButton, shadows, StatusTag, type, Wordmark } from '@waken/ui';
+import { colors, fonts, IconBubble, PillButton, shadows, type, Wordmark } from '@waken/ui';
 import { host, hostTunnel, localDevice, LOCAL_ID, type HostStatus } from './host';
 import { tabs, useDesktopNav, type Route, type Tab } from './nav';
 
@@ -71,7 +71,7 @@ function Shell() {
           <Content route={route} />
           {immersive ? null : (
             <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
-              <TopBar tab={tab} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} status={hostStatus} />
+              <TopBar tab={tab} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} />
               <HostBanner status={hostStatus} />
             </View>
           )}
@@ -106,12 +106,11 @@ function Content({ route }: { route: Route }) {
 
 /**
  * The Arcade top bar of the Mac mockups: room for the traffic lights, wordmark, tabs in a frosted pill,
- * the game search, and this Mac's server state.
+ * and the game search. This Mac's state only shows when something needs the user (the banner below).
  */
-function TopBar({ tab, onSelect, status }: { tab: Tab; onSelect: (t: Tab) => void; status: HostStatus | null }) {
-  const ready = !!status?.sunshine && !!status.agent;
+function TopBar({ tab, onSelect }: { tab: Tab; onSelect: (t: Tab) => void }) {
   return (
-    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 92, paddingRight: 44, gap: 16 }}>
+    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 80, paddingRight: 44, gap: 16 }}>
       <Wordmark height={30} />
       <View style={{ flexDirection: 'row', gap: 2, marginLeft: 20, padding: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)' }}>
         {tabs.map((t) => {
@@ -131,7 +130,6 @@ function TopBar({ tab, onSelect, status }: { tab: Tab; onSelect: (t: Tab) => voi
       </View>
       <View style={{ flex: 1 }} />
       <GameSearch height={48} floating style={{ width: 300 }} />
-      <StatusTag status={!status ? 'unknown' : ready ? 'online' : status.error ? 'unreachable' : 'waking'} label={!status ? 'Ce Mac…' : ready ? 'Ce Mac est prêt' : status.error ? 'Ce Mac : erreur' : 'Ce Mac démarre…'} style={{ height: 34 }} />
     </View>
   );
 }

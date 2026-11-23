@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { Play, Power } from 'lucide-react-native';
-import { AppMark, colors, CoverSkeleton, Display, FadeIn, GameTitle, MachineChip, PillButton, PressScale, RankNumber, SectionTitle, shadows, Skeleton, stagger, StatusTag, TiltedArt, type } from '@waken/ui';
+import { AppMark, colors, CoverSkeleton, Display, FadeIn, GameTitle, PillButton, PressScale, RankNumber, SectionTitle, shadows, Skeleton, stagger, TiltedArt, type } from '@waken/ui';
 import { canWake, type Game } from '@waken/core';
 import { useDeviceStatus, useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
@@ -27,7 +27,6 @@ export function HomeScreen() {
         <SignInCard />
         <View style={{ height: 420, flexDirection: 'row' }}>
           <View style={{ width: 600, justifyContent: 'center', gap: 20, zIndex: 2 }}>
-            {first ? <NextUp game={first} /> : null}
             <Display size={150} align="left" style={{ letterSpacing: -2 }}>
               On joue&nbsp;?
             </Display>
@@ -226,14 +225,3 @@ function GridTileSkeleton({ rank }: { rank: number }) {
   );
 }
 
-/** Desktop: which machine the next game runs on, and whether it is ready. */
-function NextUp({ game }: { game: Game }) {
-  const machine = useMachineOf(game);
-  const status = useDeviceStatus(machine.device);
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <MachineChip name={machine.name} icon={machine.icon} big />
-      <StatusTag status={status} />
-    </View>
-  );
-}
