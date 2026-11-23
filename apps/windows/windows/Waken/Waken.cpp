@@ -8,6 +8,9 @@
 
 #include <csignal>
 
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
 #include "NativeModules.h"
 #include "WakenHost.h"
 
@@ -23,6 +26,9 @@ void OpenLog() {
   std::error_code ignored;
   std::filesystem::create_directories(root, ignored);
   logFile = CreateFileW((root / L"waken.log").c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  // UTF-8 mark: Windows PowerShell's Get-Content would read the accents as another code page otherwise.
+  DWORD written = 0;
+  if (logFile != INVALID_HANDLE_VALUE) ::WriteFile(logFile, "\xEF\xBB\xBF", 3, &written, nullptr);
 }
 
 /// Written straight to the file (no buffer): the line is there even if the app dies right after.
@@ -40,6 +46,36 @@ void WriteLog(std::string const &line) noexcept {
 void Log(std::string const &line) noexcept {
   std::lock_guard lock(logMutex);
   WriteLog(line);
+}
+
+/// Who called: each frame as module+offset, with the nearest symbol DbgHelp knows (exports at least).
+void LogStack() noexcept {
+  void *frames[48];
+  USHORT count = RtlCaptureStackBackTrace(1, 48, frames, nullptr);
+  HANDLE process = GetCurrentProcess();
+  SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+  bool symbols = SymInitialize(process, nullptr, TRUE);
+  alignas(SYMBOL_INFO) char buffer[sizeof(SYMBOL_INFO) + 256];
+  for (USHORT i = 0; i < count; ++i) {
+    auto address = reinterpret_cast<DWORD64>(frames[i]);
+    HMODULE module = nullptr;
+    wchar_t path[MAX_PATH] = L"?";
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(frames[i]), &module)) {
+      GetModuleFileNameW(module, path, MAX_PATH);
+    }
+    char line[512];
+    sprintf_s(line, "  #%02u %ls+0x%llx", static_cast<unsigned>(i), std::filesystem::path(path).filename().c_str(), static_cast<unsigned long long>(address - reinterpret_cast<DWORD64>(module)));
+    std::string text = line;
+    auto symbol = reinterpret_cast<SYMBOL_INFO *>(buffer);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    symbol->MaxNameLen = 255;
+    DWORD64 displacement = 0;
+    if (symbols && SymFromAddr(process, address, &displacement, symbol)) {
+      sprintf_s(line, " %s+0x%llx", symbol->Name, static_cast<unsigned long long>(displacement));
+      text += line;
+    }
+    WriteLog(text);
+  }
 }
 
 /// The fatal ends, which would otherwise leave nothing but 0xc0000409 in the event log.
@@ -62,11 +98,17 @@ void InstallCrashLog() {
     } catch (...) {
       what += " : exception inconnue";
     }
-    Log(what);
+    std::lock_guard lock(logMutex);
+    WriteLog(what);
+    LogStack();
     std::abort();
   });
   _set_invalid_parameter_handler([](wchar_t const *, wchar_t const *, wchar_t const *, unsigned, uintptr_t) {
-    Log("Arrêt : paramètre invalide passé à la bibliothèque C");
+    {
+      std::lock_guard lock(logMutex);
+      WriteLog("Arrêt : paramètre invalide passé à la bibliothèque C, appelé depuis :");
+      LogStack();
+    }
     std::abort();
   });
 }
