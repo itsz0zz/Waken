@@ -17,6 +17,9 @@
     <AppxPackage>false</AppxPackage>
   </PropertyGroup>
   <PropertyGroup Label="ReactNativeWindowsProps">
+    <!-- The JavaScript bundle through pnpm, like the rest of the repository (the default runs npx, whose failure
+         MSBuild ignores and only surfaces later, when Hermes compiles a missing bundle). -->
+    <BundleCliCommand>pnpm exec react-native bundle</BundleCliCommand>
     <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
   </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" />
