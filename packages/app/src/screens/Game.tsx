@@ -1,8 +1,8 @@
 import { Text, View, useWindowDimensions } from 'react-native';
-import { Gauge, Play, Power, Wifi, WifiOff } from 'lucide-react-native';
+import { Flame, Gauge, Play, Power, Wifi, WifiOff } from 'lucide-react-native';
 import { canWake } from '@waken/core';
-import { AppMark, colors, Display, IconBubble, MachineChip, PillButton, shadows, StatusTag, TiltedArt, type } from '@waken/ui';
-import { useDeviceStatus, useGame, useGameArt } from '../hooks';
+import { AppMark, Art, colors, Display, IconBubble, PillButton, PlatformIcon, shadows, StatusTag, TiltedArt, type } from '@waken/ui';
+import { formatPlayTime, useDeviceStatus, useGame, useGameArt, useHostStats } from '../hooks';
 import { useFrame, useNav } from '../nav';
 import { useHostNode } from '../network';
 import { qualities, qualityOf } from '../quality';
@@ -16,9 +16,11 @@ export function GameScreen({ gameId }: { gameId: string }) {
   const { wide } = useFrame();
   const game = useGame(gameId);
   const cover = useGameArt(game, 'cover');
+  const hero = useGameArt(game, 'hero');
   const machine = useMachineOf(game);
   const status = useDeviceStatus(machine.device);
   const node = useHostNode(machine.device);
+  const totals = useHostStats(machine.device);
   const stream = useWaken((s) => s.settings.stream);
   const { width } = useWindowDimensions();
   if (!game) {
@@ -44,6 +46,8 @@ export function GameScreen({ gameId }: { gameId: string }) {
         caption={!node ? 'à vérifier' : node.direct ? 'connexion' : 'image en 720p'}
       />
       <Stat icon={Gauge} color={colors.blue} value={qualities[qualityOf(stream)].label} caption={`${stream.height}p · ${stream.fps} i/s`} />
+      {totals?.streakDays ? <Stat icon={Flame} color={colors.hot} value={`${totals.streakDays} ${totals.streakDays > 1 ? 'jours' : 'jour'}`} caption="de suite" /> : null}
+      {last ? <Stat icon={Play} color={colors.ink} value={last.charAt(0).toUpperCase() + last.slice(1)} caption="dernière partie" /> : null}
     </View>
   );
 
@@ -63,8 +67,13 @@ export function GameScreen({ gameId }: { gameId: string }) {
 
   const big = (
     <View style={{ height: wide ? 360 : 246 }}>
-      {figure(game.store ?? 'Perso', game.store ? 'boutique' : 'ajouté à la main', 'left')}
-      {figure(last ? last.replace("aujourd'hui", 'auj.') : 'Neuf', last ? 'dernière partie' : 'jamais lancé', 'right')}
+      {/* Real figures once the game has been played, like the mockups; the store and "Neuf" before that. */}
+      {game.playSeconds
+        ? figure(formatPlayTime(game.playSeconds), 'de jeu', 'left')
+        : figure(game.store ?? 'Perso', game.store ? 'boutique' : 'ajouté à la main', 'left')}
+      {game.sessions
+        ? figure(String(game.sessions), game.sessions > 1 ? 'parties' : 'partie', 'right')
+        : figure(last ? last.replace("aujourd'hui", 'auj.') : 'Neuf', last ? 'dernière partie' : 'jamais lancé', 'right')}
       <View style={{ position: 'absolute', left: '50%', marginLeft: wide ? -120 : -85, top: 4 }}>
         <TiltedArt source={cover} title={game.title} width={wide ? 240 : 170} height={wide ? 320 : 226} rotate={-4} border={7} rounded={28} />
       </View>
@@ -81,14 +90,22 @@ export function GameScreen({ gameId }: { gameId: string }) {
     </View>
   );
 
+  // The game's own banner behind the whole page, blurred and light: its colours without any edge to hide.
+  const backdrop = hero ? (
+    <Art source={hero} blur={wide ? 30 : 20} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.32 }} />
+  ) : null;
+
   return (
-    <Screen ground="sky" maxWidth={wide ? 1100 : 600}>
+    <Screen ground="sky" maxWidth={wide ? 1100 : 600} backdrop={backdrop}>
       <BackHeader title={wide ? undefined : machine.name} />
       {wide ? (
         <View style={{ flexDirection: 'row', gap: 48, marginTop: 20 }}>
           <View style={{ flex: 1, gap: 20 }}>
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <MachineChip name={machine.name} icon={machine.icon} big />
+              <PlatformIcon platform={machine.platform} size={26} />
+              <Text numberOfLines={1} style={[type.headline, { fontSize: 20, color: colors.ink, flexShrink: 1 }]}>
+                {machine.name}
+              </Text>
               <StatusTag status={status} />
             </View>
             <Display size={game.title.length <= 10 ? 110 : 80} align="left" numberOfLines={2}>
@@ -105,8 +122,11 @@ export function GameScreen({ gameId }: { gameId: string }) {
             {game.title}
           </Display>
           <View style={{ marginTop: -6 }}>{big}</View>
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 12 }}>
-            <MachineChip name={machine.name} icon={machine.icon} big />
+          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 12 }}>
+            <PlatformIcon platform={machine.platform} size={26} />
+            <Text numberOfLines={1} style={[type.headline, { fontSize: 20, color: colors.ink, flexShrink: 1 }]}>
+              {machine.name}
+            </Text>
             <StatusTag status={status} />
           </View>
           <View style={{ marginTop: 18 }}>{stats}</View>

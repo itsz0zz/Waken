@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { colors, FadeIn, SearchField, shadows, TiltedArt, type } from '@waken/ui';
+import { colors, FadeIn, GameTitle, SearchField, shadows, TiltedArt, type } from '@waken/ui';
 import type { Game } from '@waken/core';
 import { useGameArt, useLibrary } from '../hooks';
 import { useNav } from '../nav';
@@ -69,9 +69,7 @@ function Result({ game, onPress }: { game: Game; onPress: () => void }) {
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={game.title} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: pressed ? colors.soft : 'transparent' })}>
       <TiltedArt source={art} title={game.title} width={40} height={52} rotate={0} border={2} rounded={10} lifted={false} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={[type.label, { color: colors.ink }]}>
-          {game.title}
-        </Text>
+        <GameTitle title={game.title} platform={machine.platform} size={15} />
         <Text numberOfLines={1} style={[type.caption, { color: colors.ink2 }]}>
           {machine.name}
         </Text>

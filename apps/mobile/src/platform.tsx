@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { StreamView as NativeStreamView, WakenStream, isNativeStreamAvailable } from 'waken-stream';
 import { isTunnelAvailable, WakenTunnel } from 'waken-tunnel';
@@ -31,6 +32,18 @@ export const mobilePlatform: WakenPlatform = {
     getItem: (k) => SecureStore.getItemAsync(k),
     setItem: (k, v) => SecureStore.setItemAsync(k, v),
     removeItem: (k) => SecureStore.deleteItemAsync(k),
+  },
+  // The library cache: a file in the app's documents, nothing secret (titles, picture paths, play times).
+  cacheStorage: {
+    getItem: async (k) => {
+      const file = new File(Paths.document, `${k}.json`);
+      return file.exists ? file.text() : null;
+    },
+    setItem: (k, v) => new File(Paths.document, `${k}.json`).write(v),
+    removeItem: (k) => {
+      const file = new File(Paths.document, `${k}.json`);
+      if (file.exists) file.delete();
+    },
   },
   tunnel: isTunnelAvailable ? WakenTunnel : null,
   StreamView: isNativeStreamAvailable ? StreamView : null,

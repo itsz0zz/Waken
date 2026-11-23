@@ -12,6 +12,7 @@ export function Screen({
   refreshing,
   onRefresh,
   contentStyle,
+  backdrop,
 }: {
   ground: Ground;
   children: React.ReactNode;
@@ -20,6 +21,8 @@ export function Screen({
   refreshing?: boolean;
   onRefresh?: () => void;
   contentStyle?: StyleProp<ViewStyle>;
+  /** A picture between the ground and the content (a game's banner). */
+  backdrop?: React.ReactNode;
 }) {
   const frame = useFrame();
   const padding: ViewStyle = { paddingTop: frame.top + 14, paddingBottom: frame.bottom + 24, paddingHorizontal: frame.wide ? 40 : 20 };
@@ -27,6 +30,7 @@ export function Screen({
   return (
     <View style={{ flex: 1, backgroundColor: colors.white }}>
       <ScreenGround ground={ground} />
+      {backdrop}
       {scroll ? (
         <ScrollView
           style={{ flex: 1 }}

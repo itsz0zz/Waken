@@ -1,4 +1,4 @@
-import type { Device, HostGame, StreamSettings } from './types';
+import type { Device, HostGame, HostStats, StreamSettings } from './types';
 import { json } from './http';
 
 /** The first launch also pairs the agent with Sunshine, and starting an encoder takes a few seconds. */
@@ -45,6 +45,11 @@ export class AgentClient {
   artSource(path: string, small: boolean) {
     if (!path.startsWith('/games/')) throw new Error(`Chemin d'image inattendu : ${path}`);
     return { uri: `${this.base}${path}${small ? '?size=small' : ''}`, headers: this.headers };
+  }
+
+  /** The machine's play totals: days in a row, time this month, sessions. */
+  stats() {
+    return json<HostStats>(`${this.base}/stats`, { headers: this.headers });
   }
 
   /** Starts a game of the host's library on the host itself (a desktop app playing on its own machine). */

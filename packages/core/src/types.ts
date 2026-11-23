@@ -55,16 +55,30 @@ export interface Game {
   store?: string;
   /** Official pictures, as paths on the host's agent (GET with its token). */
   art?: GameArt;
+  /** Time played on its machine, in seconds, and how many times it was started (from the machine's agent). */
+  playSeconds?: number;
+  sessions?: number;
 }
 
 export type GameArtKind = 'cover' | 'hero' | 'logo' | 'icon';
 export type GameArt = Partial<Record<GameArtKind, string>>;
+
+/** A machine's totals (GET /stats). */
+export interface HostStats {
+  streakDays: number;
+  monthSeconds: number;
+  sessions: number;
+}
 
 /** A game installed on a host, as listed by its agent (GET /games). */
 export interface HostGame {
   id: string;
   title: string;
   store: string;
+  /** Kept by the machine's agent, shared by every device that plays on it. */
+  lastPlayed?: string | null;
+  playSeconds?: number;
+  sessions?: number;
   cover: string;
   hero: string;
   logo: string;

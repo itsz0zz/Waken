@@ -84,8 +84,8 @@ function Row({ game, rank }: { game: Game; rank: number }) {
       rank={rank}
       title={game.title}
       art={art}
-      machine={machine.name}
-      machineIcon={machine.icon}
+      platform={machine.platform}
+      subtitle={machine.name}
       onPress={() => nav.game(game.id)}
       onPlay={() => nav.play(game.deviceId, game.id, game.sunshineApp)}
     />

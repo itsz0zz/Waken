@@ -1,6 +1,6 @@
 import { Linking, Text, View } from 'react-native';
 import { ChevronLeft, Monitor, type LucideIcon } from 'lucide-react-native';
-import { AppMark, Card, colors, machineIcon, PillButton, RoundButton, type, Wordmark } from '@waken/ui';
+import { AppMark, Card, colors, machineIcon, PillButton, RoundButton, type, Wordmark, type Platform } from '@waken/ui';
 import type { Device, Game } from '@waken/core';
 import { useNav } from '../nav';
 import { platform } from '../platform';
@@ -49,10 +49,18 @@ export function SignInCard() {
   );
 }
 
-/** The machine a game runs on, for its chip. */
-export function useMachineOf(game?: Game): { device?: Device; name: string; icon: LucideIcon } {
+/** The machine a game runs on, and the platform logo shown next to its name. */
+export function useMachineOf(game?: Game): { device?: Device; name: string; icon: LucideIcon; platform: Platform } {
   const device = useWaken((s) => s.devices.find((d) => d.id === game?.deviceId));
-  return { device, name: device?.name ?? 'Machine', icon: device ? machineIcon(device.kind, device.detail) : Monitor };
+  return { device, name: device?.name ?? 'Machine', icon: device ? machineIcon(device.kind, device.detail) : Monitor, platform: platformOf(device, game) };
+}
+
+/** Where a game runs: the PS5, a Mac, or Windows. Xbox and Game Pass games show their own logo. */
+export function platformOf(device?: Device, game?: Game): Platform {
+  if (device?.kind === 'playstation') return 'playstation';
+  if (game?.store === 'Xbox') return 'xbox';
+  if (device?.detail === 'Mac') return 'mac';
+  return 'windows';
 }
 
 /** "hier", "il y a 3 jours", for the last played line. */

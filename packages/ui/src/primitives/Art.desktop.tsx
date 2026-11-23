@@ -6,7 +6,7 @@ import type { ArtProps } from './types';
  * Mac and Windows: React Native's own Image (no Expo there). It sends the headers of a { uri, headers } source,
  * so the agent's token stays out of the URL like on the phone.
  */
-export function Art({ source, style, fit = 'cover', align = 'center', onError, accessibilityLabel }: ArtProps) {
+export function Art({ source, style, fit = 'cover', align = 'center', onError, accessibilityLabel, blur }: ArtProps) {
   // React Native's Image pops in: fade it like expo-image does on the phone.
   const { opacity, onLoad } = useFadeOnLoad();
   const image = (
@@ -16,6 +16,7 @@ export function Art({ source, style, fit = 'cover', align = 'center', onError, a
       style={[{ width: '100%', height: '100%' }, align === 'left bottom' ? null : style, { opacity }]}
       resizeMode={fit}
       onError={onError}
+      blurRadius={blur}
       accessibilityLabel={accessibilityLabel}
     />
   );

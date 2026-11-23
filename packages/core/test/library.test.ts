@@ -47,6 +47,12 @@ describe('mergeLibrary', () => {
     expect(games.map((g) => g.title)).toEqual(['Hytale', 'Zelda', 'Steam Big Picture']);
   });
 
+  it('uses the machine date when it is the latest one, and carries play time', () => {
+    const played = { ...host('a', 'Hades'), lastPlayed: '2026-11-22T20:00:00Z', playSeconds: 3600, sessions: 2 };
+    const [game] = mergeLibrary({ pc: [played] }, [], { 'pc/a': '2026-11-20T10:00:00Z' });
+    expect(game).toMatchObject({ lastPlayedAt: '2026-11-22T20:00:00Z', playSeconds: 3600, sessions: 2 });
+  });
+
   it('lists a host game once when the host reports it twice', () => {
     expect(mergeLibrary({ pc: [host('steam:1', 'Hades'), host('epic:2', 'HADES')] }, [], {})).toHaveLength(1);
   });

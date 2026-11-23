@@ -30,6 +30,12 @@ setPlatform({
     setItem: (k, v) => host.storageSet(k, v),
     removeItem: (k) => host.storageRemove(k),
   },
+  // The app's private folder too: the cache has nothing secret, but one place for all its files.
+  cacheStorage: {
+    getItem: (k) => host.storageGet(k),
+    setItem: (k, v) => host.storageSet(k, v),
+    removeItem: (k) => host.storageRemove(k),
+  },
   tunnel: hostTunnel,
   // Playing FROM this Mac on another computer needs the AppKit stream view: next step.
   StreamView: null,

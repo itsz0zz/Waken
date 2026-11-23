@@ -1,8 +1,8 @@
 import { Pressable, Text, View } from 'react-native';
 import { Check, Monitor, Play, Plus, Power } from 'lucide-react-native';
 import { canWake, hostDisplayName, type Device } from '@waken/core';
-import { AppMark, Card, colors, Display, FadeIn, IconBubble, machineIcon, PillButton, shadows, stagger, StatusTag, type } from '@waken/ui';
-import { useDeviceStatus, useLibrary } from '../hooks';
+import { AppMark, Art, Card, colors, Gradient, Display, FadeIn, IconBubble, machineIcon, PillButton, shadows, stagger, StatusTag, type } from '@waken/ui';
+import { useDeviceStatus, useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
 import { useNetwork } from '../network';
 import { useWaken } from '../store';
@@ -51,8 +51,16 @@ function MachineCard({ device }: { device: Device }) {
   const Icon = machineIcon(device.kind, device.detail);
   const ready = status === 'online';
   const wakeable = canWake(device);
+  const banner = useGameArt(last ?? games.find((g) => g.deviceId === device.id && g.art), 'hero');
   return (
-    <Card style={{ gap: 14, padding: 18 }}>
+    <Card style={{ gap: 14, padding: 18, overflow: 'hidden' }}>
+      {/* The machine's last game as its banner: a machine is what you play on it. */}
+      {banner ? (
+        <View style={{ height: 96, marginTop: -18, marginHorizontal: -18, marginBottom: -4 }}>
+          <Art source={banner} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+          <Gradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']} locations={[0.35, 1]} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+        </View>
+      ) : null}
       <Pressable onPress={nav.machine ? () => nav.machine!(device.id) : undefined} accessibilityRole="button" accessibilityLabel={device.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <IconBubble icon={Icon} color={device.kind === 'playstation' ? colors.blue : colors.violet} size={52} />
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>

@@ -15,6 +15,8 @@ var bearerToken = new BearerToken(options.Token);
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<GameStreamClient>();
 builder.Services.AddSingleton(_ => new GameLibrary(GameLibrary.DefaultSources()));
+builder.Services.AddSingleton(_ => new GameStats(options.DataDir));
+builder.Services.AddHostedService<StatsTracker>();
 builder.Services.AddSingleton(sp => new SunshineAppSync(
     sp.GetRequiredService<GameStreamClient>().CreateAdminClient,
     sp.GetRequiredService<ILogger<SunshineAppSync>>()));
@@ -48,27 +50,40 @@ app.MapGet("/health", () => Results.Ok(new { ok = true, machine = Environment.Ma
 app.MapGet("/apps", (GameStreamClient gs, CancellationToken ct) =>
     CallSunshine(async () => Results.Ok((await gs.AppsAsync(ct)).Select(a => new { id = a.Id, title = a.Title }))));
 
-app.MapPost("/launch", async (LaunchRequest req, GameStreamClient gs, GameLibrary library, SunshineAppSync sync, CancellationToken ct) =>
+app.MapPost("/launch", async (LaunchRequest req, GameStreamClient gs, GameLibrary library, SunshineAppSync sync, GameStats stats, CancellationToken ct) =>
 {
     // A game installed since the last sync must be launchable at once.
-    await TrySyncAsync(sync, await library.GetAsync(refresh: false, ct), ct);
-    return await CallSunshine(async () => Results.Ok(await gs.LaunchAsync(req.App, req.Width, req.Height, req.Fps, ct, req.Replace)));
+    var games = await library.GetAsync(refresh: false, ct);
+    await TrySyncAsync(sync, games, ct);
+    return await CallSunshine(async () =>
+    {
+        var launched = await gs.LaunchAsync(req.App, req.Width, req.Height, req.Fps, ct, req.Replace);
+        // Sunshine apps are named after the games: the session is counted for that game.
+        if (games.FirstOrDefault(g => string.Equals(g.Title, req.App, StringComparison.OrdinalIgnoreCase)) is { } game) stats.Begin(game.Id, req.App);
+        return Results.Ok(launched);
+    });
 });
 
+// Totals for the home and game screens: days in a row, time this month, sessions.
+app.MapGet("/stats", (GameStats stats) => Results.Ok(stats.Summary()));
+
 // The games installed on this machine, whatever the store. Pictures are fetched on demand by the routes below.
-app.MapGet("/games", async (bool? refresh, GameLibrary library, SunshineAppSync sync, CancellationToken ct) =>
+app.MapGet("/games", async (bool? refresh, GameLibrary library, SunshineAppSync sync, GameStats stats, CancellationToken ct) =>
 {
     var games = await library.GetAsync(refresh == true, ct);
     await TrySyncAsync(sync, games, ct);
-    return Results.Ok(games.Select(g => new
+    return Results.Ok(games.Select(g => (g, played: stats.Of(g.Id))).Select(e => new
     {
-        id = g.Id,
-        title = g.Title,
-        store = g.Store,
-        cover = $"/games/{Uri.EscapeDataString(g.Id)}/cover",
-        hero = $"/games/{Uri.EscapeDataString(g.Id)}/hero",
-        logo = $"/games/{Uri.EscapeDataString(g.Id)}/logo",
-        icon = $"/games/{Uri.EscapeDataString(g.Id)}/icon",
+        lastPlayed = e.played?.LastPlayed,
+        playSeconds = e.played?.Seconds ?? 0,
+        sessions = e.played?.Sessions ?? 0,
+        id = e.g.Id,
+        title = e.g.Title,
+        store = e.g.Store,
+        cover = $"/games/{Uri.EscapeDataString(e.g.Id)}/cover",
+        hero = $"/games/{Uri.EscapeDataString(e.g.Id)}/hero",
+        logo = $"/games/{Uri.EscapeDataString(e.g.Id)}/logo",
+        icon = $"/games/{Uri.EscapeDataString(e.g.Id)}/icon",
     }));
 });
 
@@ -84,12 +99,13 @@ app.MapGet("/games/{id}/{kind}", async (string id, string kind, string? size, Ga
 
 // Starts a game of this machine's library right here, for the desktop app playing on its own machine.
 // Only ids from the library: the command is the one the scan found, never one sent by the caller.
-app.MapPost("/games/{id}/start", async (string id, GameLibrary library, CancellationToken ct) =>
+app.MapPost("/games/{id}/start", async (string id, GameLibrary library, GameStats stats, CancellationToken ct) =>
 {
     if (await library.FindAsync(id, ct) is not { } game) return Results.NotFound();
     try
     {
         StartLocally(game.Detached);
+        stats.Begin(game.Id, game.Title, tracked: false);
         return Results.Accepted();
     }
     catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)

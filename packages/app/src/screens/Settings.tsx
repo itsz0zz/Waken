@@ -3,6 +3,7 @@ import { Alert, Linking, Text, View } from 'react-native';
 import { Gamepad2, LogOut, Server, Wifi } from 'lucide-react-native';
 import { hostDisplayName, validateApiUrl } from '@waken/core';
 import { AppMark, Card, colors, Display, Field, IconBubble, PillButton, Segmented, SettingRow, type } from '@waken/ui';
+import { useBestStreak } from '../hooks';
 import { useFrame } from '../nav';
 import { hasTunnel, signOut, useNetwork } from '../network';
 import { platform } from '../platform';
@@ -18,6 +19,8 @@ export function SettingsScreen() {
   const devices = useWaken((s) => s.devices);
   const status = useNetwork((s) => s.status);
   const quality = qualityOf(settings.stream);
+  // The longest run of days played, across the machines (each one keeps its own).
+  const streak = useBestStreak(devices);
 
   return (
     <Screen ground="sun" maxWidth={wide ? 1100 : 600}>
@@ -33,6 +36,7 @@ export function SettingsScreen() {
               <Text style={[type.headline, { fontSize: 20, color: colors.ink }]}>{devices.find((d) => d.local)?.name ?? platform().deviceName ?? 'Cet appareil'}</Text>
               <Text style={[type.caption, { color: colors.ink2 }]}>
                 {devices.filter((d) => !d.local).length} {devices.filter((d) => !d.local).length > 1 ? 'autres machines' : 'autre machine'}
+                {streak ? ` · ${streak} ${streak > 1 ? 'jours' : 'jour'} de suite` : ''}
               </Text>
             </View>
           </Card>

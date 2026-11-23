@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { Play, Power } from 'lucide-react-native';
-import { AppMark, colors, CoverSkeleton, Display, FadeIn, MachineChip, PillButton, PressScale, RankNumber, SectionTitle, shadows, Skeleton, stagger, StatusTag, TiltedArt, type } from '@waken/ui';
+import { AppMark, colors, CoverSkeleton, Display, FadeIn, GameTitle, MachineChip, PillButton, PressScale, RankNumber, SectionTitle, shadows, Skeleton, stagger, StatusTag, TiltedArt, type } from '@waken/ui';
 import { canWake, type Game } from '@waken/core';
 import { useDeviceStatus, useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
@@ -117,10 +117,12 @@ function TopCard({ game, rank }: { game: Game; rank: number }) {
           <RankNumber n={rank} size={86} />
         </View>
       </View>
-      <Text numberOfLines={1} style={[type.headline, { fontSize: 19, color: colors.ink, marginTop: 10, textAlign: 'center', alignSelf: 'stretch' }]}>
-        {game.title}
-      </Text>
-      <MachineChip name={machine.name} icon={machine.icon} />
+      <View style={{ marginTop: 10, alignSelf: 'stretch', gap: 2 }}>
+        <GameTitle title={game.title} platform={machine.platform} size={19} align="center" />
+        <Text numberOfLines={1} style={[type.caption, { color: colors.ink2, textAlign: 'center' }]}>
+          {machine.name}
+        </Text>
+      </View>
     </PressScale>
   );
 }
@@ -186,10 +188,10 @@ function GridTile({ game, rank }: { game: Game; rank: number }) {
         </View>
       </View>
       <View style={{ flex: 1, gap: 6 }}>
-        <Text numberOfLines={2} style={[type.headline, { color: colors.ink }]}>
-          {game.title}
+        <GameTitle title={game.title} platform={machine.platform} />
+        <Text numberOfLines={1} style={[type.caption, { color: colors.ink2 }]}>
+          {machine.name}
         </Text>
-        <MachineChip name={machine.name} icon={machine.icon} style={{ alignSelf: 'flex-start' }} />
       </View>
     </PressScale>
   );

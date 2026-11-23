@@ -48,6 +48,19 @@ export const grounds = {
 
 export type Ground = keyof typeof grounds;
 
+/** The colour of a vertical ground at a height (0 top, 1 bottom): where a picture laid on it must fade to. */
+export function groundColorAt(ground: Ground, t: number): string {
+  const { colors: stops, locations } = grounds[ground];
+  const at = Math.min(1, Math.max(0, t));
+  let i = 0;
+  while (i < locations.length - 2 && at > locations[i + 1]) i++;
+  const span = locations[i + 1] - locations[i] || 1;
+  const k = (at - locations[i]) / span;
+  const rgb = (hex: string) => [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16));
+  const [a, b] = [rgb(stops[i]), rgb(stops[i + 1])];
+  return `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * k)).join(',')})`;
+}
+
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 12: 48 } as const;
 
 export const radius = { chip: 9, md: 16, card: 24, art: 22, hero: 28, pill: 999 } as const;

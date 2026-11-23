@@ -26,7 +26,10 @@ export function mergeLibrary(found: Record<string, HostGame[]>, kept: Game[], la
         sunshineApp: g.title,
         store: g.store,
         art: { cover: g.cover, hero: g.hero, logo: g.logo, icon: g.icon },
-        lastPlayedAt: lastPlayed[id],
+        // The machine's own date wins when it is later: a game played from another device counts here too.
+        lastPlayedAt: latest(lastPlayed[id], g.lastPlayed ?? undefined),
+        playSeconds: g.playSeconds,
+        sessions: g.sessions,
       });
     }
   }
@@ -44,3 +47,5 @@ export function mergeLibrary(found: Record<string, HostGame[]>, kept: Game[], la
       a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' })
   );
 }
+
+const latest = (a?: string, b?: string) => (!a ? b : !b ? a : new Date(a) > new Date(b) ? a : b);

@@ -16,6 +16,7 @@ import {
 import { Gamepad2, Laptop, Monitor, Play, Search, Server, X, type LucideIcon } from 'lucide-react-native';
 import { Art, Gradient, type ArtSource } from './primitives';
 import { PressScale, Skeleton } from './motion';
+import { PlatformIcon, platformNames, type Platform } from './platforms';
 import { colors, fonts, grounds, radius, shadows, type, type DeviceTint, type Ground } from './tokens';
 
 /* ---------- Ground and titles ---------- */
@@ -332,18 +333,19 @@ export function StatusTag({ status, label, style }: { status: DeviceStatus; labe
 
 /* ---------- Lists and forms ---------- */
 
-/** One game in a list: tilted cover with its rank, name, machine, play button. */
-export function GameRow({ rank, title, art, machine, machineIcon: Icon, onPress, onPlay }: {
+/** One game in a list: tilted cover with its rank, its name with its platform's logo, its machine, a play button. */
+export function GameRow({ rank, title, art, platform, subtitle, onPress, onPlay }: {
   rank?: number;
   title: string;
   art?: ArtSource;
-  machine: string;
-  machineIcon: LucideIcon;
+  platform: Platform;
+  /** The machine, small and grey: useful as soon as there are two of the same kind. */
+  subtitle?: string;
   onPress?: () => void;
   onPlay?: () => void;
 }) {
   return (
-    <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={title} scaleTo={0.98} style={[styles.gameRow, shadows.card]}>
+    <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}, ${platformNames[platform]}`} scaleTo={0.98} style={[styles.gameRow, shadows.card]}>
       <View style={{ width: 96, height: 68 }}>
         <TiltedArt source={art} title={title} width={90} height={66} border={4} rounded={radius.md} />
         {rank != null ? (
@@ -352,14 +354,28 @@ export function GameRow({ rank, title, art, machine, machineIcon: Icon, onPress,
           </View>
         ) : null}
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        <Text numberOfLines={1} style={[type.headline, { color: colors.ink }]}>
-          {title}
-        </Text>
-        <MachineChip name={machine} icon={Icon} style={{ alignSelf: 'flex-start' }} />
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <GameTitle title={title} platform={platform} />
+        {subtitle ? (
+          <Text numberOfLines={1} style={[type.caption, { color: colors.ink2 }]}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {onPlay ? <RoundButton icon={Play} filled label={`Jouer à ${title}`} variant="ink" size={46} onPress={onPlay} /> : null}
     </PressScale>
+  );
+}
+
+/** A game's name followed by its platform's logo, on one line: the title shrinks, the logo stays. */
+export function GameTitle({ title, platform, size = 18, color = colors.ink, align = 'left' }: { title: string; platform: Platform; size?: number; color?: string; align?: 'left' | 'center' }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, justifyContent: align === 'center' ? 'center' : 'flex-start', alignSelf: 'stretch' }}>
+      <Text numberOfLines={1} style={[type.headline, { fontSize: size, lineHeight: Math.round(size * 1.25), color, flexShrink: 1 }]}>
+        {title}
+      </Text>
+      <PlatformIcon platform={platform} size={Math.round(size * 0.85)} color={color} />
+    </View>
   );
 }
 

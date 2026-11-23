@@ -294,6 +294,17 @@ public sealed class GameStreamClient
         return xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
     }
 
+    /// <summary>The title of the app Sunshine is streaming, or null when nothing runs.</summary>
+    public async Task<string?> CurrentAppAsync(CancellationToken ct)
+    {
+        await EnsurePairedAsync(ct);
+        using var http = TlsClient();
+        var info = await GetXml(http, $"{HttpsBase}/serverinfo?{Common}", ct);
+        var running = (int?)info.Element("currentgame") ?? 0;
+        if (running == 0) return null;
+        return (await AppsAsync(ct)).FirstOrDefault(a => a.Id == running).Title;
+    }
+
     public sealed record LaunchResult(string AppVersion, string? GfeVersion, string RtspSessionUrl, int ServerCodecModeSupport, string RiKey, int RiKeyId);
 
     public async Task<LaunchResult> LaunchAsync(string appTitle, int width, int height, int fps, CancellationToken ct, bool replace = false)

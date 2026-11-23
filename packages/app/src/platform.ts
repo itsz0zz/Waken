@@ -32,6 +32,8 @@ export interface StreamViewProps {
 export interface WakenPlatform {
   /** Where the configuration is kept: Keychain on iPhone, the app's private folder on desktop. */
   storage: StateStorage;
+  /** Where the library cache is kept: a plain file, nothing secret in it, and too big for the Keychain. */
+  cacheStorage: StateStorage;
   /** The Waken network, when this build has it. */
   tunnel: TunnelApi | null;
   /** The native stream view, when this build has it. */

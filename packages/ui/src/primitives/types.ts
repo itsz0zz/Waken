@@ -11,6 +11,8 @@ export interface ArtProps {
   /** Where a contained picture sits: logos sit bottom left over the banner. */
   align?: 'center' | 'left bottom';
   onError?: () => void;
+  /** Blur radius, for a picture used as a background. */
+  blur?: number;
   accessibilityLabel?: string;
 }
 
