@@ -5,6 +5,8 @@
 #     api.wakenplay.fr -> service "accounts",  port 8080 (the apps)
 #   Environment in Dokploy: HEADSCALE_API_KEY (after the first deploy, see server/DEPLOY.md).
 # No published port: Traefik (Dokploy) is the only way in.
+# Data on the server's iSCSI disk: ${WAKEN_DATA}/headscale (the network) and ${WAKEN_DATA}/accounts (accounts,
+# session keys). A local filesystem, so SQLite is safe there (never put it on NFS or SMB).
 services:
   headscale:
     image: headscale/headscale:0.29.7
@@ -15,16 +17,27 @@ services:
     volumes:
       - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
       - ./headscale/policy.hujson:/etc/headscale/policy.hujson:ro
-      - headscale-data:/var/lib/headscale
+      - ${WAKEN_DATA:-/srv/iscsi/docker-data/waken}/headscale:/var/lib/headscale
     expose:
       - "8080"
+
+  # The accounts run as the .NET images' non-root user (1654): its folder on the disk must be theirs.
+  accounts-init:
+    image: alpine:3.24
+    command: ["sh", "-c", "mkdir -p /data && chown 1654:1654 /data && chmod 700 /data"]
+    volumes:
+      - ${WAKEN_DATA:-/srv/iscsi/docker-data/waken}/accounts:/data
+    restart: "no"
 
   accounts:
     build:
       context: ./Waken.Cloud
     restart: unless-stopped
     depends_on:
-      - headscale
+      headscale:
+        condition: service_started
+      accounts-init:
+        condition: service_completed_successfully
     environment:
       Cloud__HeadscaleUrl: http://headscale:8080
       # Empty on the very first deploy: the service then stops with a clear message until it is set.
@@ -32,17 +45,13 @@ services:
       Cloud__ControlUrl: ${NET_URL:-https://net.wakenplay.fr}
       # Behind Traefik: the client address comes from X-Forwarded-For (rate limits per address).
       Cloud__TrustForwardedHeaders: "true"
-      # Notifications (needs a paid Apple Developer team): the .p8 key goes into the accounts-data volume.
+      # Notifications (needs a paid Apple Developer team): the .p8 key goes into ${WAKEN_DATA}/accounts (seen as /data).
       Cloud__Apns__KeyPath: ${APNS_KEY_PATH:-}
       Cloud__Apns__KeyId: ${APNS_KEY_ID:-}
       Cloud__Apns__TeamId: ${APNS_TEAM_ID:-}
       Cloud__Apns__IosTopic: ${APNS_IOS_TOPIC:-}
       Cloud__Apns__MacTopic: ${APNS_MAC_TOPIC:-}
     volumes:
-      - accounts-data:/data
+      - ${WAKEN_DATA:-/srv/iscsi/docker-data/waken}/accounts:/data
     expose:
       - "8080"
-
-volumes:
-  headscale-data:
-  accounts-data:

@@ -9,6 +9,19 @@ Deux services, un seul compose (`server/docker-compose.cloud.yml`) :
 
 Dokploy construit l'image `accounts` depuis le dépôt et sert les deux en HTTPS par Traefik. Aucun port n'est publié.
 
+Les données vont sur le disque iSCSI du serveur, dans `/srv/iscsi/docker-data/waken` :
+
+| Dossier | Contenu |
+|---|---|
+| `headscale/` | le réseau (`db.sqlite`, clé privée du serveur, socket de la CLI) |
+| `accounts/` | les comptes (`waken.db`) et les clés qui signent les sessions (`keys/`) |
+
+Rien à créer à la main : au déploiement, un petit conteneur `accounts-init` crée `accounts/` et le donne à
+l'utilisateur non root des images .NET (uid 1654), Docker crée `headscale/`. Pour un autre emplacement, la
+variable `WAKEN_DATA` dans l'onglet **Environment**. Le disque iSCSI est vu comme un disque local : SQLite y est
+fiable (à éviter sur NFS ou SMB). Il doit être monté avant que Docker démarre, sinon les conteneurs écriraient
+dans un dossier vide du disque système.
+
 ## 1. DNS
 
 Chez le registrar de `wakenplay.fr`, deux enregistrements `A` (et `AAAA` si le serveur a de l'IPv6) vers l'IP publique
@@ -79,17 +92,17 @@ Dans les logs du service `accounts` (onglet **Logs**), chaque événement du ré
 
 ## 5. Sauvegardes
 
-Deux volumes à sauvegarder (onglet **Volume Backups** de Dokploy, ou une copie régulière) :
+Sauvegarder `/srv/iscsi/docker-data/waken` (de préférence service arrêté, ou avec `sqlite3 .backup`) :
 
-- `headscale-data` : le réseau. Le perdre déconnecte tous les appareils (ils devront se reconnecter à leur compte).
-- `accounts-data` : les comptes (`waken.db`) et les clés qui signent les sessions (`keys/`).
+- `headscale/` : le réseau. Le perdre déconnecte tous les appareils (ils devront se reconnecter à leur compte).
+- `accounts/` : les comptes et les clés qui signent les sessions.
 
 ## 6. Notifications push (plus tard)
 
 Il faut l'Apple Developer Program (équipe payante) : l'équipe personnelle n'a pas droit au push.
 
 1. developer.apple.com, **Keys**, une clé « Apple Push Notifications service » : un fichier `.p8`, son Key ID, le Team ID.
-2. Copier le `.p8` dans le volume `accounts-data` (par exemple `/data/apns.p8`).
+2. Copier le `.p8` dans `/srv/iscsi/docker-data/waken/accounts/apns.p8` (vu comme `/data/apns.p8`), propriétaire 1654.
 3. Variables du service :
    ```
    APNS_KEY_PATH=/data/apns.p8
@@ -109,7 +122,7 @@ Avec Docker Desktop, la même pile tourne sur le Mac. Un fichier d'override publ
 les adresses sur `127.0.0.1` :
 
 ```bash
-cd server && docker compose -p waken-local -f docker-compose.cloud.yml -f <override local> up -d --build
+cd server && WAKEN_DATA=$(mktemp -d) docker compose -p waken-local -f docker-compose.cloud.yml -f <override local> up -d --build
 ```
 
 Vérifié ainsi le 2026-11-23 : compte créé, clé d'appareil, tunnel Waken connecté sans page web,
