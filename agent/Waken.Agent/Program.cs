@@ -39,6 +39,19 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamin
 
 var app = builder.Build();
 
+// Every answer is live state: never kept by a client's HTTP cache. Windows' own (the Windows app's fetch) kept the
+// first /host/status, sent before Sunshine was up, and showed it forever. Covers stay cacheable.
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.OnStarting(() =>
+    {
+        if (!ctx.Response.Headers.ContainsKey("Cache-Control") && ctx.Response.ContentType?.StartsWith("image/", StringComparison.Ordinal) != true)
+            ctx.Response.Headers.CacheControl = "no-store";
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
 app.Use(async (ctx, next) =>
 {
     if (ctx.Request.Path.StartsWithSegments("/health")) { await next(); return; }

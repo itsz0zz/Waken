@@ -1,4 +1,4 @@
-import { Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Flame, Gauge, Play, Power, Wifi, WifiOff } from 'lucide-react-native';
 import { canWake } from '@waken/core';
 import { AppMark, Art, colors, Display, IconBubble, PillButton, PlatformIcon, shadows, StatusTag, TiltedArt, type } from '@waken/ui';
@@ -91,8 +91,13 @@ export function GameScreen({ gameId }: { gameId: string }) {
   );
 
   // The game's own banner behind the whole page, blurred and light: its colours without any edge to hide.
+  // A white veil rather than the image's own opacity: the Mac draws a blurred image at full strength whatever its
+  // opacity, and a dark banner then left the black text unreadable.
   const backdrop = hero ? (
-    <Art source={hero} blur={wide ? 30 : 20} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.32 }} />
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Art source={hero} blur={wide ? 30 : 20} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.68)' }]} />
+    </View>
   ) : null;
 
   return (

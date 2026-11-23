@@ -365,6 +365,10 @@ static short Clamp(CGFloat value) {
 /// Command stays the Mac's (Cmd+Q, Cmd+Tab): with it, the keys go to the app, not to the game.
 - (void)keyDown:(NSEvent *)event {
   if (event.modifierFlags & NSEventModifierFlagCommand) return [super keyDown:event];
+  // A held key: the Mac repeats its keyDown about 30 times a second. The computer repeats on its own side, as with
+  // a local keyboard, so only the first press goes (as Moonlight does): the repeats queued behind every other key
+  // on the input channel, and games saw combinations late or not at all.
+  if (event.isARepeat) return;
   uint16_t vk = WindowsKey(event.keyCode);
   if (!vk) return;
   [_pressedKeys addObject:@(vk)];

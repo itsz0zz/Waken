@@ -36,7 +36,12 @@ let token: string | undefined;
 
 async function agent<T>(path: string, init: RequestInit = {}) {
   if (!token) throw new Error("L'agent de ce PC démarre.");
-  return json<T>(`${AGENT}${path}`, { ...init, headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` } }, 15_000);
+  // no-cache: Windows' HTTP stack keeps GET answers otherwise, and the status would never change.
+  return json<T>(
+    `${AGENT}${path}`,
+    { ...init, cache: 'no-store', headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' } },
+    15_000,
+  );
 }
 
 let lastNote = '';
