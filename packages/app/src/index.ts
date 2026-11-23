@@ -15,3 +15,4 @@ export { Screen } from './screens/Screen';
 export { MachineEditScreen } from './screens/MachineEdit';
 export { GameSearch } from './screens/Search';
 export { useLibraryCache } from './libraryCache';
+export { BootScreen } from './screens/Boot';

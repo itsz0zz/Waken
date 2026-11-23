@@ -13,7 +13,7 @@ const MAX = 5;
  * The search field with its results under it, live while typing: the five closest games, and the full list
  * on Return. Shared by the phone home screen and the desktop top bar.
  */
-export function GameSearch({ height = 56, floating, style }: { height?: number; floating?: boolean; style?: StyleProp<ViewStyle> }) {
+export function GameSearch({ height = 56, floating, tone, style }: { height?: number; floating?: boolean; tone?: 'white' | 'frost'; style?: StyleProp<ViewStyle> }) {
   const nav = useNav();
   const { games } = useLibrary();
   const [query, setQuery] = useState('');
@@ -37,7 +37,7 @@ export function GameSearch({ height = 56, floating, style }: { height?: number; 
 
   return (
     <View style={[{ zIndex: 10 }, style]}>
-      <SearchField value={query} onChangeText={setQuery} height={height} onFocusChange={setFocused} onSubmit={() => { if (q) nav.games(query.trim()); setQuery(''); }} />
+      <SearchField value={query} onChangeText={setQuery} height={height} tone={tone} onFocusChange={setFocused} onSubmit={() => { if (q) nav.games(query.trim()); setQuery(''); }} />
       {open ? (
         <FadeIn
           distance={6}

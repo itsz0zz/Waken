@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, Pressable, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import { colors } from './tokens';
 
 /**
@@ -30,15 +30,67 @@ export function FadeIn({ children, delay = 0, distance = 12, style }: { children
 /** Stagger of a list: 40 ms between items, capped so a long list does not keep the last ones waiting. */
 export const stagger = (index: number) => Math.min(index, 8) * 40;
 
-/** A pressable that sinks a little under the finger and springs back. */
-export function PressScale({ children, style, scaleTo = 0.96, ...rest }: PressableProps & { children: React.ReactNode; style?: StyleProp<ViewStyle>; scaleTo?: number }) {
+/**
+ * A pressable that lifts a little under the mouse (desktop), sinks under the finger or the click, and springs back.
+ * The hand cursor says it is clickable on the Mac.
+ */
+export function PressScale({
+  children,
+  style,
+  scaleTo = 0.96,
+  hoverTo = 1.03,
+  ...rest
+}: PressableProps & { children: React.ReactNode; style?: StyleProp<ViewStyle>; scaleTo?: number; hoverTo?: number }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const to = (value: number) => Animated.spring(scale, { toValue: value, useNativeDriver: nativeDriver, speed: 40, bounciness: value === 1 ? 8 : 0 }).start();
+  const hovered = useRef(false);
+  const { outer, inner } = splitLayout(style);
+  const to = (value: number) => Animated.spring(scale, { toValue: value, useNativeDriver: nativeDriver, speed: 40, bounciness: value >= 1 ? 8 : 0 }).start();
+  const hover = rest as PressableProps & { onHoverIn?: (e: unknown) => void; onHoverOut?: (e: unknown) => void };
   return (
-    <Pressable {...rest} onPressIn={(e) => { to(scaleTo); rest.onPressIn?.(e); }} onPressOut={(e) => { to(1); rest.onPressOut?.(e); }}>
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    <Pressable
+      {...rest}
+      {...({
+        onHoverIn: (e: unknown) => {
+          hovered.current = true;
+          if (!rest.disabled) to(hoverTo);
+          hover.onHoverIn?.(e);
+        },
+        onHoverOut: (e: unknown) => {
+          hovered.current = false;
+          to(1);
+          hover.onHoverOut?.(e);
+        },
+      } as object)}
+      onPressIn={(e) => {
+        to(scaleTo);
+        rest.onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        to(hovered.current ? hoverTo : 1);
+        rest.onPressOut?.(e);
+      }}
+      style={[outer, rest.disabled ? null : ({ cursor: 'pointer' } as ViewStyle)]}
+    >
+      <Animated.View style={[inner, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
+}
+
+/** Layout keys place the pressable itself; everything else (colours, padding, radius) is the animated surface. */
+const layoutKeys = new Set([
+  'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'minWidth', 'maxWidth',
+  'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'marginHorizontal', 'marginVertical',
+  'position', 'top', 'left', 'right', 'bottom', 'zIndex',
+]);
+
+function splitLayout(style: StyleProp<ViewStyle>) {
+  const flat = (StyleSheet.flatten(style) ?? {}) as Record<string, unknown>;
+  const outer: Record<string, unknown> = {};
+  const inner: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(flat)) (layoutKeys.has(key) ? outer : inner)[key] = value;
+  // A sized pressable: the surface fills it.
+  if ('width' in outer || 'flex' in outer || 'flexGrow' in outer) inner.flexGrow = 1;
+  return { outer: outer as ViewStyle, inner: inner as ViewStyle };
 }
 
 /** One shared pulse for every skeleton on screen: they breathe together, like one surface loading. */

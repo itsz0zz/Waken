@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { AppState } from 'react-native';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AgentClient, checkDevice, mergeLibrary, probeSunshine, type Device, type Game, type GameArtKind, type HostGame } from '@waken/core';
 import type { ArtSource, DeviceStatus } from '@waken/ui';
 import { useShallow } from 'zustand/react/shallow';
 import { platform } from './platform';
 import { useLibraryCache } from './libraryCache';
+import { useNetwork } from './network';
 import { useWaken } from './store';
 
 const hasAgent = (d: Device) => !!d.stream?.agentUrl && !!d.stream.agentToken;
@@ -20,7 +22,7 @@ export function useLibrary() {
       staleTime: 5 * 60_000,
       retry: 1,
       // A machine that just started (or was off) answers a bit later: ask again until it does, then each minute.
-      refetchInterval: (query: { state: { status: string } }) => (query.state.status === 'error' ? 5_000 : 60_000),
+      refetchInterval: (query: { state: { status: string } }) => (query.state.status === 'error' ? 3_000 : 60_000),
       queryFn: () => new AgentClient(device).games(),
     })),
   });
@@ -126,4 +128,25 @@ export function useBestStreak(devices: Device[]): number {
 export function formatPlayTime(seconds = 0): string {
   if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} min`;
   return `${Math.round(seconds / 3600)} h`;
+}
+
+/**
+ * Keeps the library fresh for every screen, mounted once at the app's root: asks again as soon as the Waken
+ * network is up, when a machine comes online, and when the app comes back to the front. Without it, the home
+ * screen kept the failed answer of its first try (made before the network was ready) for a while.
+ */
+export function useLibrarySync() {
+  const queryClient = useQueryClient();
+  useLibrary();
+  const running = useNetwork((s) => s.status?.state === 'running');
+  const online = useNetwork((s) => (s.status?.hosts ?? []).filter((h) => h.online).map((h) => h.name).join());
+  useEffect(() => {
+    if (running) void queryClient.invalidateQueries({ queryKey: ['games'] });
+  }, [running, online, queryClient]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void queryClient.invalidateQueries({ queryKey: ['games'] });
+    });
+    return () => sub.remove();
+  }, [queryClient]);
 }

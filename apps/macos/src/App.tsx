@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
 import {
   AddMachineScreen,
+  BootScreen,
   FrameContext,
   GameSearch,
   GameScreen,
@@ -17,10 +18,11 @@ import {
   WakeScreen,
   setPlatform,
   useConfigLoad,
+  useLibrarySync,
   useNetworkRunner,
   useWaken,
 } from '@waken/app';
-import { colors, fonts, IconBubble, PillButton, shadows, type, Wordmark } from '@waken/ui';
+import { colors, fonts, IconBubble, PillButton, PressScale, shadows, type, Wordmark } from '@waken/ui';
 import { host, hostTunnel, localDevice, LOCAL_ID, type HostStatus } from './host';
 import { tabs, useDesktopNav, type Route, type Tab } from './nav';
 
@@ -51,18 +53,34 @@ const labels: Record<Tab, string> = { home: 'Accueil', games: 'Jeux', machines: 
 
 export default function App() {
   const config = useConfigLoad((s) => s.state);
-  if (config === 'loading') return <View style={{ flex: 1, backgroundColor: colors.white }} />;
+  // The boot screen lays over the app until its configuration is read and its server has started (3 s at most).
+  const [waited, setWaited] = useState(false);
+  const [hostUp, setHostUp] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
   return (
-    <QueryClientProvider client={queryClient}>
-      <Shell />
-    </QueryClientProvider>
+    <View style={{ flex: 1, backgroundColor: colors.white }}>
+      {config === 'loading' ? null : (
+        <QueryClientProvider client={queryClient}>
+          <Shell onHostUp={() => setHostUp(true)} />
+        </QueryClientProvider>
+      )}
+      <BootScreen ready={config !== 'loading' && (hostUp || waited)} />
+    </View>
   );
 }
 
-function Shell() {
+function Shell({ onHostUp }: { onHostUp: () => void }) {
   useNetworkRunner();
+  useLibrarySync();
   const { route, tab, nav } = useDesktopNav();
   const hostStatus = useHostStatus();
+  const up = !!hostStatus?.sunshine && !!hostStatus.agent;
+  useEffect(() => {
+    if (up) onHostUp();
+  }, [up, onHostUp]);
   const immersive = route.name === 'stream';
   return (
     <NavContext.Provider value={nav}>
@@ -110,26 +128,27 @@ function Content({ route }: { route: Route }) {
  */
 function TopBar({ tab, onSelect }: { tab: Tab; onSelect: (t: Tab) => void }) {
   return (
-    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 80, paddingRight: 44, gap: 16 }}>
+    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 44, paddingRight: 44, gap: 16 }}>
       <Wordmark height={30} />
       <View style={{ flexDirection: 'row', gap: 2, marginLeft: 20, padding: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)' }}>
         {tabs.map((t) => {
           const on = t === tab;
           return (
-            <Pressable
+            <PressScale
               key={t}
               onPress={() => onSelect(t)}
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
+              hoverTo={1.05}
               style={{ height: 44, paddingHorizontal: 18, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? colors.ink : 'transparent' }}
             >
               <Text style={[type.button, { fontSize: 14, fontFamily: fonts.bold, color: on ? colors.white : colors.ink }]}>{labels[t]}</Text>
-            </Pressable>
+            </PressScale>
           );
         })}
       </View>
       <View style={{ flex: 1 }} />
-      <GameSearch height={48} floating style={{ width: 300 }} />
+      <GameSearch height={52} floating tone="frost" style={{ width: 300 }} />
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Platform as RNPlatform,
   Pressable,
   StyleSheet,
   Switch,
@@ -65,15 +66,12 @@ export function RoundButton({
 }: PressableProps & { icon: LucideIcon; label: string; variant?: RoundVariant; size?: number; badge?: number; filled?: boolean; style?: StyleProp<ViewStyle> }) {
   const v = roundVariants[variant];
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [
-        { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' },
-        v.box,
-        pressed && { transform: [{ scale: 0.94 }] },
-        style,
-      ]}
+      scaleTo={0.92}
+      hoverTo={1.06}
+      style={[{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }, v.box, style]}
       {...rest}
     >
       <Icon size={Math.round(size * 0.39)} color={v.fg} strokeWidth={2} fill={filled ? v.fg : 'none'} />
@@ -82,7 +80,7 @@ export function RoundButton({
           <Text style={styles.badgeText}>{badge}</Text>
         </View>
       ) : null}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -110,13 +108,14 @@ export function PillButton({
   const v = pillVariants[variant];
   const height = size === 'lg' ? 64 : size === 'md' ? 52 : 42;
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [
+      scaleTo={0.96}
+      hoverTo={1.03}
+      style={[
         { height, paddingHorizontal: size === 'sm' ? 18 : 24, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
         v.box,
-        pressed && { transform: [{ scale: 0.97 }] },
         rest.disabled && { opacity: 0.5 },
         style,
       ]}
@@ -124,7 +123,7 @@ export function PillButton({
     >
       {loading ? <ActivityIndicator color={v.fg} /> : Icon ? <Icon size={size === 'lg' ? 22 : 18} color={v.fg} strokeWidth={2.4} /> : null}
       <Text style={[type.button, { color: v.fg, fontSize: size === 'lg' ? 18 : size === 'md' ? 16 : 14 }]}>{label}</Text>
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -412,15 +411,16 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
       {options.map((o) => {
         const on = o.id === value;
         return (
-          <Pressable
+          <PressScale
             key={o.id}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.id)}
+            hoverTo={1.02}
             style={[styles.segment, on && { backgroundColor: colors.ink }]}
           >
             <Text style={[type.button, { fontSize: 14, color: on ? colors.white : colors.ink }]}>{o.label}</Text>
-          </Pressable>
+          </PressScale>
         );
       })}
     </View>
@@ -439,6 +439,7 @@ export function SearchField({
   onFocusChange,
   placeholder = 'Rechercher un jeu',
   height = 56,
+  tone = 'white',
   style,
 }: {
   value: string;
@@ -447,6 +448,8 @@ export function SearchField({
   onFocusChange?: (focused: boolean) => void;
   placeholder?: string;
   height?: number;
+  /** white: a card on the page. frost: in a bar, like the tabs next to it. */
+  tone?: 'white' | 'frost';
   style?: StyleProp<ViewStyle>;
 }) {
   const [focused, setFocused] = React.useState(false);
@@ -455,7 +458,7 @@ export function SearchField({
     onFocusChange?.(on);
   };
   return (
-    <View style={[styles.search, { height, borderColor: focused ? colors.ink : 'transparent' }, shadows.card, style]}>
+    <View style={[styles.search, { height, borderColor: focused ? colors.ink : 'transparent' }, tone === 'frost' ? { backgroundColor: 'rgba(255,255,255,0.75)' } : shadows.card, style]}>
       <Search size={18} color={focused ? colors.ink : colors.ink2} strokeWidth={2.2} />
       <TextInput
         value={value}
@@ -529,6 +532,7 @@ const styles = StyleSheet.create({
   field: { padding: 14, borderRadius: 18, backgroundColor: colors.white, gap: 4 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 18, paddingRight: 12, borderRadius: radius.pill, borderWidth: 2, backgroundColor: colors.white },
   // A fixed height, centered by the row: a stretched field puts its text at the top on the Mac.
-  searchInput: { flex: 1, height: 22, paddingVertical: 0, margin: 0, fontFamily: fonts.medium, fontSize: 15, color: colors.ink },
+  // The Mac draws a field's text 2 points high: brought down to the icon's middle.
+  searchInput: { flex: 1, height: 22, paddingVertical: 0, margin: 0, marginTop: RNPlatform.OS === 'macos' ? 3 : 0, fontFamily: fonts.medium, fontSize: 15, color: colors.ink },
   searchClear: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
 });
