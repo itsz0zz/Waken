@@ -55,7 +55,10 @@ app.Use(async (ctx, next) =>
 app.Use(async (ctx, next) =>
 {
     if (ctx.Request.Path.StartsWithSegments("/health")) { await next(); return; }
-    if (!bearerToken.Matches(ctx.Request.Headers.Authorization.ToString()))
+    // A game's picture opens with its own signature too (the cover, hero, logo and icon URLs of /games).
+    var signedArt = HttpMethods.IsGet(ctx.Request.Method) && ArtRequest(ctx.Request.Path) is { } art
+        && bearerToken.MatchesArt(art.GameId, art.Kind, ctx.Request.Query["sig"]);
+    if (!signedArt && !bearerToken.Matches(ctx.Request.Headers.Authorization.ToString()))
     {
         ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return;
@@ -124,10 +127,10 @@ app.MapGet("/games", async (bool? refresh, GameLibrary library, SunshineAppSync 
         id = e.g.Id,
         title = e.g.Title,
         store = e.g.Store,
-        cover = $"/games/{Uri.EscapeDataString(e.g.Id)}/cover",
-        hero = $"/games/{Uri.EscapeDataString(e.g.Id)}/hero",
-        logo = $"/games/{Uri.EscapeDataString(e.g.Id)}/logo",
-        icon = $"/games/{Uri.EscapeDataString(e.g.Id)}/icon",
+        cover = ArtUrl(e.g.Id, "cover"),
+        hero = ArtUrl(e.g.Id, "hero"),
+        logo = ArtUrl(e.g.Id, "logo"),
+        icon = ArtUrl(e.g.Id, "icon"),
     }));
 });
 
@@ -203,6 +206,18 @@ async Task TrySyncAsync(SunshineAppSync sync, IReadOnlyList<GameEntry> games, Ca
 }
 
 // macOS commands are shell lines ("open -a ..."); on Windows a store URL or an executable path goes to the shell.
+// A picture's address, signed: it opens without the token, for clients that cannot send it with an image.
+string ArtUrl(string gameId, string kind) => $"/games/{Uri.EscapeDataString(gameId)}/{kind}?sig={bearerToken.SignArt(gameId, kind)}";
+
+// "/games/{id}/{kind}" with a picture kind: the game (unescaped) and the kind. Null for any other path.
+static (string GameId, string Kind)? ArtRequest(PathString path)
+{
+    var parts = (path.Value ?? "").Split('/');
+    if (parts.Length != 4 || parts[0] != "" || parts[1] != "games" || parts[2] == "") return null;
+    if (!Enum.TryParse<ArtworkKind>(parts[3], ignoreCase: true, out var kind) || !Enum.IsDefined(kind)) return null;
+    return (Uri.UnescapeDataString(parts[2]), parts[3]);
+}
+
 static void StartLocally(string command)
 {
     var start = OperatingSystem.IsWindows()

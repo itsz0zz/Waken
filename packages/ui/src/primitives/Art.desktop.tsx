@@ -9,13 +9,19 @@ import type { ArtProps } from './types';
 export function Art({ source, style, fit = 'cover', align = 'center', onError, accessibilityLabel, blur }: ArtProps) {
   // React Native's Image pops in: fade it like expo-image does on the phone.
   const { opacity, onLoad } = useFadeOnLoad();
+  // The reason a picture did not show, in the app's log (waken.log on Windows): the URL without its query.
+  const failed = (e: { nativeEvent?: { error?: unknown } }) => {
+    const uri = typeof source === 'object' && source && 'uri' in source ? source.uri.split('?')[0] : String(source);
+    console.log(`[image] ${uri} : ${String(e?.nativeEvent?.error ?? 'erreur inconnue')}`);
+    onError?.();
+  };
   const image = (
     <Animated.Image
       onLoad={onLoad}
       source={(typeof source === 'string' ? { uri: source } : source) as ImageSourcePropType}
       style={[{ width: '100%', height: '100%' }, align === 'left bottom' ? null : style, { opacity }]}
       resizeMode={fit}
-      onError={onError}
+      onError={failed}
       blurRadius={blur}
       accessibilityLabel={accessibilityLabel}
     />

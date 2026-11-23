@@ -44,4 +44,20 @@ public sealed class AuthenticationTests
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ValidToken);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(ProtectedPath)).StatusCode);
     }
+
+    [Fact]
+    public async Task Opens_a_game_picture_with_its_own_signature_only()
+    {
+        using var agent = Agent(ValidToken);
+        using var client = agent.CreateClient();
+        var signer = new BearerToken(ValidToken);
+        // No such game here: 404 means the request got through, 401 that it was refused.
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/games/steam%3A1/cover?sig={signer.SignArt("steam:1", "cover")}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/games/steam%3A1/cover")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/games/steam%3A1/hero?sig={signer.SignArt("steam:1", "cover")}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/games/steam%3A2/cover?sig={signer.SignArt("steam:1", "cover")}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/games/steam%3A1/cover?sig={new BearerToken("other-token-0123456789-abcdefgh").SignArt("steam:1", "cover")}")).StatusCode);
+        // The signature opens the picture, never the rest of the agent.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/games?sig={signer.SignArt("steam:1", "cover")}")).StatusCode);
+    }
 }

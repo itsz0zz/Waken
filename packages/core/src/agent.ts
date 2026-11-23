@@ -44,7 +44,9 @@ export class AgentClient {
    */
   artSource(path: string, small: boolean) {
     if (!path.startsWith('/games/')) throw new Error(`Chemin d'image inattendu : ${path}`);
-    return { uri: `${this.base}${path}${small ? '?size=small' : ''}`, headers: this.headers };
+    // The agent signs each picture's path (?sig=): it opens without the token, which some image loaders drop.
+    const size = small ? `${path.includes('?') ? '&' : '?'}size=small` : '';
+    return { uri: `${this.base}${path}${size}`, headers: this.headers };
   }
 
   /** The machine's play totals: days in a row, time this month, sessions. */
