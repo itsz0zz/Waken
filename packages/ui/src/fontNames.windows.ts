@@ -1,9 +1,14 @@
-/** Windows: the font files are app assets, called as "path#family". */
+/**
+ * Windows: family names, as the app's package declares its font files to Windows (Package.appxmanifest,
+ * windows.sharedFonts). Each weight of Inter is its own family there (the files were renamed so), since the styles
+ * give a font family and no weight. Kept under 32 characters: React Native Windows copies the name of a text
+ * field's font into a 32-character buffer and closes the app when it is longer.
+ */
 export const fonts = {
-  display: '/Assets/Fonts/Anton-Regular.ttf#Anton',
-  regular: '/Assets/Fonts/Inter-Regular.ttf#Inter',
-  medium: '/Assets/Fonts/Inter-Medium.ttf#Inter Medium',
-  semibold: '/Assets/Fonts/Inter-SemiBold.ttf#Inter SemiBold',
-  bold: '/Assets/Fonts/Inter-Bold.ttf#Inter',
-  heavy: '/Assets/Fonts/Inter-ExtraBold.ttf#Inter ExtraBold',
+  display: 'Anton',
+  regular: 'Inter',
+  medium: 'Inter Medium',
+  semibold: 'Inter SemiBold',
+  bold: 'Inter Bold',
+  heavy: 'Inter ExtraBold',
 } as const;
