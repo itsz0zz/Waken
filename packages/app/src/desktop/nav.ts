@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import { AgentClient } from '@waken/core';
-import { useWaken, type WakenNav } from '@waken/app';
+import { type WakenNav } from '../nav';
+import { useWaken } from '../store';
 
-/** A game of this Mac starts here: the agent runs the command its scan found. */
+/** A game of this computer starts here: the agent runs the command its scan found. */
 async function startHere(deviceId: string, gameId: string) {
   const device = useWaken.getState().devices.find((d) => d.id === deviceId);
   if (!device) return;

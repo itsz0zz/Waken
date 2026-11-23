@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Waken.Agent;
 using Waken.Agent.Games;
+using Waken.Agent.Host;
 
 var builder = WebApplication.CreateBuilder(args);
 // Written by the Windows host app, readable by SYSTEM and administrators only. Environment variables would be readable by every user.
@@ -13,6 +14,11 @@ if (OperatingSystem.IsWindows())
 var options = builder.Configuration.GetSection("Agent").Get<AgentOptions>() ?? new AgentOptions();
 var bearerToken = new BearerToken(options.Token);
 builder.Services.AddSingleton(options);
+// The Windows app: the agent runs Sunshine and the Waken network itself.
+var hostOptions = builder.Configuration.GetSection("Agent:Host").Get<HostServicesOptions>() ?? new HostServicesOptions();
+builder.Services.AddSingleton(hostOptions);
+builder.Services.AddSingleton<HostSupervisor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HostSupervisor>());
 builder.Services.AddSingleton<GameStreamClient>();
 builder.Services.AddSingleton(_ => new GameLibrary(GameLibrary.DefaultSources()));
 builder.Services.AddSingleton(_ => new GameStats(options.DataDir));
@@ -46,6 +52,31 @@ app.Use(async (ctx, next) =>
 
 // Answers as soon as Windows has booted, before Sunshine: the app uses it for the "Le PC répond" step.
 app.MapGet("/health", () => Results.Ok(new { ok = true, machine = Environment.MachineName, uptimeSeconds = Environment.TickCount64 / 1000 }));
+
+// The desktop app's view of its own services (Windows: the agent runs them).
+app.MapGet("/host/status", (HostSupervisor supervisor) => Results.Ok(supervisor.Status()));
+
+app.MapPost("/host/tunnel", async (TunnelCommand command, HostSupervisor supervisor, CancellationToken ct) =>
+{
+    try
+    {
+        return Results.Ok(new { result = await supervisor.TunnelCommandAsync(command, ct) });
+    }
+    catch (TunnelException e)
+    {
+        return Results.Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (TimeoutException)
+    {
+        return Results.Problem("Le réseau Waken ne répond pas.", statusCode: StatusCodes.Status504GatewayTimeout);
+    }
+});
+
+app.MapPost("/host/restart-sunshine", (HostSupervisor supervisor) =>
+{
+    supervisor.RestartSunshine();
+    return Results.NoContent();
+});
 
 app.MapGet("/apps", (GameStreamClient gs, CancellationToken ct) =>
     CallSunshine(async () => Results.Ok((await gs.AppsAsync(ct)).Select(a => new { id = a.Id, title = a.Title }))));

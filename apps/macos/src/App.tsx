@@ -1,33 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Text, View } from 'react-native';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
-import {
-  AddMachineScreen,
-  AccountOverlay,
-  BootScreen,
-  FrameContext,
-  GameSearch,
-  GameScreen,
-  GamesScreen,
-  HomeScreen,
-  MachineEditScreen,
-  MachinesScreen,
-  NavContext,
-  SettingsScreen,
-  StreamScreen,
-  WakeScreen,
-  setPlatform,
-  usePushRegistration,
-  useSessionRecaps,
-  useConfigLoad,
-  useLibrarySync,
-  useNetworkRunner,
-  useWaken,
-} from '@waken/app';
-import { colors, fonts, IconBubble, PillButton, PressScale, shadows, type, Wordmark } from '@waken/ui';
-import { host, hostTunnel, localDevice, LOCAL_ID, type HostStatus } from './host';
-import { tabs, useDesktopNav, type Route, type Tab } from './nav';
+import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
+import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
+import { host, hostTunnel, localDevice, type HostStatus } from './host';
 
 setPlatform({
   storage: {
@@ -51,115 +27,15 @@ setPlatform({
 });
 
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-const TOP_BAR = 96;
-
-const labels: Record<Tab, string> = { home: 'Accueil', games: 'Jeux', machines: 'Machines', settings: 'Réglages' };
-
+/** The Mac app: the shared desktop app, with this Mac's services and permissions. */
 export default function App() {
-  const config = useConfigLoad((s) => s.state);
-  // The boot screen lays over the app until its configuration is read and its server has started (3 s at most).
-  const [waited, setWaited] = useState(false);
-  const [hostUp, setHostUp] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setWaited(true), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.white }}>
-      {config === 'loading' ? null : (
-        <QueryClientProvider client={queryClient}>
-          <Shell onHostUp={() => setHostUp(true)} />
-        </QueryClientProvider>
-      )}
-      <BootScreen ready={config !== 'loading' && (hostUp || waited)} />
-    </View>
-  );
+  // Room for the traffic lights, at the window's top left.
+  return <DesktopApp useHost={useMacHost} leftInset={44} />;
 }
 
-function Shell({ onHostUp }: { onHostUp: () => void }) {
-  useNetworkRunner();
-  usePushRegistration();
-  // This Mac streams: the end of a session here sends its recap to the account's other devices.
-  useSessionRecaps(useWaken((s) => s.devices.find((d) => d.local)));
-  useLibrarySync();
-  const { route, tab, nav } = useDesktopNav();
-  const hostStatus = useHostStatus();
-  const up = !!hostStatus?.sunshine && !!hostStatus.agent;
-  useEffect(() => {
-    if (up) onHostUp();
-  }, [up, onHostUp]);
-  const immersive = route.name === 'stream';
-  return (
-    <NavContext.Provider value={nav}>
-      <FrameContext.Provider value={{ top: immersive ? 0 : TOP_BAR + 12, bottom: 12, wide: true }}>
-        <View style={{ flex: 1, backgroundColor: colors.white }}>
-          <Content route={route} />
-          {immersive ? null : (
-            <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
-              <TopBar tab={tab} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} />
-              <HostBanner status={hostStatus} />
-            </View>
-          )}
-          <AccountOverlay />
-        </View>
-      </FrameContext.Provider>
-    </NavContext.Provider>
-  );
-}
-
-function Content({ route }: { route: Route }) {
-  switch (route.name) {
-    case 'home':
-      return <HomeScreen />;
-    case 'games':
-      return <GamesScreen query={route.query} />;
-    case 'game':
-      return <GameScreen gameId={route.gameId} />;
-    case 'machines':
-      return <MachinesScreen />;
-    case 'machine':
-      return <MachineEditScreen deviceId={route.deviceId} />;
-    case 'add':
-      return <AddMachineScreen />;
-    case 'settings':
-      return <SettingsScreen />;
-    case 'wake':
-      return <WakeScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} only={route.only} />;
-    case 'stream':
-      return <StreamScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} />;
-  }
-}
-
-/**
- * The Arcade top bar of the Mac mockups: room for the traffic lights, wordmark, tabs in a frosted pill,
- * and the game search. This Mac's state only shows when something needs the user (the banner below).
- */
-function TopBar({ tab, onSelect }: { tab: Tab; onSelect: (t: Tab) => void }) {
-  return (
-    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: 44, paddingRight: 44, gap: 16 }}>
-      <Wordmark height={30} />
-      <View style={{ flexDirection: 'row', gap: 2, marginLeft: 20, padding: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)' }}>
-        {tabs.map((t) => {
-          const on = t === tab;
-          return (
-            <PressScale
-              key={t}
-              onPress={() => onSelect(t)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              hoverTo={1.05}
-              style={{ height: 44, paddingHorizontal: 18, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? colors.ink : 'transparent' }}
-            >
-              <Text style={[type.button, { fontSize: 14, fontFamily: fonts.bold, color: on ? colors.white : colors.ink }]}>{labels[t]}</Text>
-            </PressScale>
-          );
-        })}
-      </View>
-      <View style={{ flex: 1 }} />
-      <GameSearch height={52} floating tone="frost" style={{ width: 300 }} />
-    </View>
-  );
+function useMacHost() {
+  const status = useHostStatus();
+  return { up: !!status?.sunshine && !!status.agent, banner: <HostBanner status={status} /> };
 }
 
 /** What this Mac still needs before it can be played from elsewhere, asked in plain words. */
@@ -189,14 +65,6 @@ function HostBanner({ status }: { status: HostStatus | null }) {
   );
 }
 
-/** Keeps this Mac in the machine list, once the configuration is loaded and when its name or token changes. */
-function ensureLocalMachine(name: string, agentToken: string) {
-  const { devices, upsertDevice } = useWaken.getState();
-  const known = devices.find((d) => d.id === LOCAL_ID);
-  if (known?.stream?.agentToken === agentToken && known.name === name) return;
-  upsertDevice(localDevice(name, agentToken));
-}
-
 /** Polls this Mac's services and permissions; restarts the stream server once mouse control is granted. */
 function useHostStatus() {
   const [status, setStatus] = useState<HostStatus | null>(null);
@@ -211,7 +79,7 @@ function useHostStatus() {
         // macOS only gives a new permission to processes started after it: restart Sunshine, not Waken.
         if (control.current === false && s.control && s.sunshine) void host.restartServer();
         control.current = s.control;
-        if (s.agentToken) ensureLocalMachine(s.deviceName, s.agentToken);
+        if (s.agentToken) ensureLocalMachine(localDevice(s.deviceName, s.agentToken));
         setStatus(s);
       } catch {
         // The next tick tries again.

@@ -1,0 +1,4 @@
+node_modules/
+.cache/
+# Filled by scripts\build.ps1 (Sunshine, the agent, the network helper).
+windows/Waken/host/
