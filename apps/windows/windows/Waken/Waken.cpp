@@ -6,8 +6,79 @@
 
 #include "AutolinkedNativeModules.g.h"
 
+#include <csignal>
+
 #include "NativeModules.h"
 #include "WakenHost.h"
+
+// What happened before a crash, in %LOCALAPPDATA%\Waken\waken.log (for this packaged app, Windows keeps it in
+// %LOCALAPPDATA%\Packages\Waken_<id>\LocalCache\Local\Waken). Rewritten at each start.
+namespace {
+std::mutex logMutex;
+HANDLE logFile = INVALID_HANDLE_VALUE;
+
+void OpenLog() {
+  auto root = Waken::DataRoot();
+  if (root.empty()) return;
+  std::error_code ignored;
+  std::filesystem::create_directories(root, ignored);
+  logFile = CreateFileW((root / L"waken.log").c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+}
+
+/// Written straight to the file (no buffer): the line is there even if the app dies right after.
+void WriteLog(std::string const &line) noexcept {
+  if (logFile == INVALID_HANDLE_VALUE) return;
+  SYSTEMTIME t;
+  GetLocalTime(&t);
+  char stamp[16];
+  sprintf_s(stamp, "%02d:%02d:%02d.%03d ", t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
+  std::string text = stamp + line + "\r\n";
+  DWORD written = 0;
+  ::WriteFile(logFile, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
+}
+
+void Log(std::string const &line) noexcept {
+  std::lock_guard lock(logMutex);
+  WriteLog(line);
+}
+
+/// The fatal ends, which would otherwise leave nothing but 0xc0000409 in the event log.
+void InstallCrashLog() {
+  // std::terminate (an exception out of a noexcept function, among others) ends in abort: SIGABRT.
+  signal(SIGABRT, [](int) {
+    if (logMutex.try_lock()) {
+      WriteLog("Arrêt : abort (std::terminate ou assertion). Voir les lignes au-dessus.");
+      logMutex.unlock();
+    }
+  });
+  std::set_terminate([] {
+    std::string what = "std::terminate";
+    try {
+      if (auto e = std::current_exception()) std::rethrow_exception(e);
+    } catch (std::exception const &e) {
+      what += std::string(" : ") + e.what();
+    } catch (winrt::hresult_error const &e) {
+      what += " : " + Waken::Narrow(std::wstring(e.message()));
+    } catch (...) {
+      what += " : exception inconnue";
+    }
+    Log(what);
+    std::abort();
+  });
+  _set_invalid_parameter_handler([](wchar_t const *, wchar_t const *, wchar_t const *, unsigned, uintptr_t) {
+    Log("Arrêt : paramètre invalide passé à la bibliothèque C");
+    std::abort();
+  });
+}
+
+/// React Native's own messages (JavaScript console included), from warnings up.
+void LogReactNative(winrt::Microsoft::ReactNative::LogLevel level, winrt::hstring const &message) noexcept {
+  using winrt::Microsoft::ReactNative::LogLevel;
+  if (level < LogLevel::Info) return;
+  static char const *names[] = {"trace", "info", "warning", "error", "fatal"};
+  Log(std::string("[") + names[static_cast<int>(level)] + "] " + winrt::to_string(message));
+}
+} // namespace
 
 // A PackageProvider containing any turbo modules you define within this app project
 struct CompReactPackageProvider
@@ -23,6 +94,10 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   // Initialize WinRT
   winrt::init_apartment(winrt::apartment_type::single_threaded);
 
+  OpenLog();
+  InstallCrashLog();
+  Log("Waken démarre");
+
   // Enable per monitor DPI scaling
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
@@ -36,6 +111,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
 
   // Configure the initial InstanceSettings for the app's ReactNativeHost
   auto settings{reactNativeWin32App.ReactNativeHost().InstanceSettings()};
+  settings.NativeLogger(&LogReactNative);
   // Register any autolinked native modules
   RegisterAutolinkedNativeModulePackages(settings.PackageProviders());
   // Register any native modules defined within this app project

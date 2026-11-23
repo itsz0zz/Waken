@@ -16,11 +16,17 @@ declare const ErrorUtils: {
   setGlobalHandler(handler: (error: unknown, isFatal?: boolean) => void): void;
 };
 
-/** Errors thrown outside rendering (timers, callbacks): shown on the crash screen rather than closing the app. */
+/**
+ * Every JavaScript error stays in JavaScript: written to the log (console.log reaches waken.log through the
+ * native logger), the fatal ones on the crash screen. Never handed to React Native Windows 0.83: in Release, its
+ * native error handler reads each stack frame's file and line without checking them, and a frame without them
+ * (Hermes has some) ends the app with std::terminate. For the same reason console.error no longer reports.
+ */
 export function catchFatalErrors() {
-  const previous = ErrorUtils.getGlobalHandler();
+  (console as unknown as { reportErrorsAsExceptions: boolean }).reportErrorsAsExceptions = false;
   ErrorUtils.setGlobalHandler((error, isFatal) => {
-    if (!isFatal) return previous(error, isFatal);
+    console.log(`[JS ${isFatal ? 'fatale' : 'erreur'}] ${describe(error)}`);
+    if (!isFatal) return;
     fatal = error;
     listeners.forEach((l) => l(error));
   });
