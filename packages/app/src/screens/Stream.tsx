@@ -5,7 +5,7 @@ import { AgentClient, HttpError } from '@waken/core';
 import { colors, fonts, PillButton, PressScale, RoundButton, type } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
-import { pathTo, pointStreamAt } from '../network';
+import { pathTo, pointStreamAt, streamAddress } from '../network';
 import { platform, type LaunchInfo, type StreamState, type StreamStats } from '../platform';
 import { forPath } from '../quality';
 import { useWaken } from '../store';
@@ -59,7 +59,7 @@ export function StreamScreen({
       setRelayed(path === 'relayed');
       setQ(quality);
       const launched = await agent.launch(app, quality, replace);
-      setLaunch({ ...launched, address: device.stream!.host });
+      setLaunch({ ...launched, address: await streamAddress(device) });
     };
     const fail = (e: Error) => setState({ state: 'error', message: `Lancement impossible : ${e.message}` });
     setState({ state: 'connecting' });

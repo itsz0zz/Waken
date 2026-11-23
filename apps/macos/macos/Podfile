@@ -13,6 +13,9 @@ target 'Waken-macOS' do
   # The CLI must run from the app's root (package.json), not from this folder.
   use_native_modules!(['sh', '-c', 'cd .. && ./node_modules/.bin/react-native config'])
 
+  # Playing on another computer: the iPhone's stream code in an AppKit view.
+  pod 'WakenStreamMac', :path => '../../../modules/waken-stream'
+
   # Flags change depending on the env values.
   flags = get_default_flags()
 

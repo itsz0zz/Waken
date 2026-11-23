@@ -8,6 +8,7 @@ PODS:
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
+  - OpenSSL-Universal (3.6.2000)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2554,6 +2555,9 @@ PODS:
     - SocketRocket
     - Yoga
   - SocketRocket (0.7.1)
+  - WakenStreamMac (0.1.0):
+    - OpenSSL-Universal
+    - React-Core
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -2638,10 +2642,12 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native-macos/ReactCommon`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - SocketRocket (~> 0.7.1)
+  - WakenStreamMac (from `../../../modules/waken-stream`)
   - Yoga (from `../node_modules/react-native-macos/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
+    - OpenSSL-Universal
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2804,6 +2810,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-macos/ReactCommon"
   RNSVG:
     :path: "../node_modules/react-native-svg"
+  WakenStreamMac:
+    :path: "../../../modules/waken-stream"
   Yoga:
     :path: "../node_modules/react-native-macos/ReactCommon/yoga"
 
@@ -2815,6 +2823,7 @@ SPEC CHECKSUMS:
   fmt: 4cf0c5ec5864511c96d8d4bd7b03c3c69040af06
   glog: 2cf3e30a412574b50b1a29c4a3768cc840ab9ecf
   hermes-engine: b32fe2d1eb8915bd2c6eaa025aa6037e53229f95
+  OpenSSL-Universal: ecee7b138fa75a74ecf00d7ffd248fb584739b9e
   RCT-Folly: 239ade45e818f69f53984f215571cbbd78c3c133
   RCTDeprecation: 8df4aea13a635ebe88bafef941fb110e28923d9f
   RCTRequired: 521f85257041999bf5d16c2dd77d3bc61dd313ee
@@ -2888,8 +2897,9 @@ SPEC CHECKSUMS:
   ReactCommon: b6490885f6505cdf8b3a358aa6d0b95ccd2937e2
   RNSVG: b467c637c3c9657f56ec5bf111963bf489eb8bd4
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
+  WakenStreamMac: 071e8b472ddc50a044a7c647164e3fbaaf6943ab
   Yoga: a3e0ee0baa46166b3a7451a6b01c45cd1918de9e
 
-PODFILE CHECKSUM: b82c580f62800ac5c9621b4df8edb88f7a5768d9
+PODFILE CHECKSUM: 6a4c2334d02a9a49d4c9b12dcb83cf71087d5c7b
 
 COCOAPODS: 1.17.0

@@ -21,6 +21,8 @@ export interface TunnelStatus {
   hosts: TunnelNode[];
   /** The host the stream ports go to. */
   peer?: string;
+  /** Where the stream code reaches the chosen computer: 127.0.0.1 on a phone, ::1 on a computer (its own Sunshine holds 127.0.0.1). */
+  play?: string;
 }
 
 export interface TunnelHello {

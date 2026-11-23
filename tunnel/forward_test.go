@@ -210,3 +210,61 @@ func TestStateDirFor(t *testing.T) {
 		t.Fatalf("port: %q", got)
 	}
 }
+
+func TestComputersPlayOnTheIPv6Loopback(t *testing.T) {
+	host := &Tunnel{cfg: Config{Role: RoleHost, Bind: "127.0.0.1", PlayBind: "::1"}}
+	if err := host.SetPeer("100.64.0.2"); err == nil {
+		t.Fatal("a computer cannot choose a peer before its stream ports are forwarded")
+	}
+	if host.Status().Play != "" {
+		t.Fatal("no play address before the forwarding")
+	}
+	host.playing = true
+	if got := host.Status().Play; got != "::1" {
+		t.Fatalf("a computer plays on ::1 (its Sunshine holds 127.0.0.1), got %q", got)
+	}
+	client := &Tunnel{cfg: Config{Role: RoleClient, Bind: "127.0.0.1"}, playing: true}
+	if got := client.Status().Play; got != "127.0.0.1" {
+		t.Fatalf("a client plays on 127.0.0.1, got %q", got)
+	}
+}
+
+func TestForwardTCPOnTheIPv6Loopback(t *testing.T) {
+	ln, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skip("no IPv6 loopback here")
+	}
+	ln.Close()
+	echo, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer echo.Close()
+	go func() {
+		c, err := echo.Accept()
+		if err == nil {
+			io.Copy(c, c)
+			c.Close()
+		}
+	}()
+	port := echo.Addr().(*net.TCPAddr).Port
+	free, _ := net.Listen("tcp", "[::1]:0")
+	listenAddr := free.Addr().String()
+	free.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	listen := func(network, address string) (net.Listener, error) { return net.Listen(network, address) }
+	if err := forwardTCP(ctx, listen, listenAddr, (&net.Dialer{}).DialContext, func() string { return "127.0.0.1" }, port, nil); err != nil {
+		t.Fatal(err)
+	}
+	c, err := net.Dial("tcp", listenAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Write([]byte("ping"))
+	buf := make([]byte, 4)
+	if _, err := io.ReadFull(c, buf); err != nil || string(buf) != "ping" {
+		t.Fatalf("got %q, %v", buf, err)
+	}
+}

@@ -1,6 +1,5 @@
 #import "MLStreamSession.h"
 #import <VideoToolbox/VideoToolbox.h>
-#import <UIKit/UIKit.h>
 #include <arpa/inet.h>
 #import "WakenAudioPlayer.h"
 #include "Limelight.h"
@@ -55,7 +54,7 @@ static dispatch_queue_t ConnectionQueue(void) {
     _config = config;
     _displayLayer = [AVSampleBufferDisplayLayer new];
     _displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-    _displayLayer.backgroundColor = UIColor.blackColor.CGColor;
+    _displayLayer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
   }
   return self;
 }

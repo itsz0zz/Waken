@@ -33,10 +33,13 @@ static const double kPreferredIOBufferSeconds = 0.005;
 
 - (void)start {
   dispatch_sync(_queue, ^{
+#if TARGET_OS_IPHONE
+    // The Mac has no audio session: its output is always there, shared with the other apps.
     NSError *error;
     AVAudioSession *session = AVAudioSession.sharedInstance;
     if (![session setCategory:AVAudioSessionCategoryPlayback error:&error]) NSLog(@"Waken audio category: %@", error);
     if (![session setPreferredIOBufferDuration:kPreferredIOBufferSeconds error:&error]) NSLog(@"Waken audio buffer: %@", error);
+#endif
     [self resume];
   });
 
@@ -45,8 +48,12 @@ static const double kPreferredIOBufferSeconds = 0.005;
   void (^restart)(NSNotification *) = ^(NSNotification *note) {
     WakenAudioPlayer *player = weakSelf;
     if (!player) return;
+#if TARGET_OS_IPHONE
     NSNumber *interruption = note.userInfo[AVAudioSessionInterruptionTypeKey];
     BOOL began = interruption && interruption.unsignedIntegerValue == AVAudioSessionInterruptionTypeBegan;
+#else
+    BOOL began = NO;
+#endif
     dispatch_async(player->_queue, ^{
       if (began) atomic_store(&player->_playing, false);
       else if (player->_engine) [player resume];
@@ -54,17 +61,21 @@ static const double kPreferredIOBufferSeconds = 0.005;
   };
   NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
   [_observers addObject:[center addObserverForName:AVAudioEngineConfigurationChangeNotification object:_engine queue:nil usingBlock:restart]];
+#if TARGET_OS_IPHONE
   [_observers addObject:[center addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:nil usingBlock:restart]];
+#endif
 }
 
 /// On _queue.
 - (void)resume {
   atomic_store(&_playing, false);
   NSError *error;
+#if TARGET_OS_IPHONE
   if (![AVAudioSession.sharedInstance setActive:YES error:&error]) {
     NSLog(@"Waken audio session: %@", error);
     return;
   }
+#endif
   [_engine connect:_node to:_engine.mainMixerNode format:_decoder.format];
   if (![_engine startAndReturnError:&error]) {
     NSLog(@"Waken audio engine: %@", error);
@@ -84,10 +95,12 @@ static const double kPreferredIOBufferSeconds = 0.005;
     [self->_node stop];
     [self->_engine stop];
     self->_engine = nil;
+#if TARGET_OS_IPHONE
     NSError *error;
     if (![AVAudioSession.sharedInstance setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:&error]) {
       NSLog(@"Waken audio deactivation: %@", error);
     }
+#endif
   });
 }
 

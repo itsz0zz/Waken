@@ -118,6 +118,16 @@ export async function pointStreamAt(device?: Device) {
 }
 
 /**
+ * The address the stream code connects to for this computer. Through the Waken network, what the tunnel says:
+ * 127.0.0.1 on a phone, ::1 on a computer, whose own Sunshine holds 127.0.0.1.
+ */
+export async function streamAddress(device: Device): Promise<string> {
+  const tunnel = platform().tunnel;
+  if (!device.stream?.tunnelHost || !tunnel) return device.stream!.host;
+  return (await tunnel.status()).play ?? device.stream.host;
+}
+
+/**
  * How this computer is reached right now, after giving the tunnel a moment to find a direct path
  * (pointStreamAt starts the search). Computers not on the Waken network count as direct.
  */

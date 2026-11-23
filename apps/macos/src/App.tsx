@@ -4,6 +4,7 @@ import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
 import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { host, hostTunnel, localDevice, type HostStatus } from './host';
+import { StreamView } from './stream';
 
 setPlatform({
   storage: {
@@ -18,8 +19,8 @@ setPlatform({
     removeItem: (k) => host.storageRemove(k),
   },
   tunnel: hostTunnel,
-  // Playing FROM this Mac on another computer needs the AppKit stream view: next step.
-  StreamView: null,
+  // Playing from this Mac on another computer: the AppKit view, through the Waken network on ::1.
+  StreamView,
   form: 'desktop',
   deviceName: 'Mac',
   pushToken: () => host.pushToken(),

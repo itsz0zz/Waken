@@ -2,8 +2,12 @@
 // that carries the stream between the user's own devices, from anywhere, with nothing else to install.
 //
 // A host (the Mac or PC that streams) exposes Sunshine and the Waken agent to the owner's other devices only.
-// A client (iPhone, iPad, Android, or a computer playing) forwards the same ports from 127.0.0.1 to the
-// chosen host, so the stream code connects to 127.0.0.1 exactly as it does on a local network.
+// A client (iPhone, iPad, Android) forwards the same ports from 127.0.0.1 to the chosen host, so the stream
+// code connects to 127.0.0.1 exactly as it does on a local network.
+//
+// A computer is a host and plays too: its own Sunshine already holds those ports on 127.0.0.1, so it forwards
+// them from the IPv6 loopback instead (PlayBind, "::1"). Same port numbers, another address: the stream code
+// connects to ::1 and reaches the chosen computer, as moonlight takes the ports Sunshine announces as they are.
 package tunnel
 
 import (
@@ -70,8 +74,10 @@ type Config struct {
 	AgentToken string `json:"agentToken,omitempty"`
 	// Target is where a host's Sunshine and agent listen.
 	Target string `json:"target,omitempty"`
-	// Bind is where a client forwards from.
-	Bind     string `json:"bind,omitempty"`
+	// Bind is where a client forwards from, and where any device serves the agent proxy.
+	Bind string `json:"bind,omitempty"`
+	// PlayBind is where a host forwards the stream ports of the computer it plays on (SetPeer). Default "::1".
+	PlayBind string `json:"playBind,omitempty"`
 	TCPPorts []int  `json:"tcpPorts,omitempty"`
 	UDPPorts []int  `json:"udpPorts,omitempty"`
 }
@@ -99,6 +105,9 @@ type Status struct {
 	Hosts []Node `json:"hosts"`
 	// Peer is the host a client forwards to.
 	Peer string `json:"peer,omitempty"`
+	// Play is the address the stream code connects to, to reach Peer: 127.0.0.1 on a client, ::1 on a computer.
+	// Empty while this device cannot play (a computer whose IPv6 loopback could not be used).
+	Play string `json:"play,omitempty"`
 }
 
 // Hello is what a host tells its owner's devices.
@@ -120,6 +129,8 @@ type Tunnel struct {
 	status    Status
 	peer      string
 	forwarded bool
+	// playing: the stream ports of the chosen computer are forwarded (always on a client, on ::1 on a host).
+	playing bool
 }
 
 var nameUnsafe = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -156,6 +167,9 @@ func Start(cfg Config) (*Tunnel, error) {
 	}
 	if cfg.Bind == "" {
 		cfg.Bind = "127.0.0.1"
+	}
+	if cfg.PlayBind == "" {
+		cfg.PlayBind = "::1"
 	}
 	if len(cfg.TCPPorts) == 0 {
 		cfg.TCPPorts = DefaultTCPPorts
@@ -229,13 +243,27 @@ func (t *Tunnel) Status() Status {
 	s.Hosts = append([]Node{}, t.status.Hosts...)
 	s.Peer = t.peer
 	s.Control = t.cfg.ControlURL
+	if t.playing {
+		s.Play = t.playAddress()
+	}
 	return s
 }
 
-// SetPeer chooses the host a client forwards to: its network name or IP.
+// playAddress is where the stream code finds the chosen computer.
+func (t *Tunnel) playAddress() string {
+	if t.cfg.Role == RoleHost {
+		return t.cfg.PlayBind
+	}
+	return t.cfg.Bind
+}
+
+// SetPeer chooses the computer this device plays on: its network name or IP.
 func (t *Tunnel) SetPeer(peer string) error {
-	if t.cfg.Role != RoleClient {
-		return errors.New("seul un client choisit un hôte")
+	t.mu.Lock()
+	host, playing := t.cfg.Role == RoleHost, t.playing
+	t.mu.Unlock()
+	if host && !playing {
+		return errors.New("cet ordinateur ne peut pas encore jouer sur un autre : le réseau Waken démarre, ou son adresse locale IPv6 (::1) est indisponible")
 	}
 	ip, err := t.resolve(peer)
 	if err != nil {
@@ -396,10 +424,29 @@ func (t *Tunnel) startForwarding() error {
 		if err := t.serveHello(ip4); err != nil {
 			return err
 		}
+		// A computer plays on the owner's other computers too. Without its IPv6 loopback it still hosts.
+		if err := t.forwardPlay(t.cfg.PlayBind, streamTCPPorts(), tsDial); err != nil {
+			log.Printf("jouer sur un autre ordinateur : %v", err)
+		} else {
+			t.mu.Lock()
+			t.playing = true
+			t.mu.Unlock()
+		}
 		// A desktop app hosts and also browses the owner's other computers: their agents through the same proxy.
 		return t.serveAgentProxy()
 	}
 
+	if err := t.forwardPlay(t.cfg.Bind, t.cfg.TCPPorts, tsDial); err != nil {
+		return err
+	}
+	t.mu.Lock()
+	t.playing = true
+	t.mu.Unlock()
+	return t.serveAgentProxy()
+}
+
+// forwardPlay forwards the stream ports from bind (on this device) to the chosen computer.
+func (t *Tunnel) forwardPlay(bind string, tcpPorts []int, tsDial dialFunc) error {
 	peer := func() string {
 		t.mu.Lock()
 		defer t.mu.Unlock()
@@ -407,17 +454,17 @@ func (t *Tunnel) startForwarding() error {
 	}
 	listen := func(network, address string) (net.Listener, error) { return net.Listen(network, address) }
 	listenPacket := func(network, address string) (net.PacketConn, error) { return net.ListenPacket(network, address) }
-	for _, p := range t.cfg.TCPPorts {
-		if err := forwardTCP(t.ctx, listen, net.JoinHostPort(t.cfg.Bind, fmt.Sprint(p)), tsDial, peer, p, nil); err != nil {
+	for _, p := range tcpPorts {
+		if err := forwardTCP(t.ctx, listen, net.JoinHostPort(bind, fmt.Sprint(p)), tsDial, peer, p, nil); err != nil {
 			return fmt.Errorf("port %d : %w", p, err)
 		}
 	}
 	for _, p := range t.cfg.UDPPorts {
-		if err := forwardUDP(t.ctx, listenPacket, net.JoinHostPort(t.cfg.Bind, fmt.Sprint(p)), tsDial, peer, p, nil); err != nil {
+		if err := forwardUDP(t.ctx, listenPacket, net.JoinHostPort(bind, fmt.Sprint(p)), tsDial, peer, p, nil); err != nil {
 			return fmt.Errorf("port %d : %w", p, err)
 		}
 	}
-	return t.serveAgentProxy()
+	return nil
 }
 
 // streamTCPPorts are the default ports without the agent's: a client reaches agents through the proxy.
