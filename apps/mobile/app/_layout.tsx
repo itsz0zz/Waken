@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Anton_400Regular } from '@expo-google-fonts/anton';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
-import { AccountOverlay, BootScreen, FrameContext, usePushRegistration, NavContext, setPlatform, useConfigLoad, useLibrarySync, useNetwork, useNetworkRunner } from '@waken/app';
+import { AccountOverlay, BootScreen, NotificationsOverlay, FrameContext, usePushRegistration, NavContext, setPlatform, useConfigLoad, useLibrarySync, useNetwork, useNetworkRunner } from '@waken/app';
 import { colors } from '@waken/ui';
 import { mobilePlatform } from '../src/platform';
 import { useRouterNav } from '../src/nav';
@@ -77,6 +77,7 @@ export default function RootLayout() {
             <Stack.Screen name="wake/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <Stack.Screen name="stream/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', orientation: 'landscape' }} />
           </Stack>
+          <NotificationsOverlay />
           <AccountOverlay />
         </Providers>
       </SafeAreaProvider>

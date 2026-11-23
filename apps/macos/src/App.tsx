@@ -23,6 +23,7 @@ setPlatform({
   form: 'desktop',
   deviceName: 'Mac',
   pushToken: () => host.pushToken(),
+  appleSignIn: () => host.appleSignIn(),
   pushPlatform: 'macos',
 });
 

@@ -14,6 +14,7 @@ public sealed class CloudTests : IDisposable
     private const string Password = "un mot de passe long";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "waken-cloud-" + Guid.NewGuid().ToString("N"));
     private readonly FakeHeadscale _headscale = new();
+    private readonly FakeApple _apple = new();
     private ManualClock Clock { get; } = new();
     private readonly WebApplicationFactory<Program> _api;
 
@@ -36,6 +37,7 @@ public sealed class CloudTests : IDisposable
             {
                 s.AddSingleton<IHeadscale>(_headscale);
                 s.AddSingleton<TimeProvider>(Clock);
+                s.AddSingleton<IAppleSignIn>(_apple);
             });
             more?.Invoke(host);
         });
@@ -373,6 +375,76 @@ public sealed class CloudTests : IDisposable
         Assert.Equal("Mac de enzo est prête", message.Title);
     }
 
+    private async Task<HttpClient> AppleSignedInAsync(string token)
+    {
+        var client = _api.CreateClient();
+        var res = await client.PostAsJsonAsync("/account/apple", new { identityToken = token, authorizationCode = "code-unique" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var access = (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
+        return client;
+    }
+
+    [Fact]
+    public async Task Sign_in_with_apple_creates_the_account_once()
+    {
+        _apple.Tokens["jeton-1"] = new AppleIdentity("apple-sub-1", "relais@privaterelay.appleid.com", true, "fr.wakenplay.app");
+        _apple.Tokens["jeton-2"] = new AppleIdentity("apple-sub-1", null, false, "fr.wakenplay.app");
+        using var first = await AppleSignedInAsync("jeton-1");
+        var a = await HeadscaleUserIdAfterJoinAsync(first);
+        using var again = await AppleSignedInAsync("jeton-2");
+        Assert.Equal(a, await HeadscaleUserIdAfterJoinAsync(again));
+        Assert.Equal(1, _headscale.UsersCreated);
+        // Each sign-in brings a new one-time code: the latest refresh token is kept.
+        Assert.Equal(["code-unique", "code-unique"], _apple.Exchanged);
+    }
+
+    [Fact]
+    public async Task Sign_in_with_apple_never_takes_over_a_password_account()
+    {
+        using var _ = await SignedInAsync("enzo@waken.test");
+        _apple.Tokens["jeton"] = new AppleIdentity("apple-sub-2", "enzo@waken.test", true, "fr.wakenplay.app");
+        var res = await _api.CreateClient().PostAsJsonAsync("/account/apple", new { identityToken = "jeton" });
+        Assert.Equal(HttpStatusCode.Conflict, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_bad_apple_token_is_refused()
+    {
+        var res = await _api.CreateClient().PostAsJsonAsync("/account/apple", new { identityToken = "faux" });
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Deleting_an_apple_account_takes_a_fresh_apple_sign_in_and_revokes_it()
+    {
+        _apple.Tokens["jeton"] = new AppleIdentity("apple-sub-3", "a@privaterelay.appleid.com", true, "fr.wakenplay.app");
+        _apple.Tokens["autre"] = new AppleIdentity("apple-sub-autre", "b@privaterelay.appleid.com", true, "fr.wakenplay.app");
+        using var client = await AppleSignedInAsync("jeton");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/account/delete", new { appleIdentityToken = "autre" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/account/delete", new { password = "" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync("/account/delete", new { appleIdentityToken = "jeton" })).StatusCode);
+        Assert.Equal(["refresh:code-unique"], _apple.Revoked);
+    }
+
+    [Fact]
+    public async Task The_bell_lists_the_account_s_notifications_and_marks_them_read()
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        using var other = await SignedInAsync("autre@waken.test");
+        await client.PostAsJsonAsync("/events/session-ended", new { game = "Hytale", seconds = 600, streakDays = 1 });
+        await other.PostAsJsonAsync("/events/session-ended", new { game = "Autre jeu", seconds = 600, streakDays = 1 });
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/notifications");
+        var item = Assert.Single(list.EnumerateArray());
+        Assert.Equal("Fin de partie : Hytale", item.GetProperty("title").GetString());
+        Assert.False(item.GetProperty("read").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/notifications/read", null)).StatusCode);
+        Assert.True((await client.GetFromJsonAsync<JsonElement>("/notifications"))[0].GetProperty("read").GetBoolean());
+        Assert.False((await other.GetFromJsonAsync<JsonElement>("/notifications"))[0].GetProperty("read").GetBoolean());
+    }
+
     [Fact]
     public async Task Health_is_open()
     {
@@ -386,4 +458,26 @@ public sealed class ManualClock : TimeProvider
     private DateTimeOffset _now = new(2026, 11, 23, 12, 0, 0, TimeSpan.Zero);
     public override DateTimeOffset GetUtcNow() => _now;
     public void Advance(TimeSpan by) => _now += by;
+}
+
+public sealed class FakeApple : IAppleSignIn
+{
+    public Dictionary<string, AppleIdentity> Tokens { get; } = [];
+    public List<string> Exchanged { get; } = [];
+    public List<string> Revoked { get; } = [];
+
+    public Task<AppleIdentity> ValidateAsync(string identityToken, CancellationToken ct) =>
+        Tokens.TryGetValue(identityToken, out var id) ? Task.FromResult(id) : throw new AppleTokenException("jeton inconnu");
+
+    public Task<string?> ExchangeCodeAsync(string code, string clientId, CancellationToken ct)
+    {
+        Exchanged.Add(code);
+        return Task.FromResult<string?>("refresh:" + code);
+    }
+
+    public Task RevokeAsync(string refreshToken, string clientId, CancellationToken ct)
+    {
+        Revoked.Add(refreshToken);
+        return Task.CompletedTask;
+    }
 }

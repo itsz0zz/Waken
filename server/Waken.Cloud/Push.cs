@@ -23,6 +23,18 @@ public sealed class PushDevice
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>A notification kept for the account: the app lists them (the bell), push or not.</summary>
+public sealed class AccountNotification
+{
+    public long Id { get; set; }
+    public string UserId { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Body { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+    public bool Read { get; set; }
+}
+
 /// <summary>What a notification says. Kind lets the app route a tap (device, machine, session).</summary>
 public sealed record PushMessage(string Title, string Body, string Kind);
 
@@ -156,8 +168,11 @@ public sealed class ApnsSender : IPushSender, IDisposable
 }
 
 /// <summary>Sends a message to every device of an account, forgetting the tokens Apple says are gone.</summary>
-public sealed class Notifier(IServiceScopeFactory scopes, IPushSender sender, ILogger<Notifier> log)
+public sealed class Notifier(IServiceScopeFactory scopes, IPushSender sender, TimeProvider clock, ILogger<Notifier> log)
 {
+    /// <summary>An account keeps its last notifications only: older ones go.</summary>
+    public const int Kept = 50;
+
     /// <summary>The last messages, for the tests and the logs.</summary>
     public ConcurrentQueue<(string UserId, PushMessage Message)> Sent { get; } = new();
 
@@ -169,6 +184,7 @@ public sealed class Notifier(IServiceScopeFactory scopes, IPushSender sender, IL
         log.LogInformation("Notification {Kind} pour le compte {UserId} ({Devices} appareils) : {Title}", message.Kind, userId, devices.Count, message.Title);
         Sent.Enqueue((userId, message));
         while (Sent.Count > 100) Sent.TryDequeue(out _);
+        db.Notifications.Add(new AccountNotification { UserId = userId, Title = message.Title, Body = message.Body, Kind = message.Kind, CreatedAt = clock.GetUtcNow() });
         foreach (var device in devices)
         {
             var result = await sender.SendAsync(device, message, ct);
@@ -179,6 +195,8 @@ public sealed class Notifier(IServiceScopeFactory scopes, IPushSender sender, IL
             }
         }
         await db.SaveChangesAsync(ct);
+        var old = db.Notifications.Where(n => n.UserId == userId).OrderByDescending(n => n.Id).Skip(Kept);
+        await db.Notifications.Where(n => old.Select(o => o.Id).Contains(n.Id)).ExecuteDeleteAsync(ct);
     }
 }
 

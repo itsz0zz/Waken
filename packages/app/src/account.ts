@@ -22,6 +22,8 @@ interface AccountState {
   controlUrl?: string;
   /** The push token registered with the account, so a new one (or a new account) registers again. */
   pushToken?: string;
+  /** How the account signs in: an Apple account has no password, deleting it asks Apple again. */
+  provider?: 'password' | 'apple';
 }
 
 /** Kept with the configuration (Keychain on iPhone): the session holds the account's tokens. */
@@ -95,7 +97,33 @@ export async function signInAccount(email: string, password: string, create: boo
   if (create) await c.register(email, password);
   else await c.signIn(email, password);
   client = c;
-  useAccount.setState({ email: email.trim(), mode: 'account' });
+  useAccount.setState({ email: email.trim(), mode: 'account', provider: 'password' });
+}
+
+/** The e-mail inside Apple's identity token (a JWT): Apple sends it on every sign-in, the name only the first time. */
+function emailOf(identityToken: string): string | undefined {
+  try {
+    const payload = identityToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return (JSON.parse(atob(payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '='))) as { email?: string }).email;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Sign in with Apple, where the platform offers it. False when the user closed Apple's sheet. */
+export async function signInWithAppleAccount(): Promise<boolean> {
+  const ask = platform().appleSignIn;
+  if (!ask) throw new Error("La connexion avec Apple n'est pas disponible sur cet appareil.");
+  const credential = await ask();
+  if (!credential) return false;
+  const c = new WakenCloud(CLOUD_URL, null, (next) => {
+    clientSession = next;
+    useAccount.setState({ session: next });
+  });
+  await c.signInWithApple(credential);
+  client = c;
+  useAccount.setState({ email: emailOf(credential.identityToken) ?? 'Compte Apple', mode: 'account', provider: 'apple' });
+  return true;
 }
 
 /**
@@ -111,7 +139,7 @@ export async function signOutAccount() {
   } finally {
     cloud().signOut();
     forgetNetworkComputers();
-    useAccount.setState({ session: null, email: undefined, controlUrl: undefined, pushToken: undefined });
+    useAccount.setState({ session: null, email: undefined, controlUrl: undefined, pushToken: undefined, provider: undefined });
   }
 }
 

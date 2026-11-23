@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { StateStorage } from 'zustand/middleware';
-import type { StreamSettings, TunnelApi } from '@waken/core';
+import type { StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
 
 /** What the native stream view reports (waken-stream on iOS, the AppKit view on Mac, Direct3D on Windows). */
 export type StreamState =
@@ -49,6 +49,8 @@ export interface WakenPlatform {
    * or when this build cannot receive notifications.
    */
   pushToken?: () => Promise<string | null>;
+  /** Sign in with Apple's sheet: Apple's identity token, or null when the user closed it. */
+  appleSignIn?: () => Promise<AppleCredential | null>;
   /** ios | macos: which app the server addresses the notifications to. */
   pushPlatform?: 'ios' | 'macos';
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */

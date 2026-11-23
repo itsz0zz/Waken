@@ -1,3 +1,4 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { File, Paths } from 'expo-file-system';
@@ -42,6 +43,20 @@ async function pushToken(): Promise<string | null> {
   return typeof token.data === 'string' ? token.data : null;
 }
 
+/** Apple's own sheet; null when the user closes it. */
+async function appleSignIn() {
+  try {
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
+    });
+    if (!credential.identityToken) throw new Error("Apple n'a pas renvoyé d'identité.");
+    return { identityToken: credential.identityToken, authorizationCode: credential.authorizationCode };
+  } catch (e) {
+    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') return null;
+    throw e;
+  }
+}
+
 /** iPhone and iPad: Keychain for the configuration (it holds tokens), the tunnel and stream native modules. */
 export const mobilePlatform: WakenPlatform = {
   storage: {
@@ -69,4 +84,5 @@ export const mobilePlatform: WakenPlatform = {
   canUseMoonlightApp: true,
   pushToken,
   pushPlatform: 'ios',
+  appleSignIn: Platform.OS === 'ios' ? appleSignIn : undefined,
 };

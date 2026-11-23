@@ -54,6 +54,8 @@ builder.Services.AddHttpClient<IHeadscale, HeadscaleClient>(c =>
     c.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddScoped<NetworkService>();
+builder.Services.AddSingleton(cloud.Apple);
+builder.Services.AddHttpClient<IAppleSignIn, AppleSignIn>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<Notifier>();
 builder.Services.AddSingleton<NetworkWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<NetworkWatcher>());
@@ -92,7 +94,11 @@ if (cloud.TrustForwardedHeaders)
 
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
-    scope.ServiceProvider.GetRequiredService<CloudDb>().Database.EnsureCreated();
+{
+    var db = scope.ServiceProvider.GetRequiredService<CloudDb>();
+    db.Database.EnsureCreated();
+    db.Upgrade();
+}
 
 if (cloud.TrustForwardedHeaders) app.UseForwardedHeaders();
 app.UseAuthentication();
@@ -147,15 +153,68 @@ network.MapDelete("/devices/{id}", async (string id, ClaimsPrincipal me, UserMan
     }
 });
 
-// Deleting the account takes its password again: a stolen token alone cannot wipe it.
-app.MapPost("/account/delete", async (DeleteAccount body, ClaimsPrincipal me, UserManager<WakenUser> users, SignInManager<WakenUser> signIn, NetworkService net, CloudDb db, ILogger<NetworkService> logger, CancellationToken ct) =>
+// Sign in with Apple: the app sends Apple's identity token (and its one-time code), it gets the same bearer
+// tokens as /account/login. A new Apple ID is a new account; an e-mail already used by a password account is
+// refused rather than linked (nothing proves that account's owner is this Apple ID's).
+app.MapPost("/account/apple", async (AppleSignInRequest body, IAppleSignIn apple, UserManager<WakenUser> users, SignInManager<WakenUser> signIn, CancellationToken ct) =>
+{
+    AppleIdentity id;
+    try
+    {
+        id = await apple.ValidateAsync(body.IdentityToken ?? "", ct);
+    }
+    catch (AppleTokenException e)
+    {
+        return Results.Problem(e.Message, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    var user = await users.FindByLoginAsync(AppleLogin.Provider, id.Subject);
+    if (user is null)
+    {
+        if (id.Email is { Length: > 0 } email && await users.FindByEmailAsync(email) is not null)
+            return Results.Problem("Un compte existe déjà avec cet e-mail : connecte-toi avec ton mot de passe.", statusCode: StatusCodes.Status409Conflict);
+        user = new WakenUser { UserName = id.Email is { Length: > 0 } ? id.Email : $"apple-{id.Subject}", Email = id.Email, EmailConfirmed = id.EmailVerified };
+        var created = await users.CreateAsync(user);
+        if (!created.Succeeded) return Results.Problem("Compte non créé : " + string.Join(", ", created.Errors.Select(e => e.Code)), statusCode: StatusCodes.Status400BadRequest);
+        await users.AddLoginAsync(user, new UserLoginInfo(AppleLogin.Provider, id.Subject, "Apple"));
+    }
+    if (await users.IsLockedOutAsync(user)) return Results.Problem("Compte bloqué pour quelques minutes", statusCode: StatusCodes.Status423Locked);
+    // Kept to revoke Apple's tokens when the account is deleted (App Store rule 5.1.1).
+    if (body.AuthorizationCode is { Length: > 0 } code && await apple.ExchangeCodeAsync(code, id.ClientId, ct) is { } refresh)
+    {
+        await users.SetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.RefreshToken, refresh);
+        await users.SetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.ClientId, id.ClientId);
+    }
+    signIn.AuthenticationScheme = IdentityConstants.BearerScheme;
+    await signIn.SignInAsync(user, isPersistent: false);
+    // The bearer handler has written the tokens.
+    return Results.Empty;
+}).RequireRateLimiting("auth");
+
+// Deleting the account takes its password again (or, without one, a fresh Apple sign-in): a stolen token alone cannot wipe it.
+app.MapPost("/account/delete", async (DeleteAccount body, ClaimsPrincipal me, UserManager<WakenUser> users, SignInManager<WakenUser> signIn, IAppleSignIn apple, NetworkService net, CloudDb db, ILogger<NetworkService> logger, CancellationToken ct) =>
 {
     var user = await users.GetUserAsync(me);
     if (user is null) return Results.Unauthorized();
-    // Counts toward the lockout like a sign-in: a stolen token cannot guess the password here either.
-    var check = await signIn.CheckPasswordSignInAsync(user, body.Password ?? "", lockoutOnFailure: true);
-    if (check.IsLockedOut) return Results.Problem("Compte bloqué 5 minutes après trop d'essais", statusCode: StatusCodes.Status423Locked);
-    if (!check.Succeeded) return Results.Problem("Mot de passe incorrect", statusCode: StatusCodes.Status403Forbidden);
+    var appleLogin = (await users.GetLoginsAsync(user)).FirstOrDefault(l => l.LoginProvider == AppleLogin.Provider);
+    if (await users.HasPasswordAsync(user))
+    {
+        // Counts toward the lockout like a sign-in: a stolen token cannot guess the password here either.
+        var check = await signIn.CheckPasswordSignInAsync(user, body.Password ?? "", lockoutOnFailure: true);
+        if (check.IsLockedOut) return Results.Problem("Compte bloqué 5 minutes après trop d'essais", statusCode: StatusCodes.Status423Locked);
+        if (!check.Succeeded) return Results.Problem("Mot de passe incorrect", statusCode: StatusCodes.Status403Forbidden);
+    }
+    else
+    {
+        try
+        {
+            var again = await apple.ValidateAsync(body.AppleIdentityToken ?? "", ct);
+            if (appleLogin is null || again.Subject != appleLogin.ProviderKey) return Results.Problem("Ce n'est pas l'identifiant Apple du compte", statusCode: StatusCodes.Status403Forbidden);
+        }
+        catch (AppleTokenException)
+        {
+            return Results.Problem("Confirme avec Apple pour supprimer le compte", statusCode: StatusCodes.Status403Forbidden);
+        }
+    }
     try
     {
         await net.ForgetAsync(user, logger, ct);
@@ -165,9 +224,29 @@ app.MapPost("/account/delete", async (DeleteAccount body, ClaimsPrincipal me, Us
         return Unavailable(e);
     }
     await db.PushDevices.Where(d => d.UserId == user.Id).ExecuteDeleteAsync(ct);
+    await db.Notifications.Where(n => n.UserId == user.Id).ExecuteDeleteAsync(ct);
+    if (await users.GetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.RefreshToken) is { } appleRefresh
+        && await users.GetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.ClientId) is { } appleClient)
+        await apple.RevokeAsync(appleRefresh, appleClient, ct);
     var deleted = await users.DeleteAsync(user);
     return deleted.Succeeded ? Results.NoContent() : Results.Problem("Compte non supprimé");
 }).RequireAuthorization().RequireRateLimiting("auth");
+
+// The account's notifications, newest first: the app's bell. Push or not, they are all here.
+app.MapGet("/notifications", async (ClaimsPrincipal me, CloudDb db, CancellationToken ct) =>
+{
+    var userId = me.FindFirstValue(ClaimTypes.NameIdentifier);
+    var items = await db.Notifications.Where(n => n.UserId == userId).OrderByDescending(n => n.Id).Take(Notifier.Kept)
+        .Select(n => new { id = n.Id, title = n.Title, body = n.Body, kind = n.Kind, createdAt = n.CreatedAt, read = n.Read }).ToListAsync(ct);
+    return Results.Ok(items);
+}).RequireAuthorization().RequireRateLimiting("account");
+
+app.MapPost("/notifications/read", async (ClaimsPrincipal me, CloudDb db, CancellationToken ct) =>
+{
+    var userId = me.FindFirstValue(ClaimTypes.NameIdentifier);
+    await db.Notifications.Where(n => n.UserId == userId && !n.Read).ExecuteUpdateAsync(s => s.SetProperty(n => n.Read, true), ct);
+    return Results.NoContent();
+}).RequireAuthorization().RequireRateLimiting("account");
 
 // Notifications: each signed-in device gives its APNs token; the account's events reach all of them.
 var push = app.MapGroup("/push").RequireAuthorization().RequireRateLimiting("account");
@@ -232,7 +311,16 @@ IResult Unavailable(HeadscaleException e)
     return Results.Problem("Le réseau Waken ne répond pas, réessaie dans un instant.", statusCode: StatusCodes.Status502BadGateway);
 }
 
-public sealed record DeleteAccount(string Password);
+public sealed record DeleteAccount(string? Password, string? AppleIdentityToken = null);
+
+public sealed record AppleSignInRequest(string? IdentityToken, string? AuthorizationCode);
+
+public static class AppleLogin
+{
+    public const string Provider = "apple";
+    public const string RefreshToken = "refresh_token";
+    public const string ClientId = "client_id";
+}
 
 public sealed record PushRegistration(string Token, string Platform, string? Name)
 {

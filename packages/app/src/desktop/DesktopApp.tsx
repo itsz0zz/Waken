@@ -13,6 +13,7 @@ import { GameScreen } from '../screens/Game';
 import { GamesScreen } from '../screens/Games';
 import { HomeScreen } from '../screens/Home';
 import { MachineEditScreen } from '../screens/MachineEdit';
+import { AccountButtons, NotificationsOverlay } from '../screens/Notifications';
 import { AddMachineScreen, MachinesScreen } from '../screens/Machines';
 import { GameSearch } from '../screens/Search';
 import { SettingsScreen } from '../screens/Settings';
@@ -80,6 +81,7 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
               {host.banner}
             </View>
           )}
+          <NotificationsOverlay />
           <AccountOverlay />
         </View>
       </FrameContext.Provider>
@@ -134,6 +136,7 @@ function TopBar({ tab, leftInset, onSelect }: { tab: Tab; leftInset: number; onS
       </View>
       <View style={{ flex: 1 }} />
       <GameSearch height={52} floating tone="frost" style={{ width: 300 }} />
+      <AccountButtons />
     </View>
   );
 }

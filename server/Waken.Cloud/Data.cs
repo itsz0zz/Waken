@@ -17,6 +17,26 @@ public sealed class WakenUser : IdentityUser
 public sealed class CloudDb(DbContextOptions<CloudDb> options) : IdentityDbContext<WakenUser>(options)
 {
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<AccountNotification> Notifications => Set<AccountNotification>();
+
+    /// <summary>
+    /// Tables added after the first deployment: EnsureCreated only creates a database that does not exist yet.
+    /// Kept to plain "if not exists" until the schema needs real migrations.
+    /// </summary>
+    public void Upgrade()
+    {
+        Database.ExecuteSqlRaw("""
+            CREATE TABLE IF NOT EXISTS "Notifications" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_Notifications" PRIMARY KEY AUTOINCREMENT,
+                "UserId" TEXT NOT NULL,
+                "Title" TEXT NOT NULL,
+                "Body" TEXT NOT NULL,
+                "Kind" TEXT NOT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "Read" INTEGER NOT NULL);
+            CREATE INDEX IF NOT EXISTS "IX_Notifications_UserId" ON "Notifications" ("UserId");
+            """);
+    }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -29,6 +49,13 @@ public sealed class CloudDb(DbContextOptions<CloudDb> options) : IdentityDbConte
             e.Property(d => d.Token).HasMaxLength(200);
             e.Property(d => d.Name).HasMaxLength(80);
             e.Property(d => d.Platform).HasMaxLength(10);
+        });
+        builder.Entity<AccountNotification>(e =>
+        {
+            e.ToTable("Notifications");
+            e.HasIndex(n => n.UserId);
+            // SQLite sorts and compares text: the date is stored as ISO 8601 text.
+            e.Property(n => n.CreatedAt).HasConversion(v => v.UtcDateTime.ToString("O"), v => DateTimeOffset.Parse(v));
         });
     }
 }
@@ -55,6 +82,8 @@ public sealed class CloudOptions
     public int WatchSeconds { get; set; } = 30;
     /// <summary>Apple Push Notification service; empty: notifications are only logged.</summary>
     public ApnsOptions Apns { get; set; } = new();
+    /// <summary>Sign in with Apple: the apps allowed, and the key that revokes Apple's tokens on deletion.</summary>
+    public AppleOptions Apple { get; set; } = new();
     /// <summary>Behind the homelab's reverse proxy: take the client address from X-Forwarded-For.</summary>
     public bool TrustForwardedHeaders { get; set; }
 

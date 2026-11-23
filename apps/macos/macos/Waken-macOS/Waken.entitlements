@@ -5,5 +5,13 @@
 	<!-- No App Sandbox: Waken starts its own stream server (Sunshine), agent and network helper. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- The Waken account's notifications (APNs). Xcode switches it to production for a release. -->
+	<key>com.apple.developer.aps-environment</key>
+	<string>development</string>
+	<!-- Continuer avec Apple. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

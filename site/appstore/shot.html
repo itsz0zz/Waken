@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Anton; src: url(../fonts/Anton-Regular.ttf); }
+@font-face { font-family: Inter; src: url(../fonts/Inter-Medium.ttf); font-weight: 500; }
+@font-face { font-family: Inter; src: url(../fonts/Inter-Bold.ttf); font-weight: 700; }
+@font-face { font-family: Inter; src: url(../fonts/Inter-ExtraBold.ttf); font-weight: 800; }
+:root { --ink:#0B0B0F; --ink2:#3F424D; --blue:#2F7BFF; --lime:#C8FF2E; --online:#1FBF6A; }
+* { box-sizing: border-box; margin: 0; }
+html { overflow: hidden; background: #fff; }
+body { width: 1290px; height: 2796px; overflow: hidden; transform-origin: 0 0; }
+body { font-family: Inter, sans-serif; font-weight: 500; color: var(--ink); position: relative; }
+.bg-sun { background: linear-gradient(165deg, #EFFF3A 0%, #F6FF9E 45%, #fff 100%); }
+.bg-sky { background: linear-gradient(180deg, #4E97FF 0%, #A6CBFF 52%, #fff 100%); }
+.bg-lime { background: linear-gradient(180deg, #BDFF2E 0%, #E6FFA6 50%, #fff 100%); }
+.bg-ink { background: radial-gradient(circle at 30% 10%, #2a2a3a, #0B0B0F 60%); color: #fff; }
+.d { font-family: Anton, sans-serif; text-transform: uppercase; letter-spacing: -3px; line-height: .92; }
+.head { position: absolute; top: 170px; left: 100px; right: 100px; text-align: center; }
+.head h1 { font-size: 196px; }
+.head p { font-size: 54px; line-height: 1.25; margin-top: 36px; color: var(--ink2); font-weight: 700; }
+.bg-ink .head p { color: #C9CBD3; }
+.kick { display: inline-block; background: var(--ink); color: var(--lime); font-weight: 800; font-size: 38px; padding: 14px 26px; border-radius: 18px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 40px; }
+.bg-ink .kick { background: var(--lime); color: var(--ink); }
+
+/* Phone */
+.phone { position: absolute; left: 50%; top: 1020px; width: 1010px; height: 2100px; margin-left: -505px; border-radius: 150px; background: #0B0B0F; padding: 30px; box-shadow: 0 60px 120px rgba(11,11,15,.35); transform: rotate(var(--r, 0deg)); }
+.screen { width: 100%; height: 100%; border-radius: 122px; overflow: hidden; position: relative; }
+.island { position: absolute; top: 34px; left: 50%; width: 300px; height: 88px; margin-left: -150px; background: #000; border-radius: 50px; z-index: 5; }
+.status { position: absolute; top: 50px; left: 90px; right: 90px; display: flex; justify-content: space-between; font-weight: 800; font-size: 44px; z-index: 4; }
+.in { position: absolute; inset: 0; padding: 190px 60px 0; }
+
+/* App bits */
+.card { background: #fff; border-radius: 56px; box-shadow: 0 16px 40px rgba(11,11,15,.1); }
+.row { display: flex; align-items: center; gap: 36px; padding: 26px 34px 26px 26px; margin-bottom: 30px; }
+.row img { width: 230px; height: 166px; object-fit: cover; border-radius: 36px; border: 10px solid #fff; box-shadow: 0 10px 24px rgba(11,11,15,.18); }
+.row h3 { font-size: 50px; font-weight: 800; }
+.row small { display: block; font-size: 36px; color: var(--ink2); margin-top: 8px; font-weight: 700; }
+.play { margin-left: auto; width: 118px; height: 118px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex-shrink: 0; }
+.tilt { border: 18px solid #fff; border-radius: 64px; overflow: hidden; box-shadow: 0 30px 60px rgba(11,11,15,.25); position: absolute; }
+.tilt img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.btn { display: flex; align-items: center; gap: 28px; height: 150px; padding: 0 60px 0 22px; border-radius: 999px; background: var(--ink); color: #fff; font-weight: 800; font-size: 50px; }
+.btn .dot { width: 108px; height: 108px; border-radius: 50%; background: var(--lime); display: grid; place-items: center; }
+.tag { display: inline-flex; align-items: center; gap: 14px; padding: 12px 24px; border-radius: 20px; background: #E7F9EF; color: #0f7a43; font-weight: 800; font-size: 34px; }
+.tag i { width: 20px; height: 20px; border-radius: 50%; background: var(--online); }
+.mark { position: absolute; filter: drop-shadow(0 24px 30px rgba(11,11,15,.3)); }
+.shot { display: none; } .shot.on { display: block; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <path id="w" d="M8.2265625 0.0 1.0283203125 -67.03125H14.1298828125L17.82421875 -24.7177734375L21.5947265625 -67.03125H34.0869140625L37.6669921875 -24.7177734375L41.2470703125 -67.03125H54.5009765625L47.1884765625 0.0H31.1162109375L27.7646484375 -32.2587890625L24.5654296875 0.0Z"/>
+    <symbol id="mark" viewBox="0 0 128 128">
+      <rect width="128" height="128" rx="34" fill="#fff"/><rect x="6" y="6" width="116" height="116" rx="29" fill="#0B0B0F"/>
+      <g transform="rotate(-6 64 64)" stroke-linejoin="round">
+        <use href="#w" transform="translate(41.2 103.5)" fill="#C8FF2E" stroke="#C8FF2E" stroke-width="10"/>
+        <use href="#w" transform="translate(36.2 97.5)" fill="#fff" stroke="#fff" stroke-width="10"/>
+        <use href="#w" transform="translate(36.2 97.5)" fill="#2F7BFF"/>
+      </g>
+    </symbol>
+    <symbol id="playi" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="#fff"/></symbol>
+  </defs>
+</svg>
+
+<!-- 1: hero -->
+<div class="shot bg-sun" data-n="1" style="position:absolute;inset:0">
+  <div class="head"><span class="kick">Waken</span><h1 class="d">On joue&nbsp;?</h1><p>Tes jeux PC et Mac, sur ton iPhone.</p></div>
+  <div class="phone" style="--r:-3deg"><div class="screen bg-sun"><div class="island"></div><div class="status"><span>21:04</span><span>100%</span></div>
+    <div class="in">
+      <div class="d" style="font-size:190px;text-align:center;margin-top:40px">On joue&nbsp;?</div>
+      <div style="position:relative;height:560px">
+        <div class="tilt" style="left:10px;top:40px;width:480px;height:330px;transform:rotate(-8deg)"><img src="../img/game-sunset.svg"></div>
+        <div class="tilt" style="right:0;top:110px;width:440px;height:310px;transform:rotate(7deg)"><img src="../img/setup.svg"></div>
+        <svg class="mark" style="left:50%;margin-left:-110px;top:-40px;transform:rotate(-8deg)" width="220" height="220"><use href="#mark"/></svg>
+      </div>
+      <div style="font-weight:800;font-size:66px;text-align:center;margin:30px 0 40px">Choisis ton jeu</div>
+      <div class="card row"><img src="../img/game-sunset.svg"><div><h3>Sunset Drive</h3><small>Mac de Enzo</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+      <div class="card row"><img src="../img/couch.svg"><div><h3>Couch Party</h3><small>PC Gaming</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+    </div></div></div>
+</div>
+
+<!-- 2: library -->
+<div class="shot bg-sky" data-n="2" style="position:absolute;inset:0">
+  <div class="head"><span class="kick">Bibliothèque</span><h1 class="d">Tous tes jeux</h1><p>Steam, Epic, GOG, EA, Ubisoft, Xbox, trouvés tout seuls.</p></div>
+  <div class="phone" style="--r:3deg"><div class="screen bg-sky"><div class="island"></div><div class="status"><span>21:05</span><span>100%</span></div>
+    <div class="in">
+      <div class="d" style="font-size:170px;color:#fff;margin:30px 0 50px">Tes jeux</div>
+      <div class="card row"><img src="../img/game-sunset.svg"><div><h3>Sunset Drive</h3><small>Steam · 12 h jouées</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+      <div class="card row"><img src="../img/setup.svg"><div><h3>Neon Tower</h3><small>Epic · hier</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+      <div class="card row"><img src="../img/couch.svg"><div><h3>Couch Party</h3><small>GOG · 3 h jouées</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+      <div class="card row"><img src="../img/game-sunset.svg" style="filter:hue-rotate(140deg)"><div><h3>Lime Racer</h3><small>Xbox · nouveau</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+      <div class="card row"><img src="../img/setup.svg" style="filter:hue-rotate(200deg)"><div><h3>Deep Orbit</h3><small>Ubisoft · 40 min</small></div><div class="play"><svg width="52" height="52"><use href="#playi"/></svg></div></div>
+    </div></div></div>
+</div>
+
+<!-- 3: wake -->
+<div class="shot bg-lime" data-n="3" style="position:absolute;inset:0">
+  <div class="head"><span class="kick">Un appui</span><h1 class="d">Ta machine se réveille</h1><p>Elle s'allume, le jeu se lance.</p></div>
+  <div class="phone" style="--r:-3deg"><div class="screen bg-lime"><div class="island"></div><div class="status"><span>21:06</span><span>100%</span></div>
+    <div class="in" style="text-align:center">
+      <div style="margin:120px auto 0;width:640px;height:640px;border-radius:50%;border:34px solid rgba(11,11,15,.08);position:relative">
+        <svg viewBox="0 0 100 100" style="position:absolute;inset:-34px;transform:rotate(-90deg)"><circle cx="50" cy="50" r="45.6" fill="none" stroke="#0B0B0F" stroke-width="5" stroke-dasharray="210 300" stroke-linecap="round"/></svg>
+        <img src="../img/setup.svg" style="position:absolute;inset:70px;width:432px;height:432px;object-fit:cover;border-radius:50%">
+      </div>
+      <div style="font-weight:800;font-size:80px;margin-top:90px">PC Gaming</div>
+      <div style="font-size:46px;color:var(--ink2);margin-top:14px;font-weight:700">se réveille… 8 s</div>
+      <div style="margin:80px 30px 0;text-align:left">
+        <div class="card" style="padding:40px 50px;font-size:44px;font-weight:700;line-height:2">
+          <div>✓&nbsp; Signal envoyé</div><div>✓&nbsp; Machine en ligne</div><div style="color:var(--ink2)">○&nbsp; Lancement du jeu</div>
+        </div>
+      </div>
+    </div></div></div>
+</div>
+
+<!-- 4: anywhere -->
+<div class="shot bg-sun" data-n="4" style="position:absolute;inset:0">
+  <div class="head"><span class="kick">Partout</span><h1 class="d">Du canapé ou de loin</h1><p>Un compte, ton réseau privé, rien à configurer.</p></div>
+  <div class="tilt" style="left:110px;top:1150px;width:1070px;height:760px;transform:rotate(-4deg)"><img src="../img/couch.svg"></div>
+  <div class="tilt" style="left:200px;top:1980px;width:900px;height:640px;transform:rotate(5deg)"><img src="../img/game-sunset.svg"></div>
+  <svg class="mark" style="left:80px;top:1820px;transform:rotate(-10deg)" width="300" height="300"><use href="#mark"/></svg>
+</div>
+
+<!-- 5: stream -->
+<div class="shot bg-ink" data-n="5" style="position:absolute;inset:0">
+  <div class="head"><span class="kick">Stream</span><h1 class="d" style="color:#fff">Fluide comme sur&nbsp;place</h1><p>Manette, souris, clavier. Chiffré de bout en bout.</p></div>
+  <div class="phone" style="top:1250px;width:2100px;height:1010px;margin-left:-1050px;transform:rotate(90deg) translateY(0);--r:0deg;left:50%;transform:none;width:1150px;height:2160px;margin-left:-575px;top:1000px;border-radius:150px">
+    <div class="screen" style="background:#000"><img src="../img/game-sunset.svg" style="width:100%;height:100%;object-fit:cover">
+      <div style="position:absolute;top:150px;right:60px;display:flex;gap:20px"><span class="tag" style="background:rgba(11,11,15,.6);color:#fff"><i></i>1080p · 60 i/s · 12 ms</span></div>
+    </div></div>
+</div>
+
+<script>
+  const q = new URLSearchParams(location.search); const n = q.get('n') || '1';
+  // Rendered at 1290 x 2796, stretched to the size asked for (w, h): Apple wants exact pixels per screen size.
+  const w = +q.get('w') || 1290, h = +q.get('h') || 2796;
+  document.body.style.transform = `scale(${w / 1290}, ${h / 2796})`;
+  document.querySelector(`.shot[data-n="${n}"]`).classList.add('on');
+</script>
+</body>
+</html>

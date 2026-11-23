@@ -16,6 +16,23 @@ export interface JoinTicket {
   expiresAt: string;
 }
 
+/** One of the account's notifications (the bell): new device, machine ready, end of a session. */
+export interface CloudNotification {
+  id: number;
+  title: string;
+  body: string;
+  kind: 'device' | 'machine' | 'session' | string;
+  createdAt: string;
+  read: boolean;
+}
+
+/** What Sign in with Apple gives the app, sent as is to the Waken accounts. */
+export interface AppleCredential {
+  identityToken: string;
+  /** One-time, lets the server revoke Apple's tokens when the account is deleted. */
+  authorizationCode?: string | null;
+}
+
 export interface CloudDevice {
   id: string;
   name: string;
@@ -67,6 +84,16 @@ export class WakenCloud {
     await this.signIn(email, password);
   }
 
+  /** Sign in with Apple: a new Apple ID gets a new account, a known one its own. */
+  async signInWithApple(credential: AppleCredential) {
+    const res = await fetchWithTimeout(`${this.baseUrl}/account/apple`, post(credential), 15_000);
+    if (res.status === 409) throw new HttpError(409, 'Un compte existe déjà avec cet e-mail : connecte-toi avec ton mot de passe.');
+    if (res.status === 401) throw new HttpError(401, 'Apple n’a pas confirmé ton identité, réessaie.');
+    if (res.status === 429) throw new HttpError(429, 'Trop de tentatives, réessaie dans une minute.');
+    if (!res.ok) throw new HttpError(res.status, `Connexion avec Apple impossible (erreur ${res.status}).`);
+    this.use((await res.json()) as TokenResponse);
+  }
+
   async signIn(email: string, password: string) {
     const res = await fetchWithTimeout(`${this.baseUrl}/account/login?useCookies=false`, post({ email: email.trim(), password }), 10_000);
     if (res.status === 401) throw new HttpError(401, 'E-mail ou mot de passe incorrect. Après 5 essais, le compte se bloque 5 minutes.');
@@ -108,8 +135,17 @@ export class WakenCloud {
   }
 
   /** Every device off the network, then the account. Asks the password again. */
-  async deleteAccount(password: string) {
-    await this.call<void>('/account/delete', post({ password }));
+  notifications() {
+    return this.call<CloudNotification[]>('/notifications');
+  }
+
+  markNotificationsRead() {
+    return this.call<void>('/notifications/read', { method: 'POST' });
+  }
+
+  /** The password, or for an account made with Apple, a fresh Apple identity token. */
+  async deleteAccount(confirm: { password?: string; appleIdentityToken?: string }) {
+    await this.call<void>('/account/delete', post(confirm));
     this.signOut();
   }
 

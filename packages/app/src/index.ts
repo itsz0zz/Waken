@@ -21,3 +21,4 @@ export * from './account';
 export { useSessionRecaps } from './recaps';
 export { DesktopApp, ensureLocalMachine, type DesktopHost } from './desktop/DesktopApp';
 export { useDesktopNav, tabs, type Route, type Tab } from './desktop/nav';
+export { AccountButtons, NotificationsOverlay, useNotifications } from './screens/Notifications';

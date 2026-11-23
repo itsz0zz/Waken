@@ -13,3 +13,4 @@ publish/
 apps/mac/build/
 apps/mac/.cache/
 .DS_Store
+apps/mobile/.cache/

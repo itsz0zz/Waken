@@ -6,16 +6,22 @@ import { useNav } from '../nav';
 import { platform } from '../platform';
 import { useNetwork } from '../network';
 import { useWaken } from '../store';
+import { useAccount } from '../account';
+import { AccountButtons } from './Notifications';
 
-/** Phone header: the wordmark and a round button to the machines, badged with how many are ready. Desktop has its own bar. */
+/**
+ * Phone header: the wordmark, and top right the bell and the account (AccountButtons). Without an account
+ * (Tailscale), a round button to the machines, badged with how many are ready. Desktop has its own bar.
+ */
 export function PhoneHeader() {
   const nav = useNav();
   const online = useNetwork((s) => s.status?.hosts.filter((h) => h.online).length ?? 0);
+  const account = useAccount((s) => s.mode === 'account' && s.session !== null);
   if (platform().form === 'desktop') return null;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Wordmark height={26} />
-      <RoundButton icon={Monitor} label={`Machines, ${online} prêtes`} badge={online || undefined} onPress={nav.machines} />
+      {account ? <AccountButtons /> : <RoundButton icon={Monitor} label={`Machines, ${online} prêtes`} badge={online || undefined} onPress={nav.machines} />}
     </View>
   );
 }

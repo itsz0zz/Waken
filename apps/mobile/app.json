@@ -3,7 +3,7 @@
     "name": "Waken",
     "slug": "waken",
     "scheme": "waken",
-    "version": "0.2.0",
+    "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,32 +13,45 @@
       "bundleIdentifier": "fr.wakenplay.app",
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Waken cherche et réveille ton PC et ta console sur le réseau.",
+        "NSLocalNetworkUsageDescription": "Waken joint tes ordinateurs sur ton réseau local quand tu es chez toi, pour un stream plus rapide.",
         "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true,
-          "NSExceptionDomains": {
-            "ts.net": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSIncludesSubdomains": true
-            },
-            "100.64.0.0/10": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            },
-            "192.168.0.0/16": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            },
-            "10.0.0.0/8": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            },
-            "172.16.0.0/12": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            }
-          }
+          "NSAllowsLocalNetworking": true
         },
         "UIRequiresFullScreen": false,
         "GCSupportsControllerUserInteraction": true
       },
-      "deploymentTarget": "17.0"
+      "deploymentTarget": "17.0",
+      "buildNumber": "1",
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ]
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "fr.wakenplay.android",
@@ -55,7 +68,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-image",
       "expo-font",
       [
@@ -64,6 +82,13 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 180,
           "backgroundColor": "#EFFF3A"
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "enableBackgroundRemoteNotifications": false
         }
       ]
     ],

@@ -100,7 +100,7 @@ export function SettingsScreen() {
 
 /** The Waken account: who is signed in, the account's devices, sign out, delete. */
 function AccountCard() {
-  const { mode, email, session } = useAccount();
+  const { mode, email, session, provider } = useAccount();
   const queryClient = useQueryClient();
   const devices = useQuery({ queryKey: ['account-devices', email], queryFn: () => cloud().devices(), enabled: mode === 'account' && !!session, refetchInterval: 30_000 });
   const [deleting, setDeleting] = useState(false);
@@ -141,7 +141,15 @@ function AccountCard() {
   const deleteAccount = async () => {
     setBusy(true);
     try {
-      await cloud().deleteAccount(password);
+      if (provider === 'apple') {
+        // No password: Apple confirms it is still you.
+        const ask = platform().appleSignIn;
+        const credential = ask ? await ask() : null;
+        if (!credential) return;
+        await cloud().deleteAccount({ appleIdentityToken: credential.identityToken });
+      } else {
+        await cloud().deleteAccount({ password });
+      }
       await signOutAccount().catch(() => {});
     } catch (e) {
       Alert.alert('Compte non supprimé', e instanceof Error ? e.message : String(e));
@@ -176,10 +184,17 @@ function AccountCard() {
           <Text style={[type.caption, { color: colors.ink2 }]}>
             Tous tes appareils quittent le réseau Waken et le compte est effacé. Ça ne se rattrape pas.
           </Text>
-          <Field label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" />
+          {provider === 'apple' ? null : <Field label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" />}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <PillButton label="Annuler" variant="ghost" size="sm" onPress={() => setDeleting(false)} />
-            <PillButton label="Supprimer définitivement" icon={Trash2} size="sm" loading={busy} disabled={!password || busy} onPress={() => void deleteAccount()} />
+            <PillButton
+              label={provider === 'apple' ? 'Confirmer avec Apple et supprimer' : 'Supprimer définitivement'}
+              icon={Trash2}
+              size="sm"
+              loading={busy}
+              disabled={(provider !== 'apple' && !password) || busy}
+              onPress={() => void deleteAccount()}
+            />
           </View>
         </View>
       ) : (

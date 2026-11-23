@@ -27,6 +27,8 @@ interface Native {
   tunnelJoin(controlUrl: string, authKey: string): Promise<void>;
   /** Asks the permission to notify, then this Mac's APNs token (null when refused). */
   pushToken(): Promise<string | null>;
+  /** Apple's sign-in sheet: Apple's identity token and one-time code, or null when closed. */
+  appleSignIn(): Promise<{ identityToken: string; authorizationCode?: string } | null>;
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;

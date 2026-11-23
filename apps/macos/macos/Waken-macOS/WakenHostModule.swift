@@ -51,6 +51,16 @@ final class WakenHostModule: NSObject {
     resolve(nil)
   }
 
+  /// {identityToken, authorizationCode} from Apple's sheet, or null when the user closed it.
+  @objc func appleSignIn(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    AppleSignIn.shared.start { result in
+      switch result {
+      case .success(let credential): resolve(credential)
+      case .failure(let error): reject("waken", error.localizedDescription, error)
+      }
+    }
+  }
+
   @objc func pushToken(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     PushRegistrar.shared.requestToken { result in
       switch result {

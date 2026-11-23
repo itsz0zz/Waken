@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform as RNPlatform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppMark, Card, colors, Display, FadeIn, Field, PillButton, ScreenGround, Segmented, type } from '@waken/ui';
-import { setNetworkMode, signInAccount, useNeedsAccount } from '../account';
+import { ActivityIndicator, KeyboardAvoidingView, Platform as RNPlatform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppMark, Card, colors, Display, FadeIn, Field, fonts, PillButton, PlatformIcon, PressScale, ScreenGround, Segmented, type } from '@waken/ui';
+import { setNetworkMode, signInAccount, signInWithAppleAccount, useNeedsAccount } from '../account';
+import { platform } from '../platform';
 import { useFrame } from '../nav';
 
 type Mode = 'signin' | 'create';
@@ -30,6 +31,7 @@ export function AccountScreen() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appleBusy, setAppleBusy] = useState(false);
   const creating = mode === 'create';
   const ready = /.+@.+\..+/.test(email.trim()) && password.length >= (creating ? 10 : 1);
 
@@ -61,6 +63,25 @@ export function AccountScreen() {
                   : 'Connecte-toi : tes machines arrivent toutes seules, et personne d’autre ne peut les joindre.'}
               </Text>
             </View>
+            {platform().appleSignIn ? (
+              <>
+                <AppleButton
+                  busy={appleBusy}
+                  onPress={async () => {
+                    setAppleBusy(true);
+                    setError(null);
+                    try {
+                      await signInWithAppleAccount();
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : String(e));
+                    } finally {
+                      setAppleBusy(false);
+                    }
+                  }}
+                />
+                <Text style={[type.caption, { color: colors.ink2, textAlign: 'center' }]}>ou avec ton e-mail</Text>
+              </>
+            ) : null}
             <Card lifted style={{ gap: 12 }}>
               <Segmented<Mode>
                 label="Compte"
@@ -103,5 +124,23 @@ export function AccountScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
+  );
+}
+
+/**
+ * Apple's button as its guidelines draw it: black, Apple's logo, "Continuer avec Apple", as tall as the other
+ * actions. Drawn here (one look on iPhone and Mac) rather than the native one.
+ */
+function AppleButton({ onPress, busy }: { onPress: () => void; busy: boolean }) {
+  return (
+    <PressScale
+      onPress={busy ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Continuer avec Apple"
+      style={{ height: 56, borderRadius: 999, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+    >
+      {busy ? <ActivityIndicator color={colors.white} /> : <PlatformIcon platform="mac" size={20} color={colors.white} />}
+      <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: colors.white }}>Continuer avec Apple</Text>
+    </PressScale>
   );
 }
