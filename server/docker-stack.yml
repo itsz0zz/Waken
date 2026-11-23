@@ -1,0 +1,28 @@
+# docker stack deploy -c docker-stack.yml waken
+# Host networking is required: a Wake-on-LAN broadcast cannot leave an overlay network.
+# Keep "-" and ":" out of the ${VAR:?message} messages: docker stack parses them as default-value separators.
+version: "3.8"
+services:
+  api:
+    image: ${WAKEN_IMAGE:?WAKEN_IMAGE manquant}
+    environment:
+      Waken__Token: ${WAKEN_TOKEN:?WAKEN_TOKEN manquant}
+      Waken__SteamGridDbApiKey: ${STEAMGRIDDB_KEY:-}
+      Waken__Devices__0__Id: pc-gaming
+      Waken__Devices__0__Mac: ${PC_MAC:?PC_MAC manquant}
+      Waken__Devices__0__Broadcast: ${PC_BROADCAST:-192.168.1.255}
+      Waken__Devices__0__Host: ${PC_LAN_IP:?PC_LAN_IP manquant}
+    volumes:
+      - waken-covers:/data
+    networks:
+      - hostnet
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.lan == true]
+networks:
+  hostnet:
+    external: true
+    name: host
+volumes:
+  waken-covers:

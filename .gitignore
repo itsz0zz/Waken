@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+web-build/
+apps/mobile/ios/
+apps/mobile/android/
+bin/
+obj/
+publish/
+*.p12
+*.pfx
+.env
+apps/mac/build/
+apps/mac/.cache/
+.DS_Store

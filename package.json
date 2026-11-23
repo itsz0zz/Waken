@@ -1,0 +1,20 @@
+{
+  "name": "waken",
+  "private": true,
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "onFail": "error"
+    }
+  },
+  "scripts": {
+    "mobile": "pnpm --filter @waken/mobile run start",
+    "ios": "pnpm --filter @waken/mobile run ios",
+    "android": "pnpm --filter @waken/mobile run android",
+    "typecheck": "pnpm --filter @waken/mobile run typecheck",
+    "test": "pnpm --filter @waken/core test && pnpm --filter waken-stream test && dotnet test server/Waken.Api.Tests && dotnet test agent/Waken.Agent.Tests"
+  },
+  "dependencies": {
+    "expo-linear-gradient": "~58.0.4"
+  }
+}
