@@ -180,7 +180,10 @@ void StreamSession::Connect() {
   config.packetSize = m_launch.remote ? 1024 : 1392;
   config.streamingRemotely = m_launch.remote ? STREAM_CFG_REMOTE : STREAM_CFG_AUTO;
   config.audioConfiguration = AUDIO_CONFIGURATION_STEREO;
-  config.supportedVideoFormats = m_launch.hevc ? (VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265) : VIDEO_FORMAT_H264;
+  // Only what this PC can decode: without Microsoft's HEVC extension, the computer sends H.264.
+  const bool hevc = m_launch.hevc && VideoRenderer::CanDecode(true);
+  if (m_launch.hevc && !hevc) Log("[stream] pas de décodeur HEVC sur ce PC : H.264 demandé");
+  config.supportedVideoFormats = hevc ? (VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265) : VIDEO_FORMAT_H264;
   config.colorSpace = COLORSPACE_REC_709;
   config.colorRange = COLOR_RANGE_LIMITED;
   config.encryptionFlags = static_cast<int>(ENCFLG_ALL);

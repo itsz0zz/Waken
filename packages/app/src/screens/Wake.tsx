@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Linking, Text, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { Check, Cable, Clock, Gamepad2, Loader, Plug, Power, Rocket, Wifi, type LucideIcon } from 'lucide-react-native';
 import { wakeAndWait, withRelaySettings, type WakeProgress, type WakeStepId } from '@waken/core';
 import { AppMark, colors, Display, IconBubble, MachineChip, nativeDriver, PillButton, RoundButton, shadows, type, Wordmark } from '@waken/ui';
@@ -62,7 +62,8 @@ export function WakeScreen({
   const breath = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loops = [
-      Animated.loop(Animated.timing(spin, { toValue: 1, duration: 1300, easing: Easing.linear, useNativeDriver: nativeDriver })),
+      // An SVG stroke offset: only the JavaScript driver animates it.
+      Animated.loop(Animated.timing(spin, { toValue: 1, duration: 1300, easing: Easing.linear, useNativeDriver: false })),
       Animated.loop(
         Animated.sequence([
           Animated.timing(breath, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
@@ -156,18 +157,15 @@ export function WakeScreen({
         Réveil
       </Display>
       <View style={{ width: 232, height: 232, alignSelf: 'center', marginTop: 22, alignItems: 'center', justifyContent: 'center' }}>
-        <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-          <Circle cx={116} cy={116} r={104} stroke={colors.white} strokeWidth={14} fill="none" />
-          <AnimatedCircle cx={116} cy={116} r={104} stroke={colors.ink} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ}`} strokeDashoffset={ring.interpolate({ inputRange: [0, 1], outputRange: [circ, 0] })} />
+        {/* Turned inside the drawing, round its own centre: Windows turns a view round its top left corner. The
+            blue arc runs round the ring by its stroke offset, not by turning a view, for the same reason. */}
+        <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute' }} pointerEvents="none">
+          <G rotation={-90} originX={116} originY={116}>
+            <Circle cx={116} cy={116} r={104} stroke={colors.white} strokeWidth={14} fill="none" />
+            <AnimatedCircle cx={116} cy={116} r={104} stroke={colors.ink} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ}`} strokeDashoffset={ring.interpolate({ inputRange: [0, 1], outputRange: [circ, 0] })} />
+            <AnimatedCircle cx={116} cy={116} r={104} stroke={colors.blue} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ * 0.1} ${circ}`} strokeDashoffset={spin.interpolate({ inputRange: [0, 1], outputRange: [0, -circ] })} />
+          </G>
         </Svg>
-        <Animated.View
-          pointerEvents="none"
-          style={{ position: 'absolute', width: 232, height: 232, transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }}
-        >
-          <Svg width={232} height={232} viewBox="0 0 232 232">
-            <Circle cx={116} cy={116} r={104} stroke={colors.blue} strokeWidth={14} fill="none" strokeLinecap="round" strokeDasharray={`${circ * 0.1} ${circ}`} />
-          </Svg>
-        </Animated.View>
         <Animated.View
           style={{
             transform: [{ rotate: '-8deg' }, { scale: breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }],

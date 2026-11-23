@@ -31,6 +31,9 @@ class VideoRenderer {
   /// The surface each picture is drawn into, at the video size.
   void SetTarget(winrt::com_ptr<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop> target);
 
+  /// Whether Windows has a decoder for this format (HEVC needs Microsoft's paid extension on many PCs).
+  static bool CanDecode(bool hevc);
+
   /// moonlight-common-c's decoder callbacks, on its decoder thread.
   int Setup(int videoFormat, int width, int height, int fps);
   int Submit(PDECODE_UNIT unit);

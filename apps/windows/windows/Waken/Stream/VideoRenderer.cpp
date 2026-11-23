@@ -51,6 +51,17 @@ bool VideoRenderer::Create(int width, int height, std::string &error) {
   return true;
 }
 
+bool VideoRenderer::CanDecode(bool hevc) {
+  MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET);
+  MFT_REGISTER_TYPE_INFO input{MFMediaType_Video, hevc ? MFVideoFormat_HEVC : MFVideoFormat_H264};
+  IMFActivate **activates = nullptr;
+  UINT32 count = 0;
+  HRESULT hr = MFTEnumEx(MFT_CATEGORY_VIDEO_DECODER, MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_LOCALMFT | MFT_ENUM_FLAG_SORTANDFILTER, &input, nullptr, &activates, &count);
+  for (UINT32 i = 0; i < count; i++) activates[i]->Release();
+  CoTaskMemFree(activates);
+  return SUCCEEDED(hr) && count > 0;
+}
+
 void VideoRenderer::SetTarget(winrt::com_ptr<winrt::Microsoft::UI::Composition::ICompositionDrawingSurfaceInterop> target) {
   std::lock_guard lock(m_lock);
   m_target = std::move(target);
