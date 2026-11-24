@@ -192,13 +192,28 @@ function UpdatesCard() {
         icon={Download}
         color={status?.available ? colors.blue : colors.online}
         label={status?.version ? `Waken ${status.version}` : 'Waken'}
-        hint={installing ? 'Téléchargement de la mise à jour, puis Waken redémarre…' : isFetching ? 'Recherche d’une mise à jour…' : updateHint(status)}
+        hint={
+          updates.ownWindow
+            ? 'Mises à jour automatiques : Waken regarde chaque jour s’il y a une nouvelle version.'
+            : installing
+              ? 'Téléchargement de la mise à jour, puis Waken redémarre…'
+              : isFetching
+                ? 'Recherche d’une mise à jour…'
+                : updateHint(status)
+        }
       />
       <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
         {status?.available ? (
           <PillButton label={`Installer la ${status.available}`} icon={Download} size="sm" disabled={installing} onPress={() => void install()} />
         ) : null}
-        <PillButton label="Rechercher" icon={RefreshCw} size="sm" variant="white" disabled={isFetching || installing} onPress={() => void refetch()} />
+        <PillButton
+          label="Rechercher"
+          icon={RefreshCw}
+          size="sm"
+          variant="white"
+          disabled={isFetching || installing}
+          onPress={() => void (updates.ownWindow ? updates.install() : refetch())}
+        />
       </View>
     </Card>
   );

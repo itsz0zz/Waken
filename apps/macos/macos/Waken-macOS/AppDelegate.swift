@@ -2,6 +2,7 @@ import SwiftUI
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import Sparkle
 
 @main
 struct WakenApp: App {
@@ -17,6 +18,39 @@ struct WakenApp: App {
     .defaultSize(width: 1280, height: 800)
     // The Arcade ground runs under the traffic lights, like the mockups: no grey title bar.
     .windowStyle(.hiddenTitleBar)
+    .commands {
+      CommandGroup(after: .appInfo) {
+        Button("Rechercher les mises à jour…") { Updater.shared.checkForUpdates() }
+          .disabled(!Updater.shared.enabled)
+      }
+    }
+  }
+}
+
+// MARK: - Updates
+
+/// Updates from the GitHub releases (Sparkle): a signed DMG and its appcast, put there by scripts/release.sh. The
+/// feed and the public key are in Info.plist of a release build only: a development build never updates itself.
+final class Updater {
+  static let shared = Updater()
+  private var controller: SPUStandardUpdaterController?
+
+  /// This build can update: it carries the feed and the key.
+  var enabled: Bool { controller != nil }
+  var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
+
+  /// Checks in the background on its own schedule (once a day), and asks before installing.
+  func start() {
+    guard controller == nil,
+      Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") != nil,
+      Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") != nil
+    else { return }
+    controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+  }
+
+  /// Sparkle's own window: up to date, or the new version with its notes and an Install button.
+  func checkForUpdates() {
+    controller?.checkForUpdates(nil)
   }
 }
 
@@ -60,6 +94,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   static func quitNow() -> Never {
     UserDefaults.standard.synchronize()
     _exit(0)
+  }
+
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    Updater.shared.start()
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

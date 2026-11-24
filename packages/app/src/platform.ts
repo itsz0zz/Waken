@@ -128,7 +128,12 @@ export interface WakenPlatform {
    * Updates of the desktop app from the GitHub releases (Windows: Velopack). status(check) asks GitHub when check;
    * install downloads the newest one, quits, and the app starts again updated.
    */
-  updates?: { status(check: boolean): Promise<UpdateStatus>; install(): Promise<void> };
+  updates?: {
+    status(check: boolean): Promise<UpdateStatus>;
+    install(): Promise<void>;
+    /** The system's own window looks for the new version and installs it (Mac: Sparkle): install opens it. */
+    ownWindow?: boolean;
+  };
   /** PS5 and PS4 through chiaki: found on this network, linked, woken. */
   playstation?: PlayStationApi;
   /** The PS5 / PS4 stream view (chiaki), when this build has it. */

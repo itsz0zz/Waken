@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NativeModules, Text, View } from 'react-native';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform, type NativeGamepads } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform, type NativeGamepads, type UpdateStatus } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { host, hostTunnel, localDevice, type HostStatus } from './host';
 import { PlayStationView } from './playstation';
@@ -34,6 +34,10 @@ setPlatform({
   // PS5 and PS4 through chiaki (modules/waken-stream/macos/WakenPlayStationModule.m).
   playstation: NativeModules.WakenPlayStation ? playstationFrom(NativeModules.WakenPlayStation) : undefined,
   PlayStationView,
+  // Updates through Sparkle (a release build of scripts/release.sh): the Réglages show the version and open its window.
+  updates: host.updateStatus
+    ? { status: async (check) => JSON.parse(await host.updateStatus!(check)) as UpdateStatus, install: () => host.installUpdate!(), ownWindow: true }
+    : undefined,
 });
 
 

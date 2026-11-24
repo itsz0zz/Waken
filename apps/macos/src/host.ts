@@ -34,6 +34,9 @@ interface Native {
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;
+  /** Sparkle (a release build): the version as JSON {supported, version}, and its window to install a new one. */
+  updateStatus?(check: boolean): Promise<string>;
+  installUpdate?(): Promise<void>;
 }
 
 export const host = NativeModules.WakenHost as Native;

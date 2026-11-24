@@ -16,6 +16,9 @@ target 'Waken-macOS' do
   # Playing on another computer: the iPhone's stream code in an AppKit view.
   pod 'WakenStreamMac', :path => '../../../modules/waken-stream'
 
+  # Updates from the GitHub releases (scripts/release.sh publishes the DMG and its appcast).
+  pod 'Sparkle', '~> 2.6'
+
   # Flags change depending on the env values.
   flags = get_default_flags()
 

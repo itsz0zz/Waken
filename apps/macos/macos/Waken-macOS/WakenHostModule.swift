@@ -23,6 +23,23 @@ final class WakenHostModule: NSObject {
     resolve(nil)
   }
 
+  /// Réglages: the version and whether this build updates itself (Sparkle, a release build). Sparkle finds the new
+  /// versions on its own and shows them in its window: nothing "available" to report here.
+  @objc func updateStatus(_ check: Bool, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    let updater = Updater.shared
+    let json: [String: Any] = ["supported": updater.enabled, "version": updater.version]
+    let data = (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
+    resolve(String(decoding: data, as: UTF8.self))
+  }
+
+  /// Réglages: Sparkle's window, which looks for a new version and installs it.
+  @objc func installUpdate(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    DispatchQueue.main.async {
+      Updater.shared.checkForUpdates()
+      resolve(nil)
+    }
+  }
+
   @objc func status(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
     var status: [String: Any] = [
       "embedded": services.embedded,
