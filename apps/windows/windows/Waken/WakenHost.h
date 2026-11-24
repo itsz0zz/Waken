@@ -27,6 +27,7 @@
 
 #include "NativeModules.h"
 #include "Stream/Gamepads.h"
+#include "Stream/PlayStation.h"
 
 #pragma comment(lib, "bcrypt.lib")
 
@@ -436,6 +437,32 @@ struct WakenHost {
       if (code == ERROR_CANCELLED) return result.Reject("Annulé : Windows n'a pas eu ta confirmation.");
       if (code == ERROR_FILE_NOT_FOUND) return result.Reject("Le script manque dans l'app : reconstruis-la avec build.ps1.");
       result.Reject(("Le réglage n'a pas abouti (code " + std::to_string(code) + ").").c_str());
+    }).detach();
+  }
+
+  /// PS5 and PS4 (libchiaki, Stream/PlayStation.cpp): found on this network, linked with their code, woken.
+  REACT_METHOD(discoverConsoles)
+  void discoverConsoles(double seconds, ReactPromise<std::string> &&result) noexcept {
+    std::thread([seconds, result = std::move(result)]() mutable { result.Resolve(Stream::PlayStation::Discover(seconds)); }).detach();
+  }
+
+  REACT_METHOD(registerConsole)
+  void registerConsole(std::string host, bool ps5, std::string accountId, std::string pin, ReactPromise<std::string> &&result) noexcept {
+    std::thread([host, ps5, accountId, pin, result = std::move(result)]() mutable {
+      try {
+        result.Resolve(Stream::PlayStation::Register(host, ps5, accountId, pin));
+      } catch (std::exception const &e) {
+        result.Reject(e.what());
+      }
+    }).detach();
+  }
+
+  REACT_METHOD(wakeConsole)
+  void wakeConsole(std::string host, std::string registKey, bool ps5, ReactPromise<void> &&result) noexcept {
+    std::thread([host, registKey, ps5, result = std::move(result)]() mutable {
+      auto error = Stream::PlayStation::Wake(host, registKey, ps5);
+      if (error.empty()) result.Resolve();
+      else result.Reject(error.c_str());
     }).detach();
   }
 

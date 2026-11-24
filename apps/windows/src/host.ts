@@ -24,6 +24,10 @@ interface Native {
   setGamepadOptions?(rumble: number, motion: boolean, kind: string): void;
   /** Waken started with Windows (install-service.ps1), and the switch that runs it elevated. */
   startsWithWindows?(): Promise<boolean>;
+  /** PS5 and PS4 (libchiaki), answers as JSON; absent from an older build. */
+  discoverConsoles?(seconds: number): Promise<string>;
+  registerConsole?(host: string, ps5: boolean, accountId: string, pin: string): Promise<string>;
+  wakeConsole?(host: string, registKey: string, ps5: boolean): Promise<void>;
   setStartsWithWindows?(enable: boolean, disableFastStartup: boolean): Promise<void>;
 }
 

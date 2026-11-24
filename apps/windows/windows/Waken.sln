@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Waken", "Waken\Waken.vcxpro
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Moonlight", "Moonlight\Moonlight.vcxproj", "{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chiaki", "Chiaki\Chiaki.vcxproj", "{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -67,6 +69,18 @@ Global
 		{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}.Release|x86.Build.0 = Release|Win32
 		{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}.Release|ARM64.ActiveCfg = Release|ARM64
 		{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}.Release|ARM64.Build.0 = Release|ARM64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|x64.ActiveCfg = Debug|x64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|x64.Build.0 = Debug|x64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|x86.ActiveCfg = Debug|Win32
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|x86.Build.0 = Debug|Win32
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Debug|ARM64.Build.0 = Debug|ARM64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|x64.ActiveCfg = Release|x64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|x64.Build.0 = Release|x64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|x86.ActiveCfg = Release|Win32
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|x86.Build.0 = Release|Win32
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|ARM64.ActiveCfg = Release|ARM64
+		{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}.Release|ARM64.Build.0 = Release|ARM64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

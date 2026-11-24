@@ -98,7 +98,7 @@
     </ClCompile>
     <Link>
       <!-- ws2_32 and winmm: moonlight-common-c (Moonlight project). The stream view's own libraries are in its sources. -->
-      <AdditionalDependencies>shell32.lib;user32.lib;windowsapp.lib;ws2_32.lib;winmm.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shell32.lib;user32.lib;windowsapp.lib;ws2_32.lib;winmm.lib;bcrypt.lib;iphlpapi.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
@@ -119,6 +119,7 @@
     <ClInclude Include="WakenHost.h" />
     <ClInclude Include="Stream\AudioRenderer.h" />
     <ClInclude Include="Stream\Gamepads.h" />
+    <ClInclude Include="Stream\PlayStation.h" />
     <ClInclude Include="Stream\StreamLog.h" />
     <ClInclude Include="Stream\StreamSession.h" />
     <ClInclude Include="Stream\StreamView.h" />
@@ -132,6 +133,11 @@
     <ClCompile Include="Waken.cpp" />
     <ClCompile Include="Stream\AudioRenderer.cpp" />
     <ClCompile Include="Stream\Gamepads.cpp" />
+    <!-- chiaki's headers, with its build's settings: the structures must match the library's (mbedtls crypto). -->
+    <ClCompile Include="Stream\PlayStation.cpp">
+      <PreprocessorDefinitions>CHIAKI_LIB_ENABLE_MBEDTLS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\generated;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\lib\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\third-party\nanopb;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\mbedtls\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="Stream\StreamSession.cpp" />
     <ClCompile Include="Stream\StreamView.cpp" />
     <ClCompile Include="Stream\VideoRenderer.cpp" />
@@ -152,6 +158,10 @@
     <!-- moonlight-common-c, for the stream view: a static library of its own (Moonlight\Moonlight.vcxproj). -->
     <ProjectReference Include="..\Moonlight\Moonlight.vcxproj">
       <Project>{6E0B1C52-3F7A-4C8E-9D21-5A4B7E9C0D13}</Project>
+    </ProjectReference>
+    <!-- libchiaki, for the PS5 and PS4: a static library of its own (Chiaki\Chiaki.vcxproj). -->
+    <ProjectReference Include="..\Chiaki\Chiaki.vcxproj">
+      <Project>{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}</Project>
     </ProjectReference>
   </ItemGroup>
   <!-- Sunshine, the agent and the network helper, put in host\ by scripts\build.ps1: shipped beside Waken.exe. -->

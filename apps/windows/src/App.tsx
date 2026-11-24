@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { Gamepad2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, gamepadsFrom, setPlatform } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
 import { StreamView } from './stream';
@@ -27,6 +27,14 @@ setPlatform({
   // Started with Windows, before any sign-in, and woken from the network (scripts/install-service.ps1).
   startup: native.startsWithWindows
     ? { get: () => native.startsWithWindows!(), set: (on, fastStartupOff) => native.setStartsWithWindows!(on, fastStartupOff) }
+    : undefined,
+  // PS5 and PS4 through libchiaki (windows/Waken/Stream/PlayStation.cpp).
+  playstation: native.discoverConsoles
+    ? playstationFrom({
+        discover: async (seconds) => JSON.parse(await native.discoverConsoles!(seconds)) as Record<string, unknown>[],
+        registerConsole: async (host, ps5, accountId, pin) => JSON.parse(await native.registerConsole!(host, ps5, accountId, pin)) as Record<string, unknown>,
+        wake: (host, registKey, ps5) => native.wakeConsole!(host, registKey, ps5),
+      })
     : undefined,
   // The PC's controllers (SDL3, windows/Waken/Stream/Gamepads.cpp).
   gamepads: native.gamepads

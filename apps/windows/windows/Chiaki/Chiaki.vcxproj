@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  libchiaki (PlayStation Remote Play, chiaki-ng, AGPLv3), the same sources as the iPhone and Mac pods: chiaki's core
+  for the home network (the Internet part through Sony is stubbed in ios\Chiaki\remote_stubs.c), its nanopb messages
+  (generated once in ios\Chiaki\generated), jerasure and gf-complete for error correction, mbedtls for the crypto.
+  Each group compiles into its own folder: chiaki and mbedtls both have a base64.c and an ecdh.c.
+-->
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4D7A2E91-6B3C-4F58-A1E0-9C2B7D5E3F14}</ProjectGuid>
+    <ProjectName>Chiaki</ProjectName>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Chiaki</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <StreamDir>$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\</StreamDir>
+    <Glue>$(StreamDir)Chiaki\</Glue>
+    <ChiakiDir>$(StreamDir)vendor\chiaki-ng\</ChiakiDir>
+    <MbedDir>$(StreamDir)vendor\mbedtls\</MbedDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\Chiaki\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4244;4267;4996;4100;4127;4018;4146;4334;4232;4005;4090;4200;4245;4389;4701;4703;5105</DisableSpecificWarnings>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;CHIAKI_LIB_ENABLE_MBEDTLS=1;PB_C99_STATIC_ASSERT=1;CHIAKI_VERSION_MAJOR=1;CHIAKI_VERSION_MINOR=10;CHIAKI_VERSION_PATCH=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(Glue)include;$(Glue)generated;$(ChiakiDir)lib\include;$(ChiakiDir)lib\src;$(ChiakiDir)third-party\nanopb;$(ChiakiDir)third-party\jerasure\include;$(ChiakiDir)third-party\gf-complete\include;$(MbedDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(ChiakiDir)lib\src\*.c" Exclude="$(ChiakiDir)lib\src\aia.c;$(ChiakiDir)lib\src\aia_openssl.c;$(ChiakiDir)lib\src\ffmpegdecoder.c;$(ChiakiDir)lib\src\pidecoder.c;$(ChiakiDir)lib\src\opusdecoder.c;$(ChiakiDir)lib\src\opusencoder.c">
+      <ObjectFileName>$(IntDir)chiaki\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(ChiakiDir)lib\src\remote\rudpsendbuffer.c">
+      <ObjectFileName>$(IntDir)chiaki\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(Glue)remote_stubs.c;$(Glue)generated\takion.pb.c">
+      <ObjectFileName>$(IntDir)glue\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(ChiakiDir)third-party\nanopb\pb_common.c;$(ChiakiDir)third-party\nanopb\pb_encode.c;$(ChiakiDir)third-party\nanopb\pb_decode.c">
+      <ObjectFileName>$(IntDir)nanopb\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(ChiakiDir)third-party\jerasure\src\galois.c;$(ChiakiDir)third-party\jerasure\src\jerasure.c;$(ChiakiDir)third-party\jerasure\src\reed_sol.c;$(ChiakiDir)third-party\jerasure\src\cauchy.c;$(ChiakiDir)third-party\jerasure\src\liberation.c">
+      <ObjectFileName>$(IntDir)jerasure\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(ChiakiDir)third-party\gf-complete\src\gf.c;$(ChiakiDir)third-party\gf-complete\src\gf_wgen.c;$(ChiakiDir)third-party\gf-complete\src\gf_w4.c;$(ChiakiDir)third-party\gf-complete\src\gf_w8.c;$(ChiakiDir)third-party\gf-complete\src\gf_w16.c;$(ChiakiDir)third-party\gf-complete\src\gf_w32.c;$(ChiakiDir)third-party\gf-complete\src\gf_w64.c;$(ChiakiDir)third-party\gf-complete\src\gf_w128.c;$(ChiakiDir)third-party\gf-complete\src\gf_rand.c;$(ChiakiDir)third-party\gf-complete\src\gf_general.c;$(ChiakiDir)third-party\gf-complete\src\gf_cpu.c">
+      <ObjectFileName>$(IntDir)gf\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="$(MbedDir)library\*.c">
+      <ObjectFileName>$(IntDir)mbedtls\</ObjectFileName>
+    </ClCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
