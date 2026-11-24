@@ -46,6 +46,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (double)measuredFps;
 - (double)measuredBitrateKbps;
 - (uint32_t)droppedFrames;
+/// Where a frame's time goes, averaged over the last second, in ms (WakenFrameTiming.h): encoding on the computer,
+/// receiving the whole frame, waiting for the decoder, until the screen, and how unsteady the frames reach it.
+- (double)hostMs;
+- (double)receiveMs;
+- (double)queueMs;
+- (double)displayMs;
+- (double)jitterMs;
+/// A reserve of frames that adapts to the network (WakenSmoothing.h): YES by default, NO for the least delay.
+@property (nonatomic) BOOL smoothing;
+/// Frames held back now, for the HUD.
+- (int)reserveFrames;
 
 // Input
 - (void)sendMouseDeltaX:(short)dx y:(short)dy;

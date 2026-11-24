@@ -47,6 +47,7 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
       hevc = from->hevc;
       remote = from->remote;
       muted = from->muted;
+      smooth = from->smooth;
       psHost = from->psHost;
       psRegistKey = from->psRegistKey;
       psRpKey = from->psRpKey;
@@ -87,6 +88,9 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
   bool remote{true};
   REACT_FIELD(muted)
   bool muted{false};
+  // A reserve of frames that adapts to the network (WakenSmoothing.h), changed while streaming.
+  REACT_FIELD(smooth)
+  bool smooth{true};
   // A linked PS5 or PS4 (chiaki, PlayStationSession.cpp) instead of a computer.
   REACT_FIELD(psHost)
   std::string psHost;
@@ -197,6 +201,8 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     if (props) {
       m_muted = props->muted;
       if (m_session) m_session->Audio().SetMuted(m_muted);
+      m_smooth = props->smooth;
+      if (m_session) m_session->SetSmoothing(m_smooth);
     }
     if (!props || m_session || m_pending || props->videoWidth <= 0 || props->videoHeight <= 0) return;
     const bool playstation = !props->psHost.empty();
@@ -241,6 +247,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     };
     m_session = std::make_shared<StreamSession>(std::move(launch), listener);
     m_session->Audio().SetMuted(m_muted);
+    m_session->SetSmoothing(m_smooth);
 
     std::string error;
     if (!m_session->CreateVideo(error)) {
@@ -323,7 +330,10 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       if (!m_running || !session || !session->Live()) continue;
       const double fps = session->Fps(), kbps = session->BitrateKbps();
       const double rtt = session->RttMs(), dropped = session->DroppedFrames();
-      dispatcher.Post([weak, fps, kbps, rtt, dropped] {
+      const bool timed = !session->PlayStation();
+      const WakenFrameTimes times = session->FrameTimes();
+      const double reserve = session->ReserveFrames();
+      dispatcher.Post([weak, fps, kbps, rtt, dropped, timed, times, reserve] {
         auto self = weak.get();
         if (!self) return;
         std::lock_guard lock(self->m_emitterLock);
@@ -338,6 +348,20 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
           writer.WriteDouble(kbps);
           writer.WritePropertyName(L"droppedFrames");
           writer.WriteDouble(dropped);
+          if (timed) {
+            writer.WritePropertyName(L"hostMs");
+            writer.WriteDouble(times.hostMs);
+            writer.WritePropertyName(L"receiveMs");
+            writer.WriteDouble(times.receiveMs);
+            writer.WritePropertyName(L"queueMs");
+            writer.WriteDouble(times.queueMs);
+            writer.WritePropertyName(L"displayMs");
+            writer.WriteDouble(times.displayMs);
+            writer.WritePropertyName(L"jitterMs");
+            writer.WriteDouble(times.jitterMs);
+            writer.WritePropertyName(L"reserveFrames");
+            writer.WriteDouble(reserve);
+          }
           writer.WriteObjectEnd();
         });
       });
@@ -424,6 +448,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   EventEmitter m_emitter{nullptr};
   int m_videoWidth = 0, m_videoHeight = 0;
   bool m_muted = false;
+  bool m_smooth = true;
   std::set<int> m_pressed;
   int m_buttons = 0;
   std::atomic<bool> m_running{false};

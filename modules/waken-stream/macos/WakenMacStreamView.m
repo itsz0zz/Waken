@@ -86,6 +86,7 @@ static short Clamp(CGFloat value) {
 
 - (instancetype)initWithFrame:(NSRect)frame {
   if ((self = [super initWithFrame:frame])) {
+    _smooth = YES;
     self.wantsLayer = YES;
     self.layer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
     _config = [MLStreamConfig new];
@@ -137,6 +138,10 @@ static short Clamp(CGFloat value) {
   _muted = v;
   _session.muted = v;
 }
+- (void)setSmooth:(BOOL)v {
+  _smooth = v;
+  _session.smoothing = v;
+}
 /// The HUD's menu is open over the picture: the Mac's cursor shows, and nothing goes to the computer meanwhile
 /// (the tracking area still sees the moves over the menu). Held keys and buttons are let go.
 - (void)setPaused:(BOOL)v {
@@ -183,6 +188,7 @@ static short Clamp(CGFloat value) {
   _session = [[MLStreamSession alloc] initWithLaunch:info config:_config];
   _session.delegate = self;
   _session.muted = _muted;
+  _session.smoothing = _smooth;
   _session.displayLayer.frame = self.bounds;
   [self.layer addSublayer:_session.displayLayer];
 
@@ -201,6 +207,12 @@ static short Clamp(CGFloat value) {
       @"fps" : @(s.measuredFps),
       @"bitrateKbps" : @(s.measuredBitrateKbps),
       @"droppedFrames" : @(s.droppedFrames),
+      @"hostMs" : @(s.hostMs),
+      @"receiveMs" : @(s.receiveMs),
+      @"queueMs" : @(s.queueMs),
+      @"displayMs" : @(s.displayMs),
+      @"jitterMs" : @(s.jitterMs),
+      @"reserveFrames" : @(s.reserveFrames),
     });
   }];
 }

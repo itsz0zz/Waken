@@ -30,6 +30,8 @@ export interface Settings {
   gamepads?: GamepadOptions;
   /** The PlayStation Network account consoles are linked with (its id only, never the password). */
   psn?: { accountId: string };
+  /** The stream's reserve of frames that adapts to the network (the HUD's "Fluidité"). Absent: on. */
+  smoothing?: boolean;
 }
 
 export interface WakenState {

@@ -16,6 +16,7 @@ import {
   Monitor,
   Volume2,
   VolumeX,
+  Waves,
   type LucideIcon,
 } from 'lucide-react-native';
 import { AppMark, colors, fonts, PressScale, shadows, type } from '@waken/ui';
@@ -96,11 +97,16 @@ export function StreamHud({
   useEffect(() => onMenu?.(open), [open]);
   const [section, setSection] = useState<Section>(null);
   const [figures, setFigures] = useState(false);
+  // A reserve of frames that adapts to the network: smooth on 5G, nothing added on a steady network. Kept.
+  const smooth = useWaken((s) => s.settings.smoothing ?? true);
+  const updateSettings = useWaken((s) => s.updateSettings);
+  // The bar of figures has one row, or two with the timings (more on a narrow screen): the button goes below it.
+  const [barHeight, setBarHeight] = useState(32);
   const [hidden, setHidden] = useState(false);
 
   const status = state.state === 'error' ? 'Erreur' : state.state !== 'streaming' ? 'Connexion…' : relayed ? 'Relais' : 'Connexion top';
   const dot = state.state === 'error' ? colors.danger : state.state !== 'streaming' ? colors.waking : relayed ? colors.hot : colors.online;
-  const top = figures ? 38 : 14;
+  const top = figures ? barHeight + 6 : 14;
   const close = () => {
     setOpen(false);
     setSection(null);
@@ -116,11 +122,11 @@ export function StreamHud({
 
   return (
     <>
-      {figures ? <FiguresBar stats={stats} settings={settings} /> : null}
+      {figures ? <FiguresBar stats={stats} settings={settings} onHeight={setBarHeight} /> : null}
 
       {hidden ? (
         // A thin tab brings the button back: every other click belongs to the game.
-        <Pressable accessibilityRole="button" accessibilityLabel="Afficher le bouton" onPress={() => setHidden(false)} style={[styles.tab, { top: figures ? 32 : 0 }]} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Afficher le bouton" onPress={() => setHidden(false)} style={[styles.tab, { top: figures ? barHeight : 0 }]} />
       ) : (
         <PressScale
           onPress={() => (open ? close() : setOpen(true))}
@@ -204,6 +210,7 @@ export function StreamHud({
               ) : null}
               {section === 'gamepads' ? <GamepadsSection /> : null}
 
+              <Item icon={Waves} label="Fluidité" checked={smooth} onPress={() => updateSettings({ smoothing: !smooth })} />
               <Item icon={Activity} label="Statistiques" checked={figures} onPress={() => setFigures(!figures)} />
               {onKeyboard ? <Item icon={Keyboard} label="Clavier" onPress={() => { close(); onKeyboard(); }} /> : null}
               <Item icon={EyeOff} label="Masquer le bouton" onPress={() => { close(); setHidden(true); }} />
@@ -294,20 +301,39 @@ function Options<T extends string | number>({ current, options, onChoose }: { cu
   );
 }
 
-/** Parsec's bar of figures, along the top. */
-function FiguresBar({ stats, settings }: { stats: StreamStats | null; settings: StreamSettings }) {
+/** Milliseconds as the HUD writes them: one decimal, French comma. */
+const ms = (value: number) => `${value.toFixed(1).replace('.', ',')} ms`;
+
+/**
+ * Parsec's bar of figures, along the top. The second row says where a frame's time goes, from the computer to
+ * this screen, to see which step costs when the picture is not smooth (not sent for a PlayStation).
+ */
+function FiguresBar({ stats, settings, onHeight }: { stats: StreamStats | null; settings: StreamSettings; onHeight: (height: number) => void }) {
   const figure = (label: string, value: string) => (
     <Text key={label} style={styles.figure}>
       {label} <Text style={styles.figureValue}>{value}</Text>
     </Text>
   );
+  const timed = stats?.displayMs !== undefined;
   return (
-    <View pointerEvents="none" style={styles.figures}>
-      {figure('Réseau', stats ? `${stats.rttMs} ms` : '…')}
-      {figure('Images', stats ? `${Math.round(stats.fps)} i/s` : '…')}
-      {figure('Débit', stats ? `${(stats.bitrateKbps / 1000).toFixed(1).replace('.', ',')} Mb/s` : '…')}
-      {figure('Perdues', stats ? String(stats.droppedFrames) : '…')}
-      {figure(settings.codec === 'h264' ? 'H.264' : 'HEVC', `${settings.width}×${settings.height} · ${settings.fps} i/s`)}
+    <View pointerEvents="none" style={styles.figures} onLayout={(e) => onHeight(Math.round(e.nativeEvent.layout.height))}>
+      <View style={styles.figuresRow}>
+        {figure('Réseau', stats ? `${stats.rttMs} ms` : '…')}
+        {figure('Images', stats ? `${Math.round(stats.fps)} i/s` : '…')}
+        {figure('Débit', stats ? `${(stats.bitrateKbps / 1000).toFixed(1).replace('.', ',')} Mb/s` : '…')}
+        {figure('Perdues', stats ? String(stats.droppedFrames) : '…')}
+        {figure(settings.codec === 'h264' ? 'H.264' : 'HEVC', `${settings.width}×${settings.height} · ${settings.fps} i/s`)}
+      </View>
+      {timed && stats ? (
+        <View style={styles.figuresRow}>
+          {figure('Encodage PC', ms(stats.hostMs ?? 0))}
+          {figure('Réception', ms(stats.receiveMs ?? 0))}
+          {figure('Attente', ms(stats.queueMs ?? 0))}
+          {figure('Jusqu’à l’écran', ms(stats.displayMs ?? 0))}
+          {figure('Régularité', `±${ms(stats.jitterMs ?? 0)}`)}
+          {stats.reserveFrames !== undefined ? figure('Réserve', `${stats.reserveFrames} ${stats.reserveFrames > 1 ? 'images' : 'image'}`) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -325,7 +351,8 @@ const styles = StyleSheet.create({
   option: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 36, paddingHorizontal: 12, borderRadius: 12 },
   optionLabel: { fontFamily: fonts.medium, fontSize: 14, color: colors.white },
   separator: { height: 1, backgroundColor: colors.glassLine, marginVertical: 6, marginHorizontal: 10 },
-  figures: { position: 'absolute', top: 0, left: 0, right: 0, height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28, backgroundColor: 'rgba(11,11,15,0.86)' },
+  figures: { position: 'absolute', top: 0, left: 0, right: 0, paddingVertical: 7, paddingHorizontal: 12, gap: 4, backgroundColor: 'rgba(11,11,15,0.86)' },
+  figuresRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 28, rowGap: 4 },
   figure: { fontFamily: fonts.medium, fontSize: 13, color: colors.sky },
   figureValue: { fontFamily: fonts.bold, color: colors.white },
   notice: { position: 'absolute', bottom: 18, alignSelf: 'center', paddingHorizontal: 16, height: 40, justifyContent: 'center', borderRadius: 999, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassLine },

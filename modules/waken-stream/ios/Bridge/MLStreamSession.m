@@ -5,6 +5,9 @@
 #import "MLGamepads.h"
 #include "Limelight.h"
 #include "WakenAnnexB.h"
+#include "WakenFrameTiming.h"
+#include "WakenSmoothing.h"
+#import <os/lock.h>
 #include <stdatomic.h>
 
 @implementation MLLaunchInfo
@@ -23,15 +26,21 @@ static dispatch_queue_t ConnectionQueue(void) {
   return queue;
 }
 
+// Frames go to the screen one per refresh (a display link), not each the moment it arrives: the network delivers
+// them in bursts, and shown as they came the picture stuttered. How many may wait is WakenSmoothing.h's call.
+/// The moment a paced sample was handed to the decoder callback (WakenFrameTiming.h, WakenSmoothing.h).
+static CFStringRef const kWakenSubmittedUs = CFSTR("WakenSubmittedUs");
 #if TARGET_OS_OSX
 #import <CoreVideo/CoreVideo.h>
-#import <os/lock.h>
-
-/// Frames waiting for the screen at most: a burst from the Wi-Fi spreads over the next refreshes, and past this
-/// many the oldest are decoded without being shown, so the delay never grows beyond about two frames.
-static const CFIndex kPacedBacklog = 2;
 static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output, CVOptionFlags flags,
                           CVOptionFlags *flagsOut, void *context);
+#else
+#import <QuartzCore/QuartzCore.h>
+/// A CADisplayLink keeps its target: this one keeps the session weakly, so a session never stopped still goes away.
+@interface MLDisplayLinkProxy : NSObject
+@property (nonatomic, weak) MLStreamSession *session;
+- (void)tick:(CADisplayLink *)link;
+@end
 #endif
 
 @interface MLStreamSession ()
@@ -42,6 +51,7 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
 - (void)stopAudio;
 - (void)playAudio:(const char *)data length:(int)length;
 - (void)stageFailed:(NSString *)name error:(int)errorCode;
+- (void)presentPacedFrame;
 /// This stream's controllers: started once connected, stopped with the stream. Main thread only.
 @property (nonatomic, readonly) MLGamepads *gamepads;
 @end
@@ -56,16 +66,26 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
   uint64_t _frames, _bytes, _dropped;
   CFAbsoluteTime _windowStart;
   double _fps, _kbps;
+  // Where each frame's time goes (WakenFrameTiming.h): filled on the decoder and display threads, read by the HUD.
+  os_unfair_lock _timingLock;
+  WakenFrameWindow _timing;
+  WakenFrameTimes _times;
   WakenAudioPlayer *_audio;
   atomic_bool _cancelled;
   atomic_bool _connected;
   atomic_bool _failureReported;
-#if TARGET_OS_OSX
-  // The Mac shows one frame per screen refresh (CVDisplayLink, its own high priority thread), not each frame the
-  // moment it arrives: the Wi-Fi delivers them in bursts, and shown as they came the picture stuttered.
+  // Frames waiting for the screen, and the reserve deciding when they go; all under _pacedLock.
   CFMutableArrayRef _paced;
   os_unfair_lock _pacedLock;
+  WakenSmoothing _smoothing;
+  uint64_t _lastShownUs;
+#if TARGET_OS_OSX
+  // A refresh of the Mac's screen: CVDisplayLink, its own high priority thread.
   CVDisplayLinkRef _link;
+#else
+  // A refresh of the iPhone's screen, on the main thread (where the display layer lives).
+  CADisplayLink *_displayLink;
+  BOOL _displayLinkAsked;
 #endif
 }
 
@@ -77,10 +97,10 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
     _displayLayer = [AVSampleBufferDisplayLayer new];
     _displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     _displayLayer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
-#if TARGET_OS_OSX
     _paced = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
     _pacedLock = OS_UNFAIR_LOCK_INIT;
-#endif
+    _smoothing.enabled = 1;
+    _smoothing.primed = 1;
   }
   return self;
 }
@@ -88,8 +108,11 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
 - (void)dealloc {
 #if TARGET_OS_OSX
   [self stopPacing];
-  CFRelease(_paced);
+#else
+  // The display link's proxy ends it at its next refresh, once this session is gone.
+  if ([NSThread isMainThread]) [_displayLink invalidate];
 #endif
+  CFRelease(_paced);
   if (_formatDesc) CFRelease(_formatDesc);
 }
 
@@ -238,6 +261,10 @@ static void ClConnectionStatusUpdate(int status) {}
   cl.connectionStatusUpdate = ClConnectionStatusUpdate;
 
   _windowStart = CFAbsoluteTimeGetCurrent();
+  os_unfair_lock_lock(&_timingLock);
+  memset(&_timing, 0, sizeof(_timing));
+  memset(&_times, 0, sizeof(_times));
+  os_unfair_lock_unlock(&_timingLock);
   int result = LiStartConnection(&server, &cfg, &cl, &dr, &ar, NULL, 0, NULL, 0);
   if (result == 0) {
     atomic_store(&_connected, true);
@@ -252,9 +279,7 @@ static void ClConnectionStatusUpdate(int status) {}
 
 - (void)stop {
   if (atomic_exchange(&_cancelled, true)) return;
-#if TARGET_OS_OSX
   [self stopPacing];
-#endif
   atomic_store(&_connected, false);
   MLGamepads *gamepads = _gamepads;
   dispatch_async(dispatch_get_main_queue(), ^{ [gamepads stop]; });
@@ -327,6 +352,10 @@ static void ClConnectionStatusUpdate(int status) {}
 }
 
 - (int)submitDecodeUnit:(PDECODE_UNIT)du {
+  const uint64_t submittedUs = LiGetMicroseconds();
+  os_unfair_lock_lock(&_timingLock);
+  WakenFrameReceived(&_timing, du->frameHostProcessingLatency, du->receiveTimeUs, du->enqueueTimeUs, submittedUs);
+  os_unfair_lock_unlock(&_timingLock);
   // The list holds one entry per RTP packet: a NAL, even a start code, can straddle two of them.
   NSMutableData *picture = [NSMutableData dataWithCapacity:(NSUInteger)du->fullLength];
   for (PLENTRY e = du->bufferList; e != NULL; e = e->next) {
@@ -360,20 +389,12 @@ static void ClConnectionStatusUpdate(int status) {}
   CFDictionarySetValue(d, kCMSampleAttachmentKey_IsDependedOnByOthers, kCFBooleanTrue);
   if (du->frameType != FRAME_TYPE_IDR) CFDictionarySetValue(d, kCMSampleAttachmentKey_NotSync, kCFBooleanTrue);
 
-#if TARGET_OS_OSX
-  [self paceFrame:sample];
+  // The pacing queue keeps samples, not decode units: the moment this one was handed over goes with it.
+  CFNumberRef submitted = CFNumberCreate(NULL, kCFNumberSInt64Type, &submittedUs);
+  CMSetAttachment(sample, kWakenSubmittedUs, submitted, kCMAttachmentMode_ShouldNotPropagate);
+  CFRelease(submitted);
+  [self paceFrame:sample presentation:du->presentationTimeUs arrival:du->enqueueTimeUs];
   CFRelease(sample);
-#else
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (self->_displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-      [self->_displayLayer flush];
-      self->_dropped++;
-      LiRequestIdrFrame(); // nothing can be decoded after a flush until the next key frame
-    }
-    [self->_displayLayer enqueueSampleBuffer:sample];
-    CFRelease(sample);
-  });
-#endif
 
   // Stats window (1 s)
   _frames++;
@@ -384,21 +405,35 @@ static void ClConnectionStatusUpdate(int status) {}
     _fps = _frames / dt;
     _kbps = (_bytes * 8.0 / 1000.0) / dt;
     _frames = 0; _bytes = 0; _windowStart = now;
+    os_unfair_lock_lock(&_timingLock);
+    _times = WakenFrameClose(&_timing);
+    os_unfair_lock_unlock(&_timingLock);
+    os_unfair_lock_lock(&_pacedLock);
+    WakenSmoothingUpdate(&_smoothing, 1000.0 / MAX(_config.fps, 1));
+    os_unfair_lock_unlock(&_pacedLock);
   }
   return DR_OK;
 }
 
-#if TARGET_OS_OSX
-#pragma mark - Pacing (Mac)
+#pragma mark - Pacing
 
-/// On the network thread: the frame waits for the next refresh. The display link starts with the first one.
-- (void)paceFrame:(CMSampleBufferRef)sample {
+static uint64_t SubmittedUs(CMSampleBufferRef sample) {
+  CFNumberRef submitted = CMGetAttachment(sample, kWakenSubmittedUs, NULL);
+  int64_t us = 0;
+  if (submitted) CFNumberGetValue(submitted, kCFNumberSInt64Type, &us);
+  return (uint64_t)us;
+}
+
+/// On the network thread: the frame waits for a refresh. The display link starts with the first one.
+- (void)paceFrame:(CMSampleBufferRef)sample presentation:(uint64_t)presentationUs arrival:(uint64_t)arrivalUs {
   os_unfair_lock_lock(&_pacedLock);
   if (atomic_load(&_cancelled)) {
     os_unfair_lock_unlock(&_pacedLock);
     return;
   }
+  WakenSmoothingFrame(&_smoothing, presentationUs, arrivalUs);
   CFArrayAppendValue(_paced, sample);
+#if TARGET_OS_OSX
   BOOL start = _link == NULL;
   if (start && CVDisplayLinkCreateWithActiveCGDisplays(&_link) == kCVReturnSuccess) {
     CVDisplayLinkSetOutputCallback(_link, PaceFrame, (__bridge void *)self);
@@ -406,18 +441,46 @@ static void ClConnectionStatusUpdate(int status) {}
   CVDisplayLinkRef link = _link;
   os_unfair_lock_unlock(&_pacedLock);
   if (start && link) CVDisplayLinkStart(link);
+#else
+  BOOL start = !_displayLinkAsked;
+  _displayLinkAsked = YES;
+  os_unfair_lock_unlock(&_pacedLock);
+  if (start) {
+    const int fps = MAX(_config.fps, 1);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (atomic_load(&self->_cancelled) || self->_displayLink) return;
+      MLDisplayLinkProxy *proxy = [MLDisplayLinkProxy new];
+      proxy.session = self;
+      CADisplayLink *link = [CADisplayLink displayLinkWithTarget:proxy selector:@selector(tick:)];
+      // The stream's own rate: on a 120 Hz screen, a 60 i/s stream needs no more refreshes.
+      if (@available(iOS 15.0, *)) link.preferredFrameRateRange = CAFrameRateRangeMake(fps, MAX(fps, 120), fps);
+      [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+      self->_displayLink = link;
+    });
+  }
+#endif
 }
 
-/// On the display link's thread, once per refresh: the next frame, and the late ones decoded but not shown.
+/// Once per refresh (the display link's thread on the Mac, the main thread on the iPhone): the next frame if the
+/// reserve lets it go, and the late ones decoded but not shown.
 - (void)presentPacedFrame {
+  const uint64_t now = LiGetMicroseconds();
+  const double frameMs = 1000.0 / MAX(_config.fps, 1);
   CFMutableArrayRef batch = NULL;
   os_unfair_lock_lock(&_pacedLock);
   CFIndex count = CFArrayGetCount(_paced);
+  double oldestWaitMs = 0;
   if (count > 0) {
-    CFIndex late = MAX(0, count - kPacedBacklog);
-    batch = CFArrayCreateMutable(NULL, late + 1, &kCFTypeArrayCallBacks);
-    CFArrayAppendArray(batch, _paced, CFRangeMake(0, late + 1));
-    CFArrayReplaceValues(_paced, CFRangeMake(0, late + 1), NULL, 0);
+    const uint64_t oldest = SubmittedUs((CMSampleBufferRef)CFArrayGetValueAtIndex(_paced, 0));
+    if (oldest > 0 && now > oldest) oldestWaitMs = (double)(now - oldest) / 1000.0;
+  }
+  const double sinceShownMs = _lastShownUs > 0 && now > _lastShownUs ? (double)(now - _lastShownUs) / 1000.0 : 1e9;
+  const CFIndex take = WakenSmoothingTake(&_smoothing, (int)count, oldestWaitMs, sinceShownMs, frameMs);
+  if (take > 0) {
+    batch = CFArrayCreateMutable(NULL, take, &kCFTypeArrayCallBacks);
+    CFArrayAppendArray(batch, _paced, CFRangeMake(0, take));
+    CFArrayReplaceValues(_paced, CFRangeMake(0, take), NULL, 0);
+    _lastShownUs = now;
   }
   os_unfair_lock_unlock(&_pacedLock);
   if (!batch) return;
@@ -437,24 +500,83 @@ static void ClConnectionStatusUpdate(int status) {}
       _dropped++;
     }
     [_displayLayer enqueueSampleBuffer:sample];
+    if (i == total - 1) [self frameShown:SubmittedUs(sample)];
   }
   CFRelease(batch);
 }
 
 - (void)stopPacing {
   os_unfair_lock_lock(&_pacedLock);
+  CFArrayRemoveAllValues(_paced);
+  _lastShownUs = 0;
+#if TARGET_OS_OSX
   CVDisplayLinkRef link = _link;
   _link = NULL;
-  CFArrayRemoveAllValues(_paced);
   os_unfair_lock_unlock(&_pacedLock);
   if (link) {
     CVDisplayLinkStop(link); // returns once a callback in progress is over
     CVDisplayLinkRelease(link);
   }
-}
+#else
+  _displayLinkAsked = NO;
+  os_unfair_lock_unlock(&_pacedLock);
+  // The display link is made and ended on the main thread only.
+  if ([NSThread isMainThread]) {
+    [_displayLink invalidate];
+    _displayLink = nil;
+  } else {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [self->_displayLink invalidate];
+      self->_displayLink = nil;
+    });
+  }
 #endif
+}
+
+- (void)setSmoothing:(BOOL)smoothing {
+  os_unfair_lock_lock(&_pacedLock);
+  _smoothing.enabled = smoothing ? 1 : 0;
+  if (!smoothing) {
+    _smoothing.target = 0;
+    _smoothing.primed = 1;
+  }
+  os_unfair_lock_unlock(&_pacedLock);
+}
+
+- (BOOL)smoothing {
+  os_unfair_lock_lock(&_pacedLock);
+  BOOL on = _smoothing.enabled != 0;
+  os_unfair_lock_unlock(&_pacedLock);
+  return on;
+}
+
+- (int)reserveFrames {
+  os_unfair_lock_lock(&_pacedLock);
+  int frames = _smoothing.target;
+  os_unfair_lock_unlock(&_pacedLock);
+  return frames;
+}
 
 #pragma mark - Stats
+
+/// A frame handed to the display layer, on the display link (Mac) or the main thread (iPhone).
+- (void)frameShown:(uint64_t)submittedUs {
+  os_unfair_lock_lock(&_timingLock);
+  WakenFrameShown(&_timing, submittedUs, LiGetMicroseconds());
+  os_unfair_lock_unlock(&_timingLock);
+}
+
+- (WakenFrameTimes)frameTimes {
+  os_unfair_lock_lock(&_timingLock);
+  WakenFrameTimes t = _times;
+  os_unfair_lock_unlock(&_timingLock);
+  return t;
+}
+- (double)hostMs { return [self frameTimes].hostMs; }
+- (double)receiveMs { return [self frameTimes].receiveMs; }
+- (double)queueMs { return [self frameTimes].queueMs; }
+- (double)displayMs { return [self frameTimes].displayMs; }
+- (double)jitterMs { return [self frameTimes].jitterMs; }
 
 - (uint32_t)estimatedRttMs {
   uint32_t rtt = 0, variance = 0;
@@ -507,4 +629,12 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
   }
   return kCVReturnSuccess;
 }
+#else
+@implementation MLDisplayLinkProxy
+- (void)tick:(CADisplayLink *)link {
+  MLStreamSession *session = self.session;
+  if (session) [session presentPacedFrame];
+  else [link invalidate];
+}
+@end
 #endif

@@ -48,6 +48,10 @@ class StreamSession : public std::enable_shared_from_this<StreamSession> {
   double Fps();
   double BitrateKbps();
   uint32_t DroppedFrames() const { return static_cast<uint32_t>(m_video.dropped.load()); }
+  /// The HUD's timings since the last call (a computer's stream: a PlayStation has none).
+  WakenFrameTimes FrameTimes() { return m_video.CloseTimes(); }
+  void SetSmoothing(bool on) { m_video.SetSmoothing(on); }
+  int ReserveFrames() { return m_video.ReserveFrames(); }
 
   // moonlight-common-c's callbacks, through the current session.
   VideoRenderer &Video() { return m_video; }

@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL hevc;
 @property (nonatomic) BOOL remote;
 @property (nonatomic) BOOL muted;
+/// A reserve of frames that adapts to the network (WakenSmoothing.h), changed while streaming. YES by default.
+@property (nonatomic) BOOL smooth;
 /// The HUD's menu is open: the cursor shows and the input stays on the Mac.
 @property (nonatomic) BOOL paused;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onStateChange;

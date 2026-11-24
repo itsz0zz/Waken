@@ -3,7 +3,24 @@ import { requireNativeView, requireOptionalNativeModule } from 'expo';
 import type { NativeSyntheticEvent, ViewProps } from 'react-native';
 
 export type StreamState = { state: 'connecting' | 'streaming' | 'stopped' | 'error'; message?: string; stage?: string };
-export type StreamStats = { rttMs: number; fps: number; bitrateKbps: number; droppedFrames: number };
+/**
+ * The HUD's figures, once a second. The times (ms, averaged over that second) say where a frame's time goes:
+ * hostMs encoding on the computer, receiveMs receiving the whole frame, queueMs waiting for the decoder,
+ * displayMs until the screen (decoding included on Windows), jitterMs how unsteady the frames reach it.
+ */
+export type StreamStats = {
+  rttMs: number;
+  fps: number;
+  bitrateKbps: number;
+  droppedFrames: number;
+  hostMs?: number;
+  receiveMs?: number;
+  queueMs?: number;
+  displayMs?: number;
+  jitterMs?: number;
+  /** Frames held back now by the reserve (0 on a steady network). */
+  reserveFrames?: number;
+};
 
 /** What the Waken agent returns from POST /launch (it pairs and launches on the PC side). */
 export interface LaunchInfo {
@@ -28,6 +45,8 @@ export interface StreamViewProps extends ViewProps {
   remote: boolean;
   /** The sound off, the picture on. */
   muted?: boolean;
+  /** A reserve of frames that adapts to the network (WakenSmoothing.h). On by default. */
+  smooth?: boolean;
   onStateChange?: (e: NativeSyntheticEvent<StreamState>) => void;
   onStats?: (e: NativeSyntheticEvent<StreamStats>) => void;
 }

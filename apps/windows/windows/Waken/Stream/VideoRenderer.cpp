@@ -69,6 +69,16 @@ void VideoRenderer::SetTarget(winrt::com_ptr<winrt::Microsoft::UI::Composition::
 
 int VideoRenderer::Setup(int videoFormat, int width, int height, int fps) {
   std::lock_guard lock(m_lock);
+  {
+    std::lock_guard timing(m_timingLock);
+    m_timing = {};
+    const int enabled = m_smoothing.enabled;
+    m_smoothing = {};
+    m_smoothing.enabled = enabled;
+    m_smoothing.primed = 1;
+    m_lastShownUs = 0;
+  }
+  if (!m_timer) m_timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
   m_fps = fps > 0 ? fps : 60;
   const GUID subtype = (videoFormat & VIDEO_FORMAT_MASK_H265) ? MFVideoFormat_HEVC : MFVideoFormat_H264;
   const char *name = (videoFormat & VIDEO_FORMAT_MASK_H265) ? "HEVC" : "H.264";
@@ -146,16 +156,86 @@ bool VideoRenderer::SetOutputType() {
 }
 
 int VideoRenderer::Submit(PDECODE_UNIT unit) {
+  const uint64_t submittedUs = LiGetMicroseconds();
+  {
+    std::lock_guard timing(m_timingLock);
+    WakenFrameReceived(&m_timing, unit->frameHostProcessingLatency, unit->receiveTimeUs, unit->enqueueTimeUs, submittedUs);
+    WakenSmoothingFrame(&m_smoothing, unit->presentationTimeUs, unit->enqueueTimeUs);
+  }
+  Pace(unit);
   // One element per RTP packet: a start code can straddle two of them, so the whole frame is put together first.
   std::vector<uint8_t> picture;
   picture.reserve(static_cast<size_t>(unit->fullLength));
   for (PLENTRY entry = unit->bufferList; entry; entry = entry->next) {
     picture.insert(picture.end(), entry->data, entry->data + entry->length);
   }
-  return SubmitAnnexB(picture.data(), picture.size(), unit->frameType == FRAME_TYPE_IDR);
+  return SubmitAnnexB(picture.data(), picture.size(), unit->frameType == FRAME_TYPE_IDR, submittedUs);
 }
 
-int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe) {
+WakenFrameTimes VideoRenderer::CloseTimes() {
+  std::lock_guard timing(m_timingLock);
+  WakenSmoothingUpdate(&m_smoothing, 1000.0 / (m_fps > 0 ? m_fps : 60));
+  return WakenFrameClose(&m_timing);
+}
+
+void VideoRenderer::SetSmoothing(bool on) {
+  std::lock_guard timing(m_timingLock);
+  m_smoothing.enabled = on ? 1 : 0;
+  if (!on) {
+    m_smoothing.target = 0;
+    m_smoothing.primed = 1;
+  }
+}
+
+int VideoRenderer::ReserveFrames() {
+  std::lock_guard timing(m_timingLock);
+  return m_smoothing.target;
+}
+
+void VideoRenderer::SleepUs(int64_t us) {
+  if (us <= 0) return;
+  if (!m_timer) {
+    Sleep(static_cast<DWORD>((us + 999) / 1000));
+    return;
+  }
+  LARGE_INTEGER due{};
+  due.QuadPart = -us * 10; // relative, in 100 ns
+  if (SetWaitableTimer(m_timer, &due, 0, nullptr, nullptr, FALSE)) WaitForSingleObject(m_timer, 100);
+}
+
+void VideoRenderer::Pace(PDECODE_UNIT unit) {
+  const double frameMs = 1000.0 / (m_fps > 0 ? m_fps : 60);
+  int target = 0;
+  bool primed = true;
+  uint64_t lastShown = 0;
+  {
+    std::lock_guard timing(m_timingLock);
+    target = m_smoothing.target;
+    primed = m_smoothing.primed != 0;
+    lastShown = m_lastShownUs;
+  }
+  // No reserve: decoded and shown at once, as moonlight hands it over.
+  if (target == 0) return;
+  // The frames moonlight holds after this one are the reserve (the decoder thread waits here, they queue there).
+  if (!primed) {
+    // Fills again after running dry: enough frames, or this one waited the reserve's time (a still screen).
+    const double reserveMs = target * frameMs;
+    while (LiGetPendingVideoFrames() + 1 < target) {
+      const uint64_t now = LiGetMicroseconds();
+      if (unit->enqueueTimeUs > 0 && now > unit->enqueueTimeUs && (now - unit->enqueueTimeUs) / 1000.0 >= reserveMs) break;
+      SleepUs(1000);
+    }
+    std::lock_guard timing(m_timingLock);
+    m_smoothing.primed = 1;
+  } else if (lastShown > 0 && LiGetPendingVideoFrames() <= target + 1) {
+    // One frame per frame interval; more than the reserve and a margin waiting, the late ones go at once.
+    const uint64_t due = lastShown + static_cast<uint64_t>(frameMs * 1000.0);
+    const uint64_t now = LiGetMicroseconds();
+    if (due > now) SleepUs(static_cast<int64_t>(due - now));
+  }
+}
+
+int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe, uint64_t submittedUs) {
   std::lock_guard lock(m_lock);
   if (!m_decoder) return DR_NEED_IDR;
   m_picture.assign(data, data + size);
@@ -214,6 +294,14 @@ int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe)
       return DR_NEED_IDR;
     }
     frames++;
+    if (submittedUs) {
+      const uint64_t shown = LiGetMicroseconds();
+      std::lock_guard timing(m_timingLock);
+      WakenFrameShown(&m_timing, submittedUs, shown);
+      m_lastShownUs = shown;
+      // Nothing left behind this one: the reserve ran dry and fills again before the next frames go.
+      if (m_smoothing.target > 0 && LiGetPendingVideoFrames() == 0) m_smoothing.primed = 0;
+    }
   }
   bytes += static_cast<uint64_t>(size);
   return DR_OK;
@@ -322,6 +410,10 @@ void VideoRenderer::Cleanup() {
   m_frameView = nullptr;
   m_frame = nullptr;
   m_target = nullptr;
+  if (m_timer) {
+    CloseHandle(m_timer);
+    m_timer = nullptr;
+  }
 }
 
 } // namespace Waken::Stream

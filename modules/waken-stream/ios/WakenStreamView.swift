@@ -14,6 +14,10 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
   let config = MLStreamConfig()
 
   private(set) var session: MLStreamSession?
+  /// A reserve of frames that adapts to the network (WakenSmoothing.h), changed while streaming.
+  var smooth = true {
+    didSet { session?.smoothing = smooth }
+  }
   var muted = false {
     didSet { session?.muted = muted }
   }
@@ -79,6 +83,7 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
     let s = MLStreamSession(launch: info, config: config)
     s.delegate = self
     s.muted = muted
+    s.smoothing = smooth
     s.displayLayer.frame = videoArea
     layer.addSublayer(s.displayLayer)
     session = s
@@ -90,7 +95,9 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
 
     statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       guard let s = self?.session else { return }
-      self?.onStats(["rttMs": s.estimatedRttMs(), "fps": s.measuredFps(), "bitrateKbps": s.measuredBitrateKbps(), "droppedFrames": s.droppedFrames()])
+      self?.onStats(["rttMs": s.estimatedRttMs(), "fps": s.measuredFps(), "bitrateKbps": s.measuredBitrateKbps(), "droppedFrames": s.droppedFrames(),
+                    "hostMs": s.hostMs(), "receiveMs": s.receiveMs(), "queueMs": s.queueMs(), "displayMs": s.displayMs(), "jitterMs": s.jitterMs(),
+                    "reserveFrames": s.reserveFrames()])
     }
   }
 

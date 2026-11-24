@@ -10,7 +10,25 @@ export type StreamState =
   | { state: 'streaming' }
   | { state: 'stopped' }
   | { state: 'error'; message: string };
-export type StreamStats = { rttMs: number; fps: number; bitrateKbps: number; droppedFrames: number };
+/**
+ * The HUD's figures, once a second. The times (ms, averaged over that second) say where a frame's time goes:
+ * hostMs encoding on the computer, receiveMs receiving the whole frame, queueMs waiting for the decoder,
+ * displayMs until the screen (decoding included on Windows), jitterMs how unsteady the frames reach it.
+ * reserveFrames, the frames the smoothing reserve holds back now.
+ */
+export type StreamStats = {
+  rttMs: number;
+  fps: number;
+  bitrateKbps: number;
+  droppedFrames: number;
+  hostMs?: number;
+  receiveMs?: number;
+  queueMs?: number;
+  displayMs?: number;
+  jitterMs?: number;
+  /** Frames held back now by the reserve (0 on a steady network). */
+  reserveFrames?: number;
+};
 export interface LaunchInfo {
   address: string;
   appVersion: string;
@@ -30,6 +48,11 @@ export interface StreamViewProps {
   muted?: boolean;
   /** The HUD's menu is open: the pointer and keys stay with this device (the Mac shows its cursor again). */
   paused?: boolean;
+  /**
+   * A reserve of frames that adapts to the network, as Parsec's: none on a steady network, a few frames (some
+   * delay, a smooth picture) on an uneven one such as 5G. Off: every frame at once, the least delay. On by default.
+   */
+  smooth?: boolean;
   onStateChange: (s: StreamState) => void;
   onStats: (s: StreamStats) => void;
 }

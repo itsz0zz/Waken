@@ -41,6 +41,7 @@ export function StreamScreen({
   const device = useDevice(deviceId);
   const game = useGame(gameId);
   const chosen = useWaken((s) => s.settings.stream);
+  const smooth = useWaken((s) => s.settings.smoothing ?? true);
   const { StreamView, toggleKeyboard, setFullscreen } = platform();
   // The desktop's full screen: the window's, given back when the stream ends.
   const [fullscreen, setFullscreenState] = useState(false);
@@ -186,7 +187,7 @@ export function StreamScreen({
   return (
     // Not live yet: there, connecting, but invisible and untouchable over the screen underneath.
     <View collapsable={false} style={[styles.root, !everLive && styles.hidden]} pointerEvents={everLive ? 'auto' : 'none'}>
-      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} paused={menuOpen} onStateChange={setState} onStats={setStats} /> : null}
+      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} paused={menuOpen} smooth={smooth} onStateChange={setState} onStats={setStats} /> : null}
       {everLive ? (
         <StreamHud
           title={title}

@@ -10,6 +10,12 @@ type StatsEvent = Readonly<{
   fps: CodegenTypes.Double;
   bitrateKbps: CodegenTypes.Double;
   droppedFrames: CodegenTypes.Double;
+  hostMs?: CodegenTypes.Double;
+  receiveMs?: CodegenTypes.Double;
+  queueMs?: CodegenTypes.Double;
+  displayMs?: CodegenTypes.Double;
+  jitterMs?: CodegenTypes.Double;
+  reserveFrames?: CodegenTypes.Double;
 }>;
 
 export interface NativeProps extends ViewProps {
@@ -27,6 +33,7 @@ export interface NativeProps extends ViewProps {
   hevc: boolean;
   remote: boolean;
   muted: boolean;
+  smooth?: boolean;
   /** A linked PS5 or PS4 instead of a computer (chiaki): its address and its link's keys. */
   psHost?: string;
   psRegistKey?: string;
