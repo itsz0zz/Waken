@@ -16,7 +16,7 @@ Réponds en français.
 
 ## Réseau
 - Tout passe par Tailscale (PC en « Run unattended »). Box : **Livebox 6**, qui n'envoie pas de WoL et perd l'ARP du PC éteint. Réveil `wake-on-lan` (`packages/app/src/wakeOnLan.ts`) : l'hôte laisse MAC, IP, broadcast et IP publique dans sa bibliothèque sur le serveur ; le client envoie le paquet par lui-même (agent local sur desktop, socket sur iPhone), vers l'IP publique (redirection UDP 9 sur la box, marche depuis la veille grâce à l'ARP offload) et via les agents des autres machines allumées (`POST /wake`). Sinon relais homelab ou prise Shelly. PC sur un port 1 Gb/s de la box.
-- PS5 : V1 ouvre l'app PS Remote Play ; V3 = libchiaki.
+- PS5 : chiaki-ng v1.10.1 (AGPLv3) et mbedtls 2.28.10 en sous-modules dans `modules/waken-stream/ios/vendor/`, compilés dans les pods (Mac et iPhone) : cœur réseau local seulement, la partie Internet de Sony (curl, json-c…) remplacée par `ios/Chiaki/remote_stubs.c` ; messages nanopb générés une fois dans `ios/Chiaki/generated` ; `ios/Chiaki/build-check.sh` compile tout avec clang. Pont `Bridge/MLPlayStation.m` (découverte, liaison avec le code à 8 chiffres, réveil). Compte PSN : `packages/core/src/psn.ts` (page de Sony, l'adresse de redirection collée dans l'app). Écran `screens/PlayStationAdd.tsx`. Stream PS5 dans Waken : à faire (en attendant, l'app PS Remote Play).
 
 ## Vérifié / à faire
 - ✅ `pnpm test` (core, natif, API, agent), `pnpm typecheck`, build iOS avec Xcode 27.2 (la bêta 27A5209h ne compile pas react-native-screens).

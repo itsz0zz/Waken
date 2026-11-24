@@ -8,6 +8,7 @@ import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { connectionLog, pointStreamAt } from '../network';
 import { sendWakeOnLan } from '../wakeOnLan';
+import { wakeConsole } from '../playstation';
 import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
@@ -99,6 +100,11 @@ export function WakeScreen({
 
     const run = async () => {
       if (device.kind === 'playstation') {
+        // Linked in Waken (chiaki): woken here, on this network. Streamed in Waken next; meanwhile Sony's app.
+        if (device.playstation && platform().playstation) {
+          await wakeConsole(device, (state) => console.log(`[playstation] ${device.name} : ${state}`), ctrl.signal);
+          if (only || !settings.psRemotePlayUrl) return nav.back();
+        }
         if (!settings.psRemotePlayUrl) throw new Error('Renseigne le lien de PS Remote Play dans Réglages, Avancé.');
         await Linking.openURL(settings.psRemotePlayUrl);
         return nav.back();

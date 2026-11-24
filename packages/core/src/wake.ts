@@ -36,6 +36,8 @@ interface ShellyState {
 
 /** Whether a power button makes sense for this device. */
 export function canWake(device: Device): boolean {
+  // A linked PlayStation wakes itself (chiaki), with no stream target of Waken's own.
+  if (device.wake.type === 'playstation') return !!device.playstation;
   return !!device.stream && (device.wake.type === 'homelab-relay' || device.wake.type === 'shelly-cloud' || device.wake.type === 'wake-on-lan');
 }
 

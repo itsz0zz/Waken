@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NativeModules, Text, View } from 'react-native';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, gamepadsFrom, setPlatform, type NativeGamepads } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform, type NativeGamepads } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { host, hostTunnel, localDevice, type HostStatus } from './host';
 import { StreamView } from './stream';
@@ -30,6 +30,8 @@ setPlatform({
   pushPlatform: 'macos',
   // The Mac's controllers (MLGamepads, modules/waken-stream/macos/WakenGamepadsModule.m).
   gamepads: NativeModules.WakenGamepads ? gamepadsFrom(NativeModules.WakenGamepads as NativeGamepads) : undefined,
+  // PS5 and PS4 through chiaki (modules/waken-stream/macos/WakenPlayStationModule.m).
+  playstation: NativeModules.WakenPlayStation ? playstationFrom(NativeModules.WakenPlayStation) : undefined,
 });
 
 

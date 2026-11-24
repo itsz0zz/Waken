@@ -38,6 +38,9 @@ interface WakenStreamNative {
   gamepads?(): Promise<Record<string, unknown>[]>;
   testGamepad?(id: string): Promise<void>;
   setGamepadOptions?(rumble: number, motion: boolean, kind: string): void;
+  discoverConsoles?(seconds: number): Promise<Record<string, unknown>[]>;
+  registerConsole?(host: string, ps5: boolean, accountId: string, pin: string): Promise<Record<string, unknown>>;
+  wakeConsole?(host: string, registKey: string, ps5: boolean): Promise<void>;
 }
 
 const native = requireOptionalNativeModule<WakenStreamNative>('WakenStream');
@@ -46,6 +49,15 @@ const native = requireOptionalNativeModule<WakenStreamNative>('WakenStream');
 export const isNativeStreamAvailable = native != null;
 
 export const WakenStream = { stop: () => native?.stop(), toggleKeyboard: () => native?.toggleKeyboard?.() };
+
+/** PS5 and PS4 through chiaki (absent from a build older than these functions). */
+export const PlayStation = native?.discoverConsoles
+  ? {
+      discover: (seconds: number) => native.discoverConsoles!(seconds),
+      registerConsole: (host: string, ps5: boolean, accountId: string, pin: string) => native.registerConsole!(host, ps5, accountId, pin),
+      wake: (host: string, registKey: string, ps5: boolean) => native.wakeConsole!(host, registKey, ps5),
+    }
+  : null;
 
 /** The controllers of this iPhone or iPad (absent from a build older than these functions). */
 export const Gamepads = native?.gamepads

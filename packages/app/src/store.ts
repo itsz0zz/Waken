@@ -28,6 +28,8 @@ export interface Settings {
   psRemotePlayUrl: string;
   /** Absent in a configuration saved before it: defaultGamepadOptions then. */
   gamepads?: GamepadOptions;
+  /** The PlayStation Network account consoles are linked with (its id only, never the password). */
+  psn?: { accountId: string };
 }
 
 export interface WakenState {

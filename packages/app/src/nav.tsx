@@ -12,6 +12,8 @@ export interface WakenNav {
   settings(): void;
   /** The Manettes page. */
   gamepads(): void;
+  /** Linking a PS5 or PS4. */
+  addPlayStation(): void;
   /** Wakes the machine if needed, then streams the game (wake screen, then stream screen). */
   play(deviceId: string, gameId?: string, app?: string): void;
   /** Wakes the machine only. */

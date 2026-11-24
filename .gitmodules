@@ -5,8 +5,8 @@
 	path = apps/windows/windows/vendor/SDL
 	url = https://github.com/libsdl-org/SDL
 [submodule "vendor/chiaki-ng"]
-	path = modules/waken-stream/vendor/chiaki-ng
+	path = modules/waken-stream/ios/vendor/chiaki-ng
 	url = https://github.com/streetpea/chiaki-ng
 [submodule "vendor/mbedtls"]
-	path = modules/waken-stream/vendor/mbedtls
+	path = modules/waken-stream/ios/vendor/mbedtls
 	url = https://github.com/Mbed-TLS/mbedtls

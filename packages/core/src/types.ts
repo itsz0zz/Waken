@@ -64,6 +64,22 @@ export interface Device {
   stream?: StreamTarget;
   /** The machine this app runs on (desktop apps): its games start right here, no stream. */
   local?: boolean;
+  /** A PS5 or PS4 linked with Waken (chiaki): how to reach and wake it, and the keys of its link. */
+  playstation?: PlayStationLink;
+}
+
+/** What linking a console gave (its code typed once), enough to wake it and stream from it. */
+export interface PlayStationLink {
+  /** Its address on the home network. */
+  host: string;
+  ps5: boolean;
+  /** Hex text, the wake-up credential too. */
+  registKey: string;
+  /** Hex, 16 bytes: the stream's key. */
+  rpKey: string;
+  rpKeyType: number;
+  mac: string;
+  nickname: string;
 }
 
 export interface Game {

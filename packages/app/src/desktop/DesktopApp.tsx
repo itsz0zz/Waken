@@ -19,6 +19,7 @@ import { AddMachineScreen, MachinesScreen } from '../screens/Machines';
 import { GameSearch } from '../screens/Search';
 import { SettingsScreen } from '../screens/Settings';
 import { GamepadsScreen } from '../screens/Gamepads';
+import { PlayStationAddScreen } from '../screens/PlayStationAdd';
 import { useGamepadOptionsSync } from '../gamepads';
 import { StreamScreen } from '../screens/Stream';
 import { WakeScreen } from '../screens/Wake';
@@ -115,6 +116,8 @@ function Content({ route, onLive }: { route: Route; onLive: (live: boolean) => v
       return <SettingsScreen />;
     case 'gamepads':
       return <GamepadsScreen />;
+    case 'addPlayStation':
+      return <PlayStationAddScreen />;
     case 'wake':
       return <WakeScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} only={route.only} onLiveChange={onLive} />;
     case 'stream':

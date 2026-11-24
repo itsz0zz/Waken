@@ -25,6 +25,21 @@ public class WakenStreamModule: Module {
       DispatchQueue.main.async { MLGamepads.setRumble(Float(rumble), motion: motion, kind: kind) }
     }
 
+    // PS5 and PS4 (MLPlayStation, chiaki): found on this network, linked with their code, woken.
+    AsyncFunction("discoverConsoles") { (seconds: Double, promise: Promise) in
+      MLPlayStation.discover(for: seconds) { promise.resolve($0) }
+    }
+
+    AsyncFunction("registerConsole") { (host: String, ps5: Bool, accountId: String, pin: String, promise: Promise) in
+      MLPlayStation.registerConsole(host, ps5: ps5, accountId: accountId, pin: pin) { console, error in
+        if let console { promise.resolve(console) } else { promise.reject("ERR_REGIST", error ?? "Liaison impossible") }
+      }
+    }
+
+    AsyncFunction("wakeConsole") { (host: String, registKey: String, ps5: Bool) throws in
+      if let error = MLPlayStation.wake(host, registKey: registKey, ps5: ps5) { throw Exception(name: "ERR_WAKE", description: error) }
+    }
+
     View(WakenStreamView.self) {
       Events("onStateChange", "onStats")
 

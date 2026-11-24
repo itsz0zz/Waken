@@ -26,6 +26,7 @@ export type Route =
   | { name: 'add' }
   | { name: 'settings' }
   | { name: 'gamepads' }
+  | { name: 'addPlayStation' }
   | { name: 'wake'; deviceId: string; gameId?: string; app?: string; only?: boolean }
   | { name: 'stream'; deviceId: string; gameId?: string; app?: string };
 
@@ -47,6 +48,7 @@ export function useDesktopNav() {
       addMachine: () => push({ name: 'add' }),
       settings: () => root({ name: 'settings' }),
       gamepads: () => push({ name: 'gamepads' }),
+      addPlayStation: () => push({ name: 'addPlayStation' }),
       play: (deviceId, gameId, app) => {
         if (isLocal(deviceId)) {
           if (gameId) void startHere(deviceId, gameId);

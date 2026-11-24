@@ -20,6 +20,8 @@ export { AccountOverlay, AccountScreen } from './screens/Account';
 export * from './account';
 export * from './gamepads';
 export { GamepadsScreen } from './screens/Gamepads';
+export { PlayStationAddScreen } from './screens/PlayStationAdd';
+export * from './playstation';
 export { useSessionRecaps } from './recaps';
 export { DesktopApp, ensureLocalMachine, type DesktopHost } from './desktop/DesktopApp';
 export { useDesktopNav, tabs, type Route, type Tab } from './desktop/nav';

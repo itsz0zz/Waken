@@ -75,6 +75,7 @@ export default function RootLayout() {
             <Stack.Screen name="game/[id]" />
             <Stack.Screen name="add" />
             <Stack.Screen name="gamepads" />
+            <Stack.Screen name="add-playstation" />
             <Stack.Screen name="edit/[id]" />
             <Stack.Screen name="wake/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <Stack.Screen name="stream/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', orientation: 'landscape' }} />

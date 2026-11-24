@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { PlayStationApi } from './playstation';
 import type { GamepadsApi } from './gamepads';
 import type { StateStorage } from 'zustand/middleware';
 import type { StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
@@ -77,6 +78,8 @@ export interface WakenPlatform {
    * set asks Windows for the administrator's confirmation; fastStartupOff also turns off Windows' fast startup.
    */
   startup?: { get(): Promise<boolean>; set(on: boolean, fastStartupOff: boolean): Promise<void> };
+  /** PS5 and PS4 through chiaki: found on this network, linked, woken (the stream comes next). */
+  playstation?: PlayStationApi;
   /** The controllers connected to this device (the Manettes page). */
   gamepads?: GamepadsApi;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */

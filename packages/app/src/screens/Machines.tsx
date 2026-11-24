@@ -1,10 +1,11 @@
 import { Text, View } from 'react-native';
-import { Check, Monitor, Play, Plus, Power } from 'lucide-react-native';
+import { Check, Gamepad2, Monitor, Play, Plus, Power } from 'lucide-react-native';
 import { canWake, hostDisplayName, type Device } from '@waken/core';
 import { AppMark, Art, Card, colors, Gradient, Display, FadeIn, IconBubble, machineIcon, PillButton, PressScale, shadows, stagger, StatusTag, type } from '@waken/ui';
 import { useDeviceStatus, useGameArt, useLibrary } from '../hooks';
 import { useFrame, useNav } from '../nav';
 import { useNetwork } from '../network';
+import { platform } from '../platform';
 import { useWaken } from '../store';
 import { BackHeader, PhoneHeader, sinceLabel } from './parts';
 import { Screen } from './Screen';
@@ -87,6 +88,7 @@ function MachineCard({ device }: { device: Device }) {
 
 /** "AJOUTER": machines come by themselves through the Waken network; this screen says how. */
 export function AddMachineScreen() {
+  const nav = useNav();
   const status = useNetwork((s) => s.status);
   const devices = useWaken((s) => s.devices);
   const self = status?.self?.name;
@@ -119,6 +121,18 @@ export function AddMachineScreen() {
           })
         )}
       </Card>
+      {platform().playstation ? (
+        <Card lifted style={{ marginTop: 16, gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <IconBubble icon={Gamepad2} color={colors.blue} />
+            <View style={{ flex: 1 }}>
+              <Text style={[type.headline, { color: colors.ink }]}>PS5 ou PS4</Text>
+              <Text style={[type.caption, { color: colors.ink2 }]}>Liée une fois avec ton compte PlayStation et son code.</Text>
+            </View>
+            <PillButton label="Ajouter" size="sm" onPress={nav.addPlayStation} />
+          </View>
+        </Card>
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center', marginTop: 22, padding: 16, borderRadius: 24, backgroundColor: colors.white, ...shadows.card }}>
         <AppMark size={48} />
         <Text style={[type.body, { flex: 1, color: colors.ink }]}>

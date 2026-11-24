@@ -8,5 +8,6 @@ export * from './agent';
 export * from './deviceConfig';
 export * from './library';
 export * from './tunnel';
+export * from './psn';
 export * from './cloud';
 export * from './maskedEdit';

@@ -21,6 +21,7 @@ export function useRouterNav(): WakenNav {
       addMachine: () => router.push('/add' as Href),
       settings: () => router.navigate('/settings'),
       gamepads: () => router.push('/gamepads' as Href),
+      addPlayStation: () => router.push('/add-playstation' as Href),
       play: (deviceId, gameId, app) => router.push(`/wake/${encodeURIComponent(deviceId)}${launchQuery(gameId, app)}`),
       wakeOnly: (deviceId) => router.push(`/wake/${encodeURIComponent(deviceId)}?only=1`),
       stream: (deviceId, gameId, app) => router.replace(`/stream/${encodeURIComponent(deviceId)}${launchQuery(gameId, app)}`),
