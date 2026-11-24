@@ -17,6 +17,12 @@
     <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
     <AppxPackage>false</AppxPackage>
   </PropertyGroup>
+  <!-- Without MSIX (scripts\build.ps1 -Unpackaged, for the Velopack installer): no package identity, and the Windows
+       App SDK runtime shipped in the app's own folder. Waken.cpp loads it (WAKEN_UNPACKAGED). -->
+  <PropertyGroup Label="Globals" Condition="'$(WakenUnpackaged)'=='true'">
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
   <PropertyGroup Label="ReactNativeWindowsProps">
     <!-- The React Native CLI of this app, run by Node itself. Not npx (it misreads pnpm's links, and MSBuild ignores
          its failure until Hermes finds no bundle), not pnpm (MSBuild may run these steps from build processes
@@ -111,6 +117,11 @@
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(WakenUnpackaged)'=='true'">
+    <ClCompile>
+      <PreprocessorDefinitions>WAKEN_UNPACKAGED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />

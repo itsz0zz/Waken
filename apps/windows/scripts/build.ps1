@@ -6,7 +6,9 @@
 #
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1            # Release, installed and started
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1 -Debug     # with Metro, for development
-param([switch]$Debug)
+#   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1 -Unpackaged
+#       without MSIX, in apps\windows\dist\Waken and started from there (what the Velopack installer ships)
+param([switch]$Debug, [switch]$Unpackaged)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is ten times slower with its progress bar
@@ -120,6 +122,36 @@ elseif (Test-Path $keyFile) { (Get-Content -Raw $keyFile).Trim() | Set-Content -
 else { Write-Host 'Pas de clé SteamGridDB : seuls les jeux Steam auront leur pochette.' -ForegroundColor Yellow }
 # The app's Réglages run it to start Waken with Windows (after Windows' administrator confirmation).
 Copy-Item (Join-Path $PSScriptRoot 'install-service.ps1') $hostDir
+
+if ($Unpackaged) {
+  Step 'App Waken sans MSIX (React Native Windows)'
+  $env:MSBUILDDISABLENODEREUSE = '1'
+  $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
+  if (-not $msbuild) { throw 'MSBuild introuvable (Visual Studio 2022).' }
+  $solutionDir = (Join-Path $here 'windows') + '\'
+  $ErrorActionPreference = 'Continue'
+  & $msbuild (Join-Path $solutionDir 'Waken\Waken.vcxproj') /restore /m /nologo /v:minimal `
+    /p:Configuration=Release /p:Platform=x64 /p:WakenUnpackaged=true "/p:SolutionDir=$solutionDir" /p:RestorePackagesConfig=true
+  $failed = $LASTEXITCODE -ne 0
+  $ErrorActionPreference = 'Stop'
+  if ($failed) { throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
+
+  # The app's folder: Waken.exe and everything beside it, plus the native modules built as projects of their own.
+  $built = Join-Path $solutionDir 'x64\Release'
+  $dist = Join-Path $here 'dist\Waken'
+  Get-Process -Name Waken -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dist*" } | Stop-Process -Force
+  if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
+  New-Item -ItemType Directory -Force $dist | Out-Null
+  Copy-Item -Recurse (Join-Path $built 'Waken\*') $dist
+  Get-ChildItem $built -Directory | Where-Object { $_.Name -notin @('Waken', 'Moonlight', 'Chiaki') } | ForEach-Object {
+    Get-ChildItem $_.FullName -File -Include *.dll, *.pri -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Path (Join-Path $dist $_.Name)) } |
+      Copy-Item -Destination $dist
+  }
+  Write-Host "`nWaken sans MSIX : $dist" -ForegroundColor Green
+  Write-Host 'Ferme l''app Waken installée avant (même agent, même port). Le journal : %LOCALAPPDATA%\Waken\waken.log' -ForegroundColor Yellow
+  Start-Process (Join-Path $dist 'Waken.exe')
+  exit 0
+}
 
 Step 'App Waken (React Native Windows)'
 # Fresh MSBuild processes, started from this window: reused ones keep the environment they were born with (a

@@ -147,6 +147,23 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   OpenLog();
   InstallCrashLog();
   Log("Waken démarre");
+#ifdef WAKEN_UNPACKAGED
+  // Without MSIX: the Windows App SDK runtime ships in this folder, and React Native Windows turns the SDK's own
+  // initializer off. Loaded by hand before anything uses it, each step in the log.
+  if (HMODULE runtime = LoadLibraryW(L"Microsoft.WindowsAppRuntime.dll")) {
+    using EnsureIsLoaded = HRESULT(__stdcall *)();
+    if (auto ensure = reinterpret_cast<EnsureIsLoaded>(GetProcAddress(runtime, "WindowsAppRuntime_EnsureIsLoaded"))) {
+      const HRESULT hr = ensure();
+      char text[96];
+      sprintf_s(text, "Windows App SDK chargé (sans MSIX) : 0x%08lX", static_cast<unsigned long>(hr));
+      Log(text);
+    } else {
+      Log("Windows App SDK : WindowsAppRuntime_EnsureIsLoaded introuvable");
+    }
+  } else {
+    Log("Windows App SDK : Microsoft.WindowsAppRuntime.dll introuvable à côté de Waken.exe");
+  }
+#endif
 
   // Enable per monitor DPI scaling
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
