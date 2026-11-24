@@ -4,7 +4,7 @@ import { Gamepad2, TriangleAlert } from 'lucide-react-native';
 import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
-import { StreamView } from './stream';
+import { PlayStationView, StreamView } from './stream';
 
 setPlatform({
   // The app's folder in the user's profile (%LOCALAPPDATA%\Waken\app): one file per key.
@@ -28,6 +28,8 @@ setPlatform({
   startup: native.startsWithWindows
     ? { get: () => native.startsWithWindows!(), set: (on, fastStartupOff) => native.setStartsWithWindows!(on, fastStartupOff) }
     : undefined,
+  // A linked PS5 or PS4 streamed in the same native view (Stream/PlayStationSession.cpp).
+  PlayStationView,
   // PS5 and PS4 through libchiaki (windows/Waken/Stream/PlayStation.cpp).
   playstation: native.discoverConsoles
     ? playstationFrom({

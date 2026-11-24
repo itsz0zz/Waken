@@ -89,3 +89,31 @@ export async function wakeConsole(device: Device, onState?: (state: FoundConsole
   }
   throw new Error(`${device.name} ne répond pas : elle doit être en mode repos (pas éteinte), sur ce réseau.`);
 }
+
+/** The native view's state as the shared screens know it. A console asking its sign-in code ends the stream for now. */
+export function playStationState(native: { state: string; message?: string }): import('./platform').StreamState {
+  switch (native.state) {
+    case 'streaming':
+    case 'stopped':
+    case 'connecting':
+      return { state: native.state };
+    case 'pin':
+      return { state: 'error', message: 'La console demande son code de connexion : retire-le (Paramètres, Utilisateurs et comptes, Connexion) pour l’instant.' };
+    default:
+      return { state: 'error', message: native.message ?? 'Erreur de stream' };
+  }
+}
+
+/** The view's flattened props, shared by the iPhone and Mac wrappers. */
+export function playStationNativeProps(p: import('./platform').PlayStationViewProps) {
+  return {
+    link: { ...p.link } as Record<string, unknown>,
+    videoHeight: Math.min(p.settings.height, 1080),
+    fps: p.settings.fps >= 60 ? 60 : 30,
+    bitrateKbps: p.settings.bitrate,
+    hevc: p.settings.codec !== 'h264',
+    muted: p.muted ?? false,
+    onStateChange: (e: { nativeEvent: { state: string; message?: string } }) => p.onStateChange(playStationState(e.nativeEvent)),
+    onStats: (e: { nativeEvent: import('./platform').StreamStats }) => p.onStats(e.nativeEvent),
+  };
+}

@@ -474,4 +474,30 @@ static NSString *KindName(GCController *controller) {
   gKind = [kind copy] ?: @"auto";
 }
 
+#pragma mark The PS5 stream
+
++ (void)rumbleAllLow:(float)low high:(float)high {
+  // One pair of motors per controller, made at the first vibration, kept while the controller is there.
+  static NSMapTable<GCController *, NSArray *> *motors;
+  if (!motors) motors = [NSMapTable weakToStrongObjectsMapTable];
+  for (GCController *controller in GCController.controllers) {
+    if (!controller.haptics) continue;
+    NSArray *pair = [motors objectForKey:controller];
+    if (!pair) {
+      MLMotor *left = [MLMotor motorOf:controller locality:GCHapticsLocalityLeftHandle];
+      MLMotor *right = [MLMotor motorOf:controller locality:GCHapticsLocalityRightHandle];
+      MLMotor *single = left && right ? nil : [MLMotor motorOf:controller locality:GCHapticsLocalityDefault];
+      pair = single ? @[ single ] : left && right ? @[ left, right ] : @[];
+      [motors setObject:pair forKey:controller];
+    }
+    MLMotor *first = pair.firstObject, *second = pair.count == 2 ? pair[1] : nil;
+    if (second) {
+      [first setStrength:low * gRumble];
+      [second setStrength:high * gRumble];
+    } else {
+      [first setStrength:MAX(low, high) * gRumble];
+    }
+  }
+}
+
 @end

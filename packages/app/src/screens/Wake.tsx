@@ -9,6 +9,7 @@ import { useNav } from '../nav';
 import { connectionLog, pointStreamAt } from '../network';
 import { sendWakeOnLan } from '../wakeOnLan';
 import { wakeConsole } from '../playstation';
+import { PlayStationStreamScreen } from './PlayStationStream';
 import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
@@ -100,10 +101,12 @@ export function WakeScreen({
 
     const run = async () => {
       if (device.kind === 'playstation') {
-        // Linked in Waken (chiaki): woken here, on this network. Streamed in Waken next; meanwhile Sony's app.
+        // Linked in Waken (chiaki): woken here on this network, then streamed in Waken.
         if (device.playstation && platform().playstation) {
           await wakeConsole(device, (state) => console.log(`[playstation] ${device.name} : ${state}`), ctrl.signal);
-          if (only || !settings.psRemotePlayUrl) return nav.back();
+          if (only) return nav.back();
+          if (platform().PlayStationView) return setStreaming(true);
+          if (!settings.psRemotePlayUrl) return nav.back();
         }
         if (!settings.psRemotePlayUrl) throw new Error('Renseigne le lien de PS Remote Play dans Réglages, Avancé.');
         await Linking.openURL(settings.psRemotePlayUrl);
@@ -146,7 +149,16 @@ export function WakeScreen({
   const doneCount = steps.filter((s) => progress?.states[s.id] === 'done').length;
   const circ = 2 * Math.PI * 104;
 
-  const stream = streaming ? (
+  const stream = streaming && device.kind === 'playstation' ? (
+    <PlayStationStreamScreen
+      deviceId={device.id}
+      onLive={setLive}
+      onFail={(message) => {
+        setStreaming(false);
+        setError(message);
+      }}
+    />
+  ) : streaming ? (
     <StreamScreen
       deviceId={device.id}
       startedAt={startedAt}

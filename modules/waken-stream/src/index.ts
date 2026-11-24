@@ -68,4 +68,20 @@ export const Gamepads = native?.gamepads
     }
   : null;
 
+/** The PS5 / PS4 stream view (chiaki), props as in packages/app's PlayStationViewProps, flattened. */
+export interface PlayStationNativeProps extends ViewProps {
+  link: Record<string, unknown>;
+  videoHeight: number;
+  fps: number;
+  bitrateKbps: number;
+  hevc: boolean;
+  muted?: boolean;
+  onStateChange?: (e: NativeSyntheticEvent<StreamState>) => void;
+  onStats?: (e: NativeSyntheticEvent<StreamStats>) => void;
+}
+
+export const isPlayStationViewAvailable = requireOptionalNativeModule('WakenPlayStation') != null;
+
+export const PlayStationView = (isPlayStationViewAvailable ? requireNativeView<PlayStationNativeProps>('WakenPlayStation') : () => null) as React.ComponentType<PlayStationNativeProps>;
+
 export const StreamView = (isNativeStreamAvailable ? requireNativeView<StreamViewProps>('WakenStream') : () => null) as React.ComponentType<StreamViewProps>;

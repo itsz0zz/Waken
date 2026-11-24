@@ -142,6 +142,7 @@ class Session {
 
   /// After a round of events: each controller that changed sends its whole state once.
   void Flush() {
+    Merge();
     const bool live = Live();
     if (live && !m_announced) {
       // The stream just started taking input: the controllers already there are said now.
@@ -168,6 +169,11 @@ class Session {
 
   void Triggers(uint16_t number, uint16_t left, uint16_t right) {
     if (auto pad = Number(number)) SDL_RumbleGamepadTriggers(pad->gamepad, Scaled(left), Scaled(right), kRumbleMs);
+  }
+
+  /// Every controller at once (a PlayStation stream: one DualSense for all of them).
+  void RumbleAll(uint16_t low, uint16_t high) {
+    for (auto &[id, pad] : m_pads) SDL_RumbleGamepad(pad.gamepad, Scaled(low), Scaled(high), kRumbleMs);
   }
 
   /// The Manettes page's short vibration.
@@ -248,7 +254,8 @@ class Session {
     pad.number = static_cast<uint8_t>(number);
     const char *name = SDL_GetGamepadName(gamepad);
     Log("[manette] " + std::string(name ? name : "manette") + " branchée, numéro " + std::to_string(number));
-    if (Live()) Announce(pad);
+    // Once the stream's controllers are announced; before that, Flush announces them all together (once).
+    if (Live() && m_announced) Announce(pad);
   }
 
   void Remove(SDL_JoystickID id) {
@@ -285,6 +292,25 @@ class Session {
     LiSendControllerArrivalEvent(pad.number, Mask(), forced >= 0 ? static_cast<uint8_t>(forced) : KindOf(gamepad), buttons, capabilities);
     Send(pad);
     Battery(pad);
+  }
+
+  /// All the controllers as one: their buttons together, the strongest trigger and stick.
+  void Merge() {
+    PadState merged;
+    for (auto &[id, pad] : m_pads) {
+      SDL_Gamepad *gamepad = pad.gamepad;
+      for (auto const &[button, flag] : kButtons) {
+        if (SDL_GetGamepadButton(gamepad, button)) merged.buttons |= flag;
+      }
+      merged.leftTrigger = std::max(merged.leftTrigger, Trigger(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER)));
+      merged.rightTrigger = std::max(merged.rightTrigger, Trigger(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER)));
+      auto stronger = [](int16_t current, int16_t value) { return std::abs(value) > std::abs(current) ? value : current; };
+      merged.leftX = stronger(merged.leftX, SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX));
+      merged.leftY = stronger(merged.leftY, Up(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY)));
+      merged.rightX = stronger(merged.rightX, SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX));
+      merged.rightY = stronger(merged.rightY, Up(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY)));
+    }
+    m_owner.StoreMerged(merged);
   }
 
   void Send(Pad const &pad) {
@@ -397,6 +423,13 @@ void Gamepads::Queue(Request request) {
 }
 
 void Gamepads::Rumble(uint16_t number, uint16_t low, uint16_t high) { Queue({Request::Kind::Rumble, number, low, high, 0}); }
+void Gamepads::RumbleAll(uint16_t low, uint16_t high) { Queue({Request::Kind::RumbleAll, 0, low, high, 0}); }
+
+PadState Gamepads::Merged() {
+  EnsureRunning();
+  std::lock_guard lock(m_lock);
+  return m_merged;
+}
 void Gamepads::RumbleTriggers(uint16_t number, uint16_t left, uint16_t right) { Queue({Request::Kind::Triggers, number, left, right, 0}); }
 void Gamepads::Motion(uint16_t number, uint8_t type, uint16_t reportRateHz) { Queue({Request::Kind::Motion, number, type, reportRateHz, 0}); }
 void Gamepads::Light(uint16_t number, uint8_t red, uint8_t green, uint8_t blue) { Queue({Request::Kind::Light, number, red, green, blue}); }
@@ -423,6 +456,7 @@ void Gamepads::Run() {
         case Request::Kind::Motion: session.Motion(r.number, static_cast<uint8_t>(r.a), r.b); break;
         case Request::Kind::Light: session.Light(r.number, static_cast<uint8_t>(r.a), static_cast<uint8_t>(r.b), static_cast<uint8_t>(r.c)); break;
         case Request::Kind::Test: session.Test(r.number); break;
+        case Request::Kind::RumbleAll: session.RumbleAll(r.a, r.b); break;
       }
     }
     SDL_Event event;

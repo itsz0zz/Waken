@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import type { PlayStationApi } from './playstation';
 import type { GamepadsApi } from './gamepads';
 import type { StateStorage } from 'zustand/middleware';
-import type { StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
+import type { PlayStationLink, StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
 
 /** What the native stream view reports (waken-stream on iOS, the AppKit view on Mac, Direct3D on Windows). */
 export type StreamState =
@@ -30,6 +30,15 @@ export interface StreamViewProps {
   muted?: boolean;
   /** The HUD's menu is open: the pointer and keys stay with this device (the Mac shows its cursor again). */
   paused?: boolean;
+  onStateChange: (s: StreamState) => void;
+  onStats: (s: StreamStats) => void;
+}
+
+/** A PS5 / PS4 stream: the link, the chosen quality (1080p at most, 60 frames), the PSN account id. */
+export interface PlayStationViewProps {
+  link: PlayStationLink & { accountId?: string };
+  settings: StreamSettings;
+  muted?: boolean;
   onStateChange: (s: StreamState) => void;
   onStats: (s: StreamStats) => void;
 }
@@ -78,8 +87,10 @@ export interface WakenPlatform {
    * set asks Windows for the administrator's confirmation; fastStartupOff also turns off Windows' fast startup.
    */
   startup?: { get(): Promise<boolean>; set(on: boolean, fastStartupOff: boolean): Promise<void> };
-  /** PS5 and PS4 through chiaki: found on this network, linked, woken (the stream comes next). */
+  /** PS5 and PS4 through chiaki: found on this network, linked, woken. */
   playstation?: PlayStationApi;
+  /** The PS5 / PS4 stream view (chiaki), when this build has it. */
+  PlayStationView?: ComponentType<PlayStationViewProps>;
   /** The controllers connected to this device (the Manettes page). */
   gamepads?: GamepadsApi;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */

@@ -37,6 +37,8 @@ class VideoRenderer {
   /// moonlight-common-c's decoder callbacks, on its decoder thread.
   int Setup(int videoFormat, int width, int height, int fps);
   int Submit(PDECODE_UNIT unit);
+  /// A whole picture in Annex B (a PlayStation's, through chiaki): DR_OK, or DR_NEED_IDR when it could not be decoded.
+  int SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe);
   void Cleanup();
 
   std::atomic<uint64_t> frames{0}, bytes{0}, dropped{0};

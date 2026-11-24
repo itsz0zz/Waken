@@ -15,6 +15,14 @@
 
 namespace Waken::Stream {
 
+/// Every controller of this PC merged into one, with moonlight's button bits (A_FLAG...) and the sticks up positive:
+/// what a PlayStation stream sends as its one DualSense.
+struct PadState {
+  uint32_t buttons = 0;
+  uint8_t leftTrigger = 0, rightTrigger = 0;
+  int16_t leftX = 0, leftY = 0, rightX = 0, rightY = 0;
+};
+
 class Gamepads {
  public:
   /// One for the app: SDL itself is.
@@ -35,6 +43,11 @@ class Gamepads {
   /// -1: as plugged in; otherwise the LI_CTYPE_ announced for every controller.
   int ForcedKind() const { return m_kind; }
 
+  // The PlayStation stream (StreamSession in PlayStation mode).
+  PadState Merged();
+  /// 0 to 65535 per motor, on every controller.
+  void RumbleAll(uint16_t low, uint16_t high);
+
   // moonlight-common-c's callbacks, from its threads.
   void Rumble(uint16_t number, uint16_t low, uint16_t high);
   void RumbleTriggers(uint16_t number, uint16_t left, uint16_t right);
@@ -43,7 +56,7 @@ class Gamepads {
 
  private:
   struct Request {
-    enum class Kind { Rumble, Triggers, Motion, Light, Test } kind;
+    enum class Kind { Rumble, Triggers, Motion, Light, Test, RumbleAll } kind;
     uint16_t number;
     uint16_t a, b, c;
   };
@@ -59,6 +72,14 @@ class Gamepads {
   std::mutex m_lock;
   std::vector<Request> m_requests;
   std::string m_list = "[]";
+  PadState m_merged;
+ public:
+  /// The controllers' thread, each round.
+  void StoreMerged(PadState const &state) {
+    std::lock_guard lock(m_lock);
+    m_merged = state;
+  }
+ private:
   std::atomic<float> m_rumble{1.0f};
   std::atomic<bool> m_motion{true};
   std::atomic<int> m_kind{-1};

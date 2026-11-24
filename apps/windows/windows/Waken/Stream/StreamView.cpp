@@ -47,6 +47,11 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
       hevc = from->hevc;
       remote = from->remote;
       muted = from->muted;
+      psHost = from->psHost;
+      psRegistKey = from->psRegistKey;
+      psRpKey = from->psRpKey;
+      psAccountId = from->psAccountId;
+      psPs5 = from->psPs5;
     }
   }
 
@@ -82,6 +87,17 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
   bool remote{true};
   REACT_FIELD(muted)
   bool muted{false};
+  // A linked PS5 or PS4 (chiaki, PlayStationSession.cpp) instead of a computer.
+  REACT_FIELD(psHost)
+  std::string psHost;
+  REACT_FIELD(psRegistKey)
+  std::string psRegistKey;
+  REACT_FIELD(psRpKey)
+  std::string psRpKey;
+  REACT_FIELD(psAccountId)
+  std::string psAccountId;
+  REACT_FIELD(psPs5)
+  bool psPs5{true};
   REACT_FIELD(onStateChange)
   bool onStateChange{false};
   REACT_FIELD(onStats)
@@ -182,8 +198,15 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       m_muted = props->muted;
       if (m_session) m_session->Audio().SetMuted(m_muted);
     }
-    if (!props || m_session || m_pending || props->address.empty() || props->rtspSessionUrl.empty() || props->videoWidth <= 0 || props->videoHeight <= 0) return;
+    if (!props || m_session || m_pending || props->videoWidth <= 0 || props->videoHeight <= 0) return;
+    const bool playstation = !props->psHost.empty();
+    if (playstation ? props->psRegistKey.empty() || props->psRpKey.empty() : props->address.empty() || props->rtspSessionUrl.empty()) return;
     LaunchInfo launch;
+    launch.psHost = props->psHost;
+    launch.psRegistKey = props->psRegistKey;
+    launch.psRpKey = props->psRpKey;
+    launch.psAccountId = props->psAccountId;
+    launch.psPs5 = props->psPs5;
     launch.address = props->address;
     launch.appVersion = props->appVersion.empty() ? "7.1.431.-1" : props->appVersion;
     launch.gfeVersion = props->gfeVersion;
@@ -255,7 +278,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     std::weak_ptr<StreamSession> session = m_session;
     Gamepads::Instance().SetSender([session] {
       auto live = session.lock();
-      return live && live->Live();
+      return live && live->Live() && !live->PlayStation();
     });
     m_stats = std::thread([this, self = get_strong()] { ReportStats(); });
   }
@@ -321,7 +344,8 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     }
   }
 
-  bool CanSend() const { return m_session && m_session->Live(); }
+  /// Keys and mouse through moonlight-common-c: a computer's stream only (a PlayStation takes its controllers).
+  bool CanSend() const { return m_session && m_session->Live() && !m_session->PlayStation(); }
 
   /// Windows' own virtual keys: Sunshine takes them as they are. Everything goes to the game, nothing to the app.
   void Key(Input::KeyRoutedEventArgs const &args, bool down) {

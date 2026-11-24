@@ -27,6 +27,12 @@ export interface NativeProps extends ViewProps {
   hevc: boolean;
   remote: boolean;
   muted: boolean;
+  /** A linked PS5 or PS4 instead of a computer (chiaki): its address and its link's keys. */
+  psHost?: string;
+  psRegistKey?: string;
+  psRpKey?: string;
+  psAccountId?: string;
+  psPs5?: boolean;
   onStateChange?: CodegenTypes.DirectEventHandler<StateEvent>;
   onStats?: CodegenTypes.DirectEventHandler<StatsEvent>;
 }

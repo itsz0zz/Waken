@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// (auto, xbox, playstation).
 + (void)setRumble:(float)rumble motion:(BOOL)motion kind:(NSString *)kind;
 
+/// The PS5 stream (MLPlayStationSession): vibrations played on every controller, 0 to 1 per motor, scaled by the
+/// Manettes page's strength. Main thread.
++ (void)rumbleAllLow:(float)low high:(float)high;
+
 @end
 
 NS_ASSUME_NONNULL_END

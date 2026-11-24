@@ -138,6 +138,10 @@
       <PreprocessorDefinitions>CHIAKI_LIB_ENABLE_MBEDTLS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\generated;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\lib\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\third-party\nanopb;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\mbedtls\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="Stream\PlayStationSession.cpp">
+      <PreprocessorDefinitions>CHIAKI_LIB_ENABLE_MBEDTLS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\Chiaki\generated;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\lib\include;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\chiaki-ng\third-party\nanopb;$(MSBuildThisFileDirectory)..\..\..\..\modules\waken-stream\ios\vendor\mbedtls\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="Stream\StreamSession.cpp" />
     <ClCompile Include="Stream\StreamView.cpp" />
     <ClCompile Include="Stream\VideoRenderer.cpp" />

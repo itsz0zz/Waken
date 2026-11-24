@@ -146,14 +146,19 @@ bool VideoRenderer::SetOutputType() {
 }
 
 int VideoRenderer::Submit(PDECODE_UNIT unit) {
+  // One element per RTP packet: a start code can straddle two of them, so the whole frame is put together first.
+  std::vector<uint8_t> picture;
+  picture.reserve(static_cast<size_t>(unit->fullLength));
+  for (PLENTRY entry = unit->bufferList; entry; entry = entry->next) {
+    picture.insert(picture.end(), entry->data, entry->data + entry->length);
+  }
+  return SubmitAnnexB(picture.data(), picture.size(), unit->frameType == FRAME_TYPE_IDR);
+}
+
+int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe) {
   std::lock_guard lock(m_lock);
   if (!m_decoder) return DR_NEED_IDR;
-
-  // One element per RTP packet: a start code can straddle two of them, so the whole frame is put together first.
-  m_picture.clear();
-  for (PLENTRY entry = unit->bufferList; entry; entry = entry->next) {
-    m_picture.insert(m_picture.end(), entry->data, entry->data + entry->length);
-  }
+  m_picture.assign(data, data + size);
 
   winrt::com_ptr<IMFMediaBuffer> buffer;
   if (FAILED(MFCreateMemoryBuffer(static_cast<DWORD>(m_picture.size()), buffer.put()))) return DR_NEED_IDR;
@@ -169,7 +174,7 @@ int VideoRenderer::Submit(PDECODE_UNIT unit) {
   sample->SetSampleTime(m_time);
   sample->SetSampleDuration(duration);
   m_time += duration;
-  if (unit->frameType == FRAME_TYPE_IDR) sample->SetUINT32(MFSampleExtension_CleanPoint, TRUE);
+  if (keyframe) sample->SetUINT32(MFSampleExtension_CleanPoint, TRUE);
 
   HRESULT hr = m_decoder->ProcessInput(0, sample.get(), 0);
   if (FAILED(hr)) {
@@ -210,7 +215,7 @@ int VideoRenderer::Submit(PDECODE_UNIT unit) {
     }
     frames++;
   }
-  bytes += static_cast<uint64_t>(unit->fullLength);
+  bytes += static_cast<uint64_t>(size);
   return DR_OK;
 }
 

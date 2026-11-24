@@ -17,7 +17,14 @@ struct LaunchInfo {
   int serverCodecModeSupport = 0, riKeyId = 0;
   int width = 0, height = 0, fps = 60, bitrateKbps = 20000;
   bool hevc = true, remote = true;
+  /// A linked PS5 or PS4 instead of a computer (chiaki, PlayStationSession.cpp): its address and its link's keys.
+  std::string psHost, psRegistKey, psRpKey, psAccountId;
+  bool psPs5 = true;
+  bool PlayStation() const { return !psHost.empty(); }
 };
+
+/// chiaki's session, opaque here (PlayStationSession.cpp).
+struct PlayStationConnection;
 
 /// What the view hears: "connecting" (with the stage), "streaming", "stopped", "error" (with a message).
 using StateListener = std::function<void(std::string const &state, std::string const &message)>;
@@ -35,6 +42,8 @@ class StreamSession : public std::enable_shared_from_this<StreamSession> {
   void Stop();
 
   bool Live() const { return m_connected.load(); }
+  /// A PlayStation: input goes as its DualSense, never through moonlight-common-c.
+  bool PlayStation() const { return m_launch.PlayStation(); }
   uint32_t RttMs() const;
   double Fps();
   double BitrateKbps();
@@ -48,6 +57,11 @@ class StreamSession : public std::enable_shared_from_this<StreamSession> {
 
  private:
   void Connect();
+  // A PlayStation (PlayStationSession.cpp).
+  void ConnectPlayStation();
+  void StopPlayStation();
+  uint32_t PlayStationRttMs() const;
+  std::shared_ptr<PlayStationConnection> m_playstation;
 
   LaunchInfo m_launch;
   StateListener m_listener;

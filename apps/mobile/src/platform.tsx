@@ -3,9 +3,9 @@ import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { Gamepads, PlayStation, StreamView as NativeStreamView, WakenStream, isNativeStreamAvailable } from 'waken-stream';
+import { Gamepads, PlayStation, PlayStationView as NativePlayStationView, isPlayStationViewAvailable, StreamView as NativeStreamView, WakenStream, isNativeStreamAvailable } from 'waken-stream';
 import { isTunnelAvailable, sendMagicPacket, WakenTunnel } from 'waken-tunnel';
-import { gamepadsFrom, playstationFrom, type StreamViewProps, type WakenPlatform } from '@waken/app';
+import { gamepadsFrom, playstationFrom, playStationNativeProps, type PlayStationViewProps, type StreamViewProps, type WakenPlatform } from '@waken/app';
 
 /** The native stream view, behind the shared screens' simpler props. */
 function StreamView({ launch, settings, remote, muted, onStateChange, onStats }: StreamViewProps) {
@@ -29,6 +29,11 @@ function StreamView({ launch, settings, remote, muted, onStateChange, onStats }:
       onStats={(e) => onStats(e.nativeEvent)}
     />
   );
+}
+
+/** The PS5 / PS4 stream view (chiaki). */
+function PlayStationView(props: PlayStationViewProps) {
+  return <NativePlayStationView style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} {...playStationNativeProps(props)} />;
 }
 
 // A notification arriving while Waken is open still shows (new device on the account, machine ready).
@@ -83,6 +88,7 @@ export const mobilePlatform: WakenPlatform = {
   sendMagicPacket,
   gamepads: Gamepads ? gamepadsFrom(Gamepads) : undefined,
   playstation: PlayStation ? playstationFrom(PlayStation) : undefined,
+  PlayStationView: isPlayStationViewAvailable ? PlayStationView : undefined,
   StreamView: isNativeStreamAvailable ? StreamView : null,
   toggleKeyboard: isNativeStreamAvailable ? () => WakenStream.toggleKeyboard() : undefined,
   form: 'phone',

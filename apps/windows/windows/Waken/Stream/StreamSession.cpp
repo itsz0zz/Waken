@@ -165,6 +165,7 @@ void StreamSession::Start() {
 /// On the connection thread. Blocks until connected or failed: the stream then runs on moonlight's threads.
 void StreamSession::Connect() {
   if (m_cancelled) return;
+  if (m_launch.PlayStation()) return ConnectPlayStation();
   EnsureCom();
   SetCurrent(shared_from_this());
 
@@ -242,6 +243,7 @@ void StreamSession::Connect() {
 void StreamSession::Stop() {
   if (m_cancelled.exchange(true)) return;
   m_connected = false;
+  if (m_launch.PlayStation()) return StopPlayStation();
   // Unblocks a connection still being set up. Only ours: not one that may have replaced it.
   if (Current().get() == this) LiInterruptConnection();
   Enqueue([self = shared_from_this()] {
@@ -255,6 +257,7 @@ void StreamSession::Stop() {
 }
 
 uint32_t StreamSession::RttMs() const {
+  if (m_launch.PlayStation()) return PlayStationRttMs();
   uint32_t rtt = 0, variance = 0;
   return m_connected && LiGetEstimatedRttInfo(&rtt, &variance) ? rtt : 0;
 }
