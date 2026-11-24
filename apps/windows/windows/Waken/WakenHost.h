@@ -197,8 +197,14 @@ inline long RunHidden(std::wstring command) {
   return static_cast<long>(code);
 }
 
-/// Waken starts with Windows: the "Waken" task of scripts\install-service.ps1 exists.
+/// Waken starts with Windows: install-service.ps1 put its programs in %ProgramFiles%\Waken, or its "Waken" task
+/// shows. The task alone is not enough to tell: run as SYSTEM, it can be hidden from a user who is not elevated.
 inline bool StartsWithWindows() {
+  wchar_t programs[MAX_PATH];
+  if (GetEnvironmentVariableW(L"ProgramFiles", programs, MAX_PATH) &&
+      fs::exists(fs::path(programs) / L"Waken" / L"host" / L"agent" / L"Waken.Agent.exe")) {
+    return true;
+  }
   wchar_t system[MAX_PATH];
   GetSystemDirectoryW(system, MAX_PATH);
   return RunHidden(L"\"" + std::wstring(system) + L"\\schtasks.exe\" /Query /TN Waken") == 0;
@@ -436,6 +442,7 @@ struct WakenHost {
       }
       if (code == ERROR_CANCELLED) return result.Reject("Annulé : Windows n'a pas eu ta confirmation.");
       if (code == ERROR_FILE_NOT_FOUND) return result.Reject("Le script manque dans l'app : reconstruis-la avec build.ps1.");
+      if (code == 1) return result.Reject("Le script s'est arrêté sur une erreur : elle est dans la fenêtre qu'il vient d'ouvrir, et dans %TEMP%\\waken-install.log.");
       result.Reject(("Le réglage n'a pas abouti (code " + std::to_string(code) + ").").c_str());
     }).detach();
   }

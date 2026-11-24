@@ -14,6 +14,19 @@
 param([switch]$Uninstall, [switch]$FromApp, [switch]$DisableFastStartup)
 
 $ErrorActionPreference = 'Stop'
+# Run from the app, PowerShell is elevated and hidden: an error would vanish with it. It goes to a window, and
+# everything said here to %TEMP%\waken-install.log.
+trap {
+  $message = $_.Exception.Message
+  Write-Host $message -ForegroundColor Red
+  if ($FromApp) {
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show("Waken ne démarre pas avec Windows :`n`n$message`n`nDétail dans $env:TEMP\waken-install.log", 'Waken', 'OK', 'Error', 'Button1', 'DefaultDesktopOnly') | Out-Null
+  }
+  try { Stop-Transcript | Out-Null } catch { }
+  exit 1
+}
+Start-Transcript -Path (Join-Path $env:TEMP 'waken-install.log') -Force | Out-Null
 $taskName = 'Waken'
 $programs = Join-Path $env:ProgramFiles 'Waken'
 $data = Join-Path $env:ProgramData 'Waken'
@@ -35,7 +48,8 @@ if ($Uninstall) {
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
   if (Test-Path $programs) { Remove-Item -Recurse -Force $programs }
   Write-Host "Waken ne démarre plus avec Windows. Ses données restent dans $data (à supprimer à la main si besoin)." -ForegroundColor Green
-  exit
+  Stop-Transcript | Out-Null
+  exit 0
 }
 
 # 1. The app as installed: its host folder (agent, Sunshine, network), its secrets.
@@ -149,3 +163,5 @@ Write-Host "`nWaken démarre maintenant avec Windows." -ForegroundColor Green
 Write-Host 'Reste à activer le Wake-on-LAN dans le BIOS (souvent « Wake on LAN » ou « Power On By PCI-E »).'
 Write-Host 'Depuis Internet : sur la Livebox, une IP fixe pour ce PC et une redirection UDP du port 9 vers elle.'
 Write-Host 'Après chaque build.ps1, relance ce script pour mettre le démarrage automatique à jour.'
+Stop-Transcript | Out-Null
+exit 0
