@@ -15,6 +15,9 @@ const GEN1_METERED_MODELS = new Set(['SHPLG-1', 'SHPLG2-1', 'SHPLG-S', 'SHPLG-U1
 type RelayMethod = Extract<WakeMethod, { type: 'homelab-relay' }>;
 type ShellyMethod = Extract<WakeMethod, { type: 'shelly-cloud' }>;
 
+/** Sends the magic packet every way this app can (its own network, the public address, the computers at home). */
+export type SendWakeOnLan = (method: Extract<WakeMethod, { type: 'wake-on-lan' }>) => Promise<void>;
+
 /** Asked before power is cut: a sleeping PC draws as little as one that is off, and would lose its memory. */
 export type ConfirmPowerCut = (watts: number) => Promise<boolean>;
 
@@ -33,15 +36,18 @@ interface ShellyState {
 
 /** Whether a power button makes sense for this device. */
 export function canWake(device: Device): boolean {
-  return !!device.stream && (device.wake.type === 'homelab-relay' || device.wake.type === 'shelly-cloud');
+  return !!device.stream && (device.wake.type === 'homelab-relay' || device.wake.type === 'shelly-cloud' || device.wake.type === 'wake-on-lan');
 }
 
 /** Sends the wake signal for a device. Resolves once the signal is sent (not when the device is up). */
-export async function sendWakeSignal(device: Device, signal?: AbortSignal, confirmPowerCut?: ConfirmPowerCut): Promise<void> {
+export async function sendWakeSignal(device: Device, signal?: AbortSignal, confirmPowerCut?: ConfirmPowerCut, wakeOnLan?: SendWakeOnLan): Promise<void> {
   const method = device.wake;
   switch (method.type) {
     case 'homelab-relay':
       return wakeViaRelay(method);
+    case 'wake-on-lan':
+      if (!wakeOnLan) throw new Error("Cette app ne sait pas envoyer de paquet de réveil.");
+      return wakeOnLan(method);
     case 'shelly-cloud':
       return wakeViaShelly(method, signal, confirmPowerCut);
     case 'playstation':

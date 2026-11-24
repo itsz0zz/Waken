@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Cpu,
   EyeOff,
+  Gamepad2,
   Gauge,
   Keyboard,
   LogOut,
@@ -19,7 +20,9 @@ import {
 } from 'lucide-react-native';
 import { AppMark, colors, fonts, PressScale, shadows, type } from '@waken/ui';
 import type { StreamSettings } from '@waken/core';
-import type { StreamState, StreamStats } from '../platform';
+import { defaultGamepadOptions, useGamepadOptions, useGamepads } from '../gamepads';
+import { platform, type StreamState, type StreamStats } from '../platform';
+import { useWaken } from '../store';
 
 /** What the player can change while playing. Anything but sound restarts the stream with it, as Parsec does. */
 export interface StreamChoices {
@@ -41,7 +44,15 @@ export function applyChoices(settings: StreamSettings, choices: StreamChoices): 
   return s;
 }
 
-type Section = 'resolution' | 'bitrate' | 'codec' | null;
+type Section = 'resolution' | 'bitrate' | 'codec' | 'gamepads' | null;
+
+/** The vibration strengths of the Manettes page, the same four steps. */
+const rumbleSteps = [
+  { id: 0, label: 'Vibrations : aucune' },
+  { id: 0.35, label: 'Vibrations : faibles' },
+  { id: 0.7, label: 'Vibrations : normales' },
+  { id: 1, label: 'Vibrations : fortes' },
+];
 
 /**
  * The HUD, as in Parsec but in Waken's colours: one button (the W) at the top left, in the stream view's dead zone
@@ -188,6 +199,11 @@ export function StreamHud({
                 />
               ) : null}
 
+              {platform().gamepads ? (
+                <Item icon={Gamepad2} label="Manettes" expanded={section === 'gamepads'} onPress={() => setSection(section === 'gamepads' ? null : 'gamepads')} />
+              ) : null}
+              {section === 'gamepads' ? <GamepadsSection /> : null}
+
               <Item icon={Activity} label="Statistiques" checked={figures} onPress={() => setFigures(!figures)} />
               {onKeyboard ? <Item icon={Keyboard} label="Clavier" onPress={() => { close(); onKeyboard(); }} /> : null}
               <Item icon={EyeOff} label="Masquer le bouton" onPress={() => { close(); setHidden(true); }} />
@@ -239,6 +255,29 @@ function Item({
         <Check size={18} color={colors.lime} strokeWidth={3} />
       ) : null}
     </PressScale>
+  );
+}
+
+/** The controllers of this device (a tap makes one vibrate), and the vibrations' strength: the Manettes page, short. */
+function GamepadsSection() {
+  const { data: pads } = useGamepads();
+  const options = useGamepadOptions();
+  const update = useWaken((s) => s.updateSettings);
+  const api = platform().gamepads!;
+  const nearest = rumbleSteps.reduce((best, s) => (Math.abs(s.id - options.rumble) < Math.abs(best.id - options.rumble) ? s : best)).id;
+  return (
+    <View>
+      {pads?.length ? (
+        <Options
+          current={''}
+          options={pads.map((p) => ({ id: p.id, label: `${p.name}${p.battery != null ? ` · ${Math.round(p.battery * 100)} %` : ''}` }))}
+          onChoose={(id) => void api.test(id)}
+        />
+      ) : (
+        <Text style={[styles.optionLabel, { paddingHorizontal: 12, paddingVertical: 8, color: colors.sky }]}>Aucune manette branchée</Text>
+      )}
+      <Options current={nearest} options={rumbleSteps} onChoose={(rumble) => update({ gamepads: { ...defaultGamepadOptions, ...options, rumble } })} />
+    </View>
   );
 }
 

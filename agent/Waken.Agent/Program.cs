@@ -5,8 +5,9 @@ using Waken.Agent.Games;
 using Waken.Agent.Host;
 
 var builder = WebApplication.CreateBuilder(args);
-// Written by the Windows host app, readable by SYSTEM and administrators only. Environment variables would be readable by every user.
-if (OperatingSystem.IsWindows())
+// Started at boot as SYSTEM (apps\windows\scripts\install-service.ps1): its settings in a file readable by SYSTEM and
+// administrators only. Started by the app instead, it gets them in its environment and never reads that file.
+if (OperatingSystem.IsWindows() && Environment.GetEnvironmentVariable("Agent__Token") is null)
 {
     var configFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Waken", "agent.json");
     builder.Configuration.AddJsonFile(configFile, optional: true);
@@ -26,6 +27,9 @@ builder.Services.AddHostedService<StatsTracker>();
 builder.Services.AddSingleton(sp => new SunshineAppSync(
     sp.GetRequiredService<GameStreamClient>().CreateAdminClient,
     sp.GetRequiredService<ILogger<SunshineAppSync>>()));
+builder.Services.AddSingleton<WakeOnLan>();
+builder.Services.AddHttpClient(WakeOnLan.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(WakeOnLan.Ipv4Handler);
 builder.Services.AddHttpClient(nameof(ArtworkService), c =>
 {
     c.Timeout = TimeSpan.FromSeconds(20);
@@ -159,7 +163,7 @@ app.MapGet("/games/{id}/{kind}", async (string id, string kind, string? size, Ga
 
 // The library as the account's server keeps it: the machine's own app sends it there, every other device reads it
 // from there. Pictures are public addresses (SteamGridDB, Steam): nothing to fetch from this machine.
-app.MapGet("/library", async (GameLibrary library, SunshineAppSync sync, GameStats stats, ArtworkService artwork, CancellationToken ct) =>
+app.MapGet("/library", async (GameLibrary library, SunshineAppSync sync, GameStats stats, ArtworkService artwork, WakeOnLan wol, CancellationToken ct) =>
 {
     var games = await library.GetAsync(refresh: false, ct);
     await TrySyncAsync(sync, games, ct);
@@ -183,7 +187,22 @@ app.MapGet("/library", async (GameLibrary library, SunshineAppSync sync, GameSta
             icon = await artwork.PublicUrlAsync(game, ArtworkKind.Icon, ct),
         });
     }
-    return Results.Ok(new { games = list, stats = stats.Summary() });
+    return Results.Ok(new { games = list, stats = stats.Summary(), wake = await wol.InfoAsync(ct) });
+});
+
+// Another computer of the account asks this one, on the same network as itself, to wake it (Wake-on-LAN): the
+// magic packet goes out on this network's broadcast and to the addresses given.
+app.MapPost("/wake", async (WakeRequest request, WakeOnLan wol, CancellationToken ct) =>
+{
+    try
+    {
+        var sent = await wol.SendAsync(request, ct);
+        return Results.Ok(new { sent });
+    }
+    catch (ArgumentException e)
+    {
+        return Results.Problem(e.Message, statusCode: StatusCodes.Status400BadRequest);
+    }
 });
 
 // Starts a game of this machine's library right here, for the desktop app playing on its own machine.
@@ -272,8 +291,16 @@ static (string GameId, string Kind)? ArtRequest(PathString path)
     return (Uri.UnescapeDataString(parts[2]), parts[3]);
 }
 
-static void StartLocally(string command)
+void StartLocally(string command)
 {
+    // Started at boot as SYSTEM: the game goes to whoever is signed in on the monitor, not to session 0.
+    var host = app.Services.GetRequiredService<HostServicesOptions>();
+    if (host.ConsoleSession && OperatingSystem.IsWindows())
+    {
+        if (!ConsoleSession.StartAsUser(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "start", "", command.Trim('"')]))
+            throw new InvalidOperationException("Personne n'est connecté à Windows sur ce PC.");
+        return;
+    }
     var start = OperatingSystem.IsWindows()
         ? new ProcessStartInfo(command.Trim('"')) { UseShellExecute = true }
         : new ProcessStartInfo("/bin/sh", ["-c", command]) { UseShellExecute = false };
@@ -313,6 +340,8 @@ namespace Waken.Agent
         /// <summary>SteamGridDB API key: official covers, banners and logos for every game, Steam or not.</summary>
         public string SteamGridDbKey { get; set; } = "";
         public string DataDir { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Waken");
+        /// <summary>The account's server: it tells the home's public address, kept for waking this computer from outside.</summary>
+        public string CloudUrl { get; set; } = "https://api.wakenplay.fr";
     }
 
     public sealed record LaunchRequest(string App, int Width, int Height, int Fps, bool Hevc, bool Replace = false);

@@ -23,6 +23,8 @@ constexpr int kMaxControllers = 16;
 constexpr Uint32 kRumbleMs = 30000;
 constexpr auto kTick = std::chrono::milliseconds(4);
 constexpr auto kBatteryEvery = std::chrono::seconds(60);
+constexpr auto kListEvery = std::chrono::seconds(1);
+constexpr Uint32 kTestMs = 400;
 constexpr float kDegreesPerRadian = 180.0f / 3.14159265358979f;
 
 /// A controller of this stream: its number, held while it stays connected, and what the computer asked of it.
@@ -83,9 +85,27 @@ constexpr std::array<std::pair<SDL_GamepadButton, uint32_t>, 21> kButtons{{
 short Up(Sint16 value) { return value == -32768 ? 32767 : static_cast<short>(-value); }
 unsigned char Trigger(Sint16 value) { return static_cast<unsigned char>(std::max(0, static_cast<int>(value)) * 255 / 32767); }
 
+std::string Escape(std::string const &text) {
+  std::string out;
+  for (char c : text) {
+    if (c == '"' || c == '\\') out += '\\';
+    if (static_cast<unsigned char>(c) >= 0x20) out += c;
+  }
+  return out;
+}
+
+const char *KindName(SDL_Gamepad *gamepad) {
+  switch (KindOf(gamepad)) {
+    case LI_CTYPE_XBOX: return "xbox";
+    case LI_CTYPE_PS: return "playstation";
+    case LI_CTYPE_NINTENDO: return "nintendo";
+    default: return "other";
+  }
+}
+
 class Session {
  public:
-  explicit Session(std::function<bool()> const &canSend) : m_canSend(canSend) {}
+  explicit Session(Gamepads &owner) : m_owner(owner) {}
 
   ~Session() {
     for (auto &[id, pad] : m_pads) SDL_CloseGamepad(pad.gamepad);
@@ -143,17 +163,44 @@ class Session {
   }
 
   void Rumble(uint16_t number, uint16_t low, uint16_t high) {
-    if (auto pad = Number(number)) SDL_RumbleGamepad(pad->gamepad, low, high, kRumbleMs);
+    if (auto pad = Number(number)) SDL_RumbleGamepad(pad->gamepad, Scaled(low), Scaled(high), kRumbleMs);
   }
 
   void Triggers(uint16_t number, uint16_t left, uint16_t right) {
-    if (auto pad = Number(number)) SDL_RumbleGamepadTriggers(pad->gamepad, left, right, kRumbleMs);
+    if (auto pad = Number(number)) SDL_RumbleGamepadTriggers(pad->gamepad, Scaled(left), Scaled(right), kRumbleMs);
+  }
+
+  /// The Manettes page's short vibration.
+  void Test(uint16_t number) {
+    const auto strength = static_cast<Uint16>(65535 * std::max(0.3f, m_owner.RumbleScale()));
+    if (auto pad = Number(number)) SDL_RumbleGamepad(pad->gamepad, strength, strength, kTestMs);
+  }
+
+  /// The list the Manettes page shows, as JSON.
+  std::string Describe() {
+    std::string json = "[";
+    for (auto &[id, pad] : m_pads) {
+      SDL_Gamepad *gamepad = pad.gamepad;
+      const SDL_PropertiesID properties = SDL_GetGamepadProperties(gamepad);
+      const char *name = SDL_GetGamepadName(gamepad);
+      int percent = -1;
+      const SDL_PowerState power = SDL_GetGamepadPowerInfo(gamepad, &percent);
+      if (json.size() > 1) json += ",";
+      json += "{\"id\":\"" + std::to_string(pad.number) + "\",\"name\":\"" + Escape(name ? name : "Manette") + "\",\"kind\":\"" + KindName(gamepad) + "\"";
+      if (percent >= 0 && percent <= 100) json += ",\"battery\":" + std::to_string(percent / 100.0);
+      json += std::string(",\"charging\":") + (power == SDL_POWERSTATE_CHARGING ? "true" : "false");
+      json += std::string(",\"rumble\":") + (SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false) ? "true" : "false");
+      json += std::string(",\"motion\":") + (SDL_GamepadHasSensor(gamepad, SDL_SENSOR_GYRO) ? "true" : "false");
+      json += std::string(",\"touchpad\":") + (SDL_GetNumGamepadTouchpads(gamepad) > 0 ? "true" : "false");
+      json += std::string(",\"light\":") + (SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN, false) ? "true" : "false") + "}";
+    }
+    return json + "]";
   }
 
   /// The sensors drain the battery: on only while a game listens, at the rate it asks.
   void Motion(uint16_t number, uint8_t type, uint16_t hz) {
     auto pad = Number(number);
-    if (!pad) return;
+    if (!pad || !m_owner.MotionOn()) return;
     const SDL_SensorType sensor = type == LI_MOTION_TYPE_GYRO ? SDL_SENSOR_GYRO : SDL_SENSOR_ACCEL;
     (type == LI_MOTION_TYPE_GYRO ? pad->gyroHz : pad->accelHz) = hz;
     if (SDL_GamepadHasSensor(pad->gamepad, sensor)) SDL_SetGamepadSensorEnabled(pad->gamepad, sensor, hz > 0);
@@ -164,7 +211,9 @@ class Session {
   }
 
  private:
-  bool Live() const { return m_canSend && m_canSend(); }
+  bool Live() const { return m_owner.CanSend(); }
+
+  Uint16 Scaled(uint16_t value) const { return static_cast<Uint16>(value * m_owner.RumbleScale()); }
 
   Pad *Find(SDL_JoystickID id) {
     auto found = m_pads.find(id);
@@ -222,8 +271,8 @@ class Session {
     if (SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_TRIGGER_RUMBLE_BOOLEAN, false)) capabilities |= LI_CCAP_TRIGGER_RUMBLE;
     if (SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN, false)) capabilities |= LI_CCAP_RGB_LED;
     if (SDL_GetNumGamepadTouchpads(gamepad) > 0) capabilities |= LI_CCAP_TOUCHPAD;
-    if (SDL_GamepadHasSensor(gamepad, SDL_SENSOR_ACCEL)) capabilities |= LI_CCAP_ACCEL;
-    if (SDL_GamepadHasSensor(gamepad, SDL_SENSOR_GYRO)) capabilities |= LI_CCAP_GYRO;
+    if (m_owner.MotionOn() && SDL_GamepadHasSensor(gamepad, SDL_SENSOR_ACCEL)) capabilities |= LI_CCAP_ACCEL;
+    if (m_owner.MotionOn() && SDL_GamepadHasSensor(gamepad, SDL_SENSOR_GYRO)) capabilities |= LI_CCAP_GYRO;
     int percent = -1;
     const SDL_PowerState power = SDL_GetGamepadPowerInfo(gamepad, &percent);
     if (power != SDL_POWERSTATE_ERROR && power != SDL_POWERSTATE_UNKNOWN && power != SDL_POWERSTATE_NO_BATTERY) capabilities |= LI_CCAP_BATTERY_STATE;
@@ -232,7 +281,8 @@ class Session {
     for (auto const &[button, flag] : kButtons) {
       if (SDL_GamepadHasButton(gamepad, button)) buttons |= flag;
     }
-    LiSendControllerArrivalEvent(pad.number, Mask(), KindOf(gamepad), buttons, capabilities);
+    const int forced = m_owner.ForcedKind();
+    LiSendControllerArrivalEvent(pad.number, Mask(), forced >= 0 ? static_cast<uint8_t>(forced) : KindOf(gamepad), buttons, capabilities);
     Send(pad);
     Battery(pad);
   }
@@ -287,7 +337,7 @@ class Session {
     LiSendControllerBatteryEvent(pad.number, state, percent >= 0 && percent <= 100 ? static_cast<uint8_t>(percent) : LI_BATTERY_PERCENTAGE_UNKNOWN);
   }
 
-  std::function<bool()> const &m_canSend;
+  Gamepads &m_owner;
   std::map<SDL_JoystickID, Pad> m_pads;
   bool m_announced = false;
   std::chrono::steady_clock::time_point m_lastBattery = std::chrono::steady_clock::now();
@@ -300,25 +350,48 @@ Gamepads &Gamepads::Instance() {
   return instance;
 }
 
-void Gamepads::Start(std::function<bool()> canSend) {
-  Stop();
-  m_canSend = std::move(canSend);
-  m_running = true;
-  m_thread = std::thread([this] { Run(); });
+void Gamepads::EnsureRunning() {
+  // For the app's whole life: SDL watches the controllers from launch, a stream only says when to send.
+  std::call_once(m_started, [this] {
+    m_thread = std::thread([this] { Run(); });
+    m_thread.detach();
+  });
 }
 
-void Gamepads::Stop() {
-  m_running = false;
-  if (m_thread.joinable()) {
-    if (m_thread.get_id() == std::this_thread::get_id()) m_thread.detach();
-    else m_thread.join();
-  }
+void Gamepads::SetSender(std::function<bool()> canSend) {
+  EnsureRunning();
+  std::lock_guard lock(m_senderLock);
+  m_canSend = std::move(canSend);
+}
+
+bool Gamepads::CanSend() {
+  std::lock_guard lock(m_senderLock);
+  return m_canSend && m_canSend();
+}
+
+std::string Gamepads::ListJson() {
+  EnsureRunning();
   std::lock_guard lock(m_lock);
-  m_requests.clear();
+  return m_list;
+}
+
+void Gamepads::Test(std::string const &id) {
+  try {
+    Queue({Request::Kind::Test, static_cast<uint16_t>(std::stoi(id)), 0, 0, 0});
+  } catch (std::exception const &) {
+    // Not one of ours.
+  }
+}
+
+void Gamepads::SetOptions(double rumble, bool motion, std::string const &kind) {
+  EnsureRunning();
+  m_rumble = static_cast<float>(std::clamp(rumble, 0.0, 1.0));
+  m_motion = motion;
+  m_kind = kind == "xbox" ? LI_CTYPE_XBOX : kind == "playstation" ? LI_CTYPE_PS : -1;
 }
 
 void Gamepads::Queue(Request request) {
-  if (!m_running) return;
+  EnsureRunning();
   std::lock_guard lock(m_lock);
   m_requests.push_back(request);
 }
@@ -335,30 +408,34 @@ void Gamepads::Run() {
     Log(std::string("[manette] SDL ne démarre pas : ") + SDL_GetError());
     return;
   }
-  {
-    Session session(m_canSend);
-    while (m_running) {
-      std::vector<Request> requests;
-      {
-        std::lock_guard lock(m_lock);
-        requests.swap(m_requests);
-      }
-      for (auto const &r : requests) {
-        switch (r.kind) {
-          case Request::Kind::Rumble: session.Rumble(r.number, r.a, r.b); break;
-          case Request::Kind::Triggers: session.Triggers(r.number, r.a, r.b); break;
-          case Request::Kind::Motion: session.Motion(r.number, static_cast<uint8_t>(r.a), r.b); break;
-          case Request::Kind::Light: session.Light(r.number, static_cast<uint8_t>(r.a), static_cast<uint8_t>(r.b), static_cast<uint8_t>(r.c)); break;
-        }
-      }
-      SDL_Event event;
-      while (SDL_PollEvent(&event)) session.Handle(event);
-      session.Flush();
-      std::this_thread::sleep_for(kTick);
+  Session session(*this);
+  auto lastList = std::chrono::steady_clock::time_point{};
+  for (;;) {
+    std::vector<Request> requests;
+    {
+      std::lock_guard lock(m_lock);
+      requests.swap(m_requests);
     }
+    for (auto const &r : requests) {
+      switch (r.kind) {
+        case Request::Kind::Rumble: session.Rumble(r.number, r.a, r.b); break;
+        case Request::Kind::Triggers: session.Triggers(r.number, r.a, r.b); break;
+        case Request::Kind::Motion: session.Motion(r.number, static_cast<uint8_t>(r.a), r.b); break;
+        case Request::Kind::Light: session.Light(r.number, static_cast<uint8_t>(r.a), static_cast<uint8_t>(r.b), static_cast<uint8_t>(r.c)); break;
+        case Request::Kind::Test: session.Test(r.number); break;
+      }
+    }
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) session.Handle(event);
+    session.Flush();
+    if (std::chrono::steady_clock::now() - lastList >= kListEvery) {
+      lastList = std::chrono::steady_clock::now();
+      auto list = session.Describe();
+      std::lock_guard lock(m_lock);
+      m_list = std::move(list);
+    }
+    std::this_thread::sleep_for(kTick);
   }
-  SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
-  SDL_Quit();
 }
 
 } // namespace Waken::Stream

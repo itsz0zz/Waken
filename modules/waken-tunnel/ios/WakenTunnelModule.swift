@@ -42,6 +42,44 @@ public class WakenTunnelModule: Module {
     AsyncFunction("stop") {
       WakenTunnelStop()
     }
+
+    // Wake-on-LAN from the iPhone: the magic packet to each address, UDP port 9. A broadcast only leaves with
+    // Apple's multicast entitlement; a plain address (the computer's, the home's public one) leaves without.
+    AsyncFunction("sendMagicPacket") { (mac: String, targets: [String]) throws -> Int in
+      try Self.sendMagicPacket(mac: mac, targets: targets)
+    }
+  }
+
+  private static func sendMagicPacket(mac: String, targets: [String]) throws -> Int {
+    let hex = Array(mac.filter(\.isHexDigit))
+    guard hex.count == 12 else { throw MagicPacketError.badAddress }
+    let card = stride(from: 0, to: 12, by: 2).compactMap { UInt8(String(hex[$0..<$0 + 2]), radix: 16) }
+    var packet = [UInt8](repeating: 0xFF, count: 6)
+    for _ in 0..<16 { packet += card }
+
+    let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    guard fd >= 0 else { throw MagicPacketError.noSocket }
+    defer { close(fd) }
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
+    var sent = 0
+    for target in Set(targets) {
+      var address = sockaddr_in()
+      address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+      address.sin_family = sa_family_t(AF_INET)
+      address.sin_port = in_port_t(9).bigEndian
+      guard inet_pton(AF_INET, target, &address.sin_addr) == 1 else { continue }
+      let result = withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { sendto(fd, packet, packet.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+      }
+      if result == packet.count { sent += 1 }
+    }
+    return sent
+  }
+
+  private enum MagicPacketError: Error, CustomStringConvertible {
+    case badAddress, noSocket
+    var description: String { self == .badAddress ? "Adresse matérielle invalide" : "Envoi réseau impossible" }
   }
 
   /// The network the running tunnel is on, so a start without one keeps it.

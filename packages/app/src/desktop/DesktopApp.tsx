@@ -18,6 +18,8 @@ import { AccountButtons, NotificationsOverlay } from '../screens/Notifications';
 import { AddMachineScreen, MachinesScreen } from '../screens/Machines';
 import { GameSearch } from '../screens/Search';
 import { SettingsScreen } from '../screens/Settings';
+import { GamepadsScreen } from '../screens/Gamepads';
+import { useGamepadOptionsSync } from '../gamepads';
 import { StreamScreen } from '../screens/Stream';
 import { WakeScreen } from '../screens/Wake';
 import { useConfigLoad, useWaken } from '../store';
@@ -66,6 +68,7 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   useSessionRecaps(useWaken((s) => s.devices.find((d) => d.local)));
   useLibrarySync();
   useLibraryPublisher();
+  useGamepadOptionsSync();
   const { route, tab, nav } = useDesktopNav();
   const host = useHost();
   useEffect(() => {
@@ -110,6 +113,8 @@ function Content({ route, onLive }: { route: Route; onLive: (live: boolean) => v
       return <AddMachineScreen />;
     case 'settings':
       return <SettingsScreen />;
+    case 'gamepads':
+      return <GamepadsScreen />;
     case 'wake':
       return <WakeScreen deviceId={route.deviceId} gameId={route.gameId} app={route.app} only={route.only} onLiveChange={onLive} />;
     case 'stream':

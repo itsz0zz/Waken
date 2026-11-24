@@ -10,6 +10,8 @@ export interface WakenNav {
   machine?(deviceId: string): void;
   addMachine(): void;
   settings(): void;
+  /** The Manettes page. */
+  gamepads(): void;
   /** Wakes the machine if needed, then streams the game (wake screen, then stream screen). */
   play(deviceId: string, gameId?: string, app?: string): void;
   /** Wakes the machine only. */

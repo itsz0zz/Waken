@@ -145,3 +145,7 @@ if ($failed -and -not $Debug -and ($runOutput -join "`n") -match 'CheckNetIsolat
 if ($failed) { Pop-Location; throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
 Pop-Location
 Write-Host "`nWaken est installé et lancé." -ForegroundColor Green
+# Started with Windows (install-service.ps1): that copy stays the previous one until the script runs again.
+if (Get-ScheduledTask -TaskName 'Waken' -ErrorAction SilentlyContinue) {
+  Write-Host "Waken démarre avec Windows : pour qu'il prenne ce build, relance en administrateur apps\windows\scripts\install-service.ps1." -ForegroundColor Yellow
+}

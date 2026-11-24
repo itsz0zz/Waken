@@ -108,6 +108,13 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { ok = true, version = "0.1.0" }));
 
+// The caller's address as this server sees it: a computer keeps its home's public address with its library, the
+// address a box forwards the wake-up port from. Counted per address like sign-in calls.
+app.MapGet("/network/address", (HttpContext http) =>
+    http.Connection.RemoteIpAddress is { } address
+        ? Results.Ok(new { address = (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString() })
+        : Results.NoContent()).RequireRateLimiting("auth");
+
 // /account/register, /account/login (?useCookies=false: bearer tokens), /account/refresh, /account/manage/info...
 app.MapGroup("/account").MapIdentityApi<WakenUser>().RequireRateLimiting("auth");
 

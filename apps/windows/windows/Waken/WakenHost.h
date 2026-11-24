@@ -8,6 +8,9 @@
 
 #include "pch.h"
 
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
 #include <bcrypt.h>
 #include <shlobj.h>
 
@@ -22,6 +25,7 @@
 #include <thread>
 
 #include "NativeModules.h"
+#include "Stream/Gamepads.h"
 
 #pragma comment(lib, "bcrypt.lib")
 
@@ -148,6 +152,36 @@ inline std::string ComputerName() {
   return "PC";
 }
 
+/// Something answers on the agent's port: the agent started at boot by Windows (scripts\install-service.ps1).
+inline bool AgentListening() {
+  static const bool ready = [] {
+    WSADATA data;
+    return WSAStartup(MAKEWORD(2, 2), &data) == 0;
+  }();
+  if (!ready) return false;
+  SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (s == INVALID_SOCKET) return false;
+  u_long nonBlocking = 1;
+  ioctlsocket(s, FIONBIO, &nonBlocking);
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(AgentPort);
+  inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+  connect(s, reinterpret_cast<sockaddr *>(&address), sizeof(address));
+  fd_set writable;
+  FD_ZERO(&writable);
+  FD_SET(s, &writable);
+  timeval wait{0, 300000};
+  bool open = select(0, nullptr, &writable, nullptr, &wait) > 0;
+  if (open) {
+    int error = 0;
+    int size = sizeof(error);
+    open = getsockopt(s, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&error), &size) == 0 && error == 0;
+  }
+  closesocket(s);
+  return open;
+}
+
 /// One key of the app's storage: a file named after it, nothing outside the store folder.
 inline fs::path StoreFile(std::string const &key) {
   std::wstring safe;
@@ -177,13 +211,14 @@ class HostProcess {
   std::string StatusJson() {
     std::lock_guard lock(m_mutex);
     bool embedded = fs::exists(HostFolder() / L"agent" / L"Waken.Agent.exe");
-    bool running = false;
+    // Started at boot (a Windows task, as SYSTEM): it outlives the app, which only talks to it.
+    bool running = m_boot && AgentListening();
     if (m_agent.hProcess) {
       DWORD code = 0;
       running = GetExitCodeProcess(m_agent.hProcess, &code) && code == STILL_ACTIVE;
     }
-    std::string json = "{\"embedded\":" + std::string(embedded ? "true" : "false") + ",\"agent\":" +
-        (running ? "true" : "false") + ",\"deviceName\":" + JsonString(ComputerName());
+    std::string json = "{\"embedded\":" + std::string(embedded || m_boot ? "true" : "false") + ",\"agent\":" +
+        (running ? "true" : "false") + ",\"boot\":" + (m_boot ? "true" : "false") + ",\"deviceName\":" + JsonString(ComputerName());
     if (!m_token.empty()) json += ",\"agentToken\":" + JsonString(m_token);
     if (!m_error.empty()) json += ",\"error\":" + JsonString(m_error);
     return json + "}";
@@ -202,6 +237,11 @@ class HostProcess {
 
     m_token = Secret(L"agent-token");
     auto password = Secret(L"sunshine-admin");
+    // The agent started at boot already runs, with these same secrets (install-service.ps1 took them from here).
+    if (AgentListening()) {
+      m_boot = true;
+      return;
+    }
 
     // Closing the last handle (the app exits, crashes or is killed) ends every process of the job.
     m_job = CreateJobObjectW(nullptr, nullptr);
@@ -256,6 +296,7 @@ class HostProcess {
 
   std::mutex m_mutex;
   bool m_started = false;
+  bool m_boot = false;
   std::string m_error;
   std::string m_token;
   HANDLE m_job = nullptr;
@@ -307,6 +348,23 @@ struct WakenHost {
       using winrt::Microsoft::UI::Windowing::AppWindowPresenterKind;
       window.SetPresenter(on ? AppWindowPresenterKind::FullScreen : AppWindowPresenterKind::Default);
     });
+  }
+
+  /// The Manettes page: the PC's controllers (SDL3, Stream/Gamepads.cpp) as JSON, a test vibration, the options.
+  REACT_METHOD(gamepads)
+  void gamepads(ReactPromise<std::string> &&result) noexcept {
+    result.Resolve(Stream::Gamepads::Instance().ListJson());
+  }
+
+  REACT_METHOD(testGamepad)
+  void testGamepad(std::string id, ReactPromise<void> &&result) noexcept {
+    Stream::Gamepads::Instance().Test(id);
+    result.Resolve();
+  }
+
+  REACT_METHOD(setGamepadOptions)
+  void setGamepadOptions(double rumble, bool motion, std::string kind) noexcept {
+    Stream::Gamepads::Instance().SetOptions(rumble, motion, kind);
   }
 
   REACT_METHOD(storageRemove)

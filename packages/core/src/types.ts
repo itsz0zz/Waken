@@ -8,13 +8,36 @@ export type DeviceKind = 'pc' | 'playstation' | 'homelab';
  *   have "Restore on AC power loss = Power On". Works with no relay at home.
  * - `playstation`: the console is woken by the Remote Play protocol (rest mode). Nothing to do on our side
  *   in V1 (the official app wakes it); V3 will do it through libchiaki.
+ * - `wake-on-lan`: a magic packet, sent every way that may reach the computer: this device on its network, the
+ *   home's public address (a port forwarded by the box), the account's other computers awake at home. Filled in
+ *   from what the computer itself left on the account's server (its library).
  * - `none`: the device is always on (the homelab itself).
  */
 export type WakeMethod =
   | { type: 'homelab-relay'; apiUrl: string; apiToken: string; deviceId: string }
   | { type: 'shelly-cloud'; server: string; authKey: string; shellyId: string; channel?: number; offSeconds?: number }
   | { type: 'playstation' }
+  | WakeOnLanMethod
   | { type: 'none' };
+
+export interface WakeOnLanMethod {
+  type: 'wake-on-lan';
+  /** The network card's hardware address, AA:BB:CC:DD:EE:FF. */
+  mac: string;
+  /** The computer's address on its home network, and that network's broadcast. */
+  address?: string;
+  broadcast?: string;
+  /** The home's public IPv4 address, where the box forwards the wake-up port to the computer. */
+  publicAddress?: string;
+}
+
+/** What a computer says about itself for waking it, kept with its library on the account's server. */
+export interface WakeInfo {
+  mac: string;
+  address: string;
+  broadcast: string;
+  publicAddress?: string | null;
+}
 
 export interface StreamTarget {
   /** Host reachable through Tailscale: MagicDNS name ("pc-gaming") or 100.x.y.z address. */
@@ -95,6 +118,7 @@ export interface HostGame {
 export interface MachineLibrary {
   games: HostGame[];
   stats?: HostStats;
+  wake?: WakeInfo | null;
 }
 
 /** One machine's library on the account's server: machine is its name on the Waken network, lower case. */

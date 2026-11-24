@@ -18,6 +18,10 @@ interface Native {
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;
+  /** The PC's controllers (SDL3), as JSON; absent from an older build. */
+  gamepads?(): Promise<string>;
+  testGamepad?(id: string): Promise<void>;
+  setGamepadOptions?(rumble: number, motion: boolean, kind: string): void;
 }
 
 /** The new architecture's registry first, the old bridge otherwise. */

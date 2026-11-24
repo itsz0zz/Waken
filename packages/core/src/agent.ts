@@ -59,6 +59,14 @@ export class AgentClient {
     return { uri: `${this.base}${path}${size}`, headers: this.headers };
   }
 
+  /**
+   * Asks this computer to wake another one of its network (Wake-on-LAN): the magic packet on its network's
+   * broadcast and to these addresses.
+   */
+  wake(mac: string, targets: string[] = []) {
+    return json<{ sent: number }>(`${this.base}/wake`, { method: 'POST', headers: this.headers, body: JSON.stringify({ mac, targets }) }, 5000);
+  }
+
   /** The machine's play totals: days in a row, time this month, sessions. */
   stats() {
     return json<HostStats>(`${this.base}/stats`, { headers: this.headers });

@@ -1,5 +1,5 @@
 import type { Device, WakeProgress, WakeStepId, WakeStepState } from './types';
-import { sendWakeSignal, type ConfirmPowerCut } from './wake';
+import { sendWakeSignal, type ConfirmPowerCut, type SendWakeOnLan } from './wake';
 import { probeAgent, probeSunshine } from './reachability';
 import { sleep, throwIfAborted } from './http';
 
@@ -10,6 +10,8 @@ export interface WakeOptions {
   signal?: AbortSignal;
   /** Without it, a smart plug never cuts power. */
   confirmPowerCut?: ConfirmPowerCut;
+  /** For a computer woken by Wake-on-LAN: how this app sends the magic packet. */
+  wakeOnLan?: SendWakeOnLan;
   onProgress?: (p: WakeProgress) => void;
 }
 
@@ -51,7 +53,7 @@ export async function wakeAndWait(device: Device, opts: WakeOptions = {}): Promi
     states.signal = 'running';
     emit('signal');
     try {
-      await sendWakeSignal(device, opts.signal, opts.confirmPowerCut);
+      await sendWakeSignal(device, opts.signal, opts.confirmPowerCut, opts.wakeOnLan);
     } catch (error) {
       states.signal = 'error';
       emit('signal', error instanceof Error ? error.message : undefined);

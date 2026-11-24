@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { GamepadOptions } from './gamepads';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { type Device, type Game, type StreamSettings } from '@waken/core';
 import { onPlatformSet, platform } from './platform';
@@ -25,6 +26,8 @@ export interface Settings {
   stream: StreamSettings;
   moonlightUrl: string;
   psRemotePlayUrl: string;
+  /** Absent in a configuration saved before it: defaultGamepadOptions then. */
+  gamepads?: GamepadOptions;
 }
 
 export interface WakenState {

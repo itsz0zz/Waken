@@ -12,6 +12,19 @@ public class WakenStreamModule: Module {
       DispatchQueue.main.async { WakenStreamView.current?.toggleKeyboard() }
     }
 
+    // The Manettes page (MLGamepads, the bridge): GameController lives on the main thread.
+    AsyncFunction("gamepads") { () -> [[String: Any]] in
+      MLGamepads.connected()
+    }.runOnQueue(.main)
+
+    AsyncFunction("testGamepad") { (id: String) in
+      MLGamepads.test(id)
+    }.runOnQueue(.main)
+
+    Function("setGamepadOptions") { (rumble: Double, motion: Bool, kind: String) in
+      DispatchQueue.main.async { MLGamepads.setRumble(Float(rumble), motion: motion, kind: kind) }
+    }
+
     View(WakenStreamView.self) {
       Events("onStateChange", "onStats")
 

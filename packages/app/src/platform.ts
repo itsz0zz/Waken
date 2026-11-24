@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { GamepadsApi } from './gamepads';
 import type { StateStorage } from 'zustand/middleware';
 import type { StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
 
@@ -66,6 +67,13 @@ export interface WakenPlatform {
   setFullscreen?: (on: boolean) => void;
   /** Puts a text on the clipboard. */
   copyText?: (text: string) => Promise<void>;
+  /**
+   * Sends a Wake-on-LAN magic packet from this device (UDP port 9) to these addresses; how many left. Desktops have
+   * no need: their own agent sends it. On iPhone a broadcast needs Apple's multicast entitlement, a plain address not.
+   */
+  sendMagicPacket?: (mac: string, targets: string[]) => Promise<number>;
+  /** The controllers connected to this device (the Manettes page). */
+  gamepads?: GamepadsApi;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */
   canUseMoonlightApp?: boolean;
 }

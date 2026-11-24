@@ -19,6 +19,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)motion:(uint16_t)number type:(uint8_t)type rate:(uint16_t)reportRateHz;
 - (void)light:(uint16_t)number red:(uint8_t)red green:(uint8_t)green blue:(uint8_t)blue;
 
+// The Manettes page, outside any stream.
+
+/// The controllers connected now: id, name, kind (xbox, playstation, nintendo, other), battery (0 to 1, or absent),
+/// charging, and what each can do (rumble, motion, touchpad, light).
++ (NSArray<NSDictionary<NSString *, id> *> *)connected;
+/// A short vibration on that controller, to tell which one it is.
++ (void)test:(NSString *)identifier;
+/// For every stream from now on: vibration strength (0 to 1), motion sensors on or off, the kind announced
+/// (auto, xbox, playstation).
++ (void)setRumble:(float)rumble motion:(BOOL)motion kind:(NSString *)kind;
+
 @end
 
 NS_ASSUME_NONNULL_END

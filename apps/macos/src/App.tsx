@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { NativeModules, Text, View } from 'react-native';
 import { Monitor, MousePointer2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, setPlatform, type NativeGamepads } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { host, hostTunnel, localDevice, type HostStatus } from './host';
 import { StreamView } from './stream';
@@ -28,6 +28,8 @@ setPlatform({
   wifiInfo: () => host.wifiInfo(),
   copyText: (text) => host.copyText(text),
   pushPlatform: 'macos',
+  // The Mac's controllers (MLGamepads, modules/waken-stream/macos/WakenGamepadsModule.m).
+  gamepads: NativeModules.WakenGamepads ? gamepadsFrom(NativeModules.WakenGamepads as NativeGamepads) : undefined,
 });
 
 

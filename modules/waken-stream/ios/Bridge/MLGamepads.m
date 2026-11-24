@@ -11,6 +11,12 @@ static const float kStandardGravity = 9.80665f;
 /// The protocol numbers up to 16 controllers (a 16-bit mask).
 static const int kMaxControllers = 16;
 static const NSTimeInterval kBatteryEvery = 60;
+static const NSTimeInterval kTestSeconds = 0.4;
+
+// The Manettes page's choices, for every stream. Main thread only.
+static float gRumble = 1;
+static BOOL gMotion = YES;
+static NSString *gKind = @"auto";
 
 #pragma mark - Motor
 
@@ -196,6 +202,13 @@ static uint8_t KindOf(GCController *controller) {
   return LI_CTYPE_UNKNOWN;
 }
 
+/// The kind announced: as plugged in, unless the Manettes page forces one.
+static uint8_t AnnouncedKind(GCController *controller) {
+  if ([gKind isEqualToString:@"xbox"]) return LI_CTYPE_XBOX;
+  if ([gKind isEqualToString:@"playstation"]) return LI_CTYPE_PS;
+  return KindOf(controller);
+}
+
 static BOOL HasTouchpad(GCController *controller) {
   return controller.physicalInputProfile.dpads[GCInputDualShockTouchpadOne] != nil;
 }
@@ -207,7 +220,7 @@ static BOOL HasTouchpad(GCController *controller) {
   MLPad *pad = [MLPad new];
   pad.controller = controller;
   pad.number = (uint8_t)number;
-  pad.type = KindOf(controller);
+  pad.type = AnnouncedKind(controller);
   [_pads addObject:pad];
   [self announce:pad];
   [self bindButtons:pad];
@@ -241,7 +254,7 @@ static BOOL HasTouchpad(GCController *controller) {
   if (controller.haptics) capabilities |= LI_CCAP_RUMBLE;
   if ([localities containsObject:GCHapticsLocalityLeftTrigger]) capabilities |= LI_CCAP_TRIGGER_RUMBLE;
   if (HasTouchpad(controller)) capabilities |= LI_CCAP_TOUCHPAD;
-  if (controller.motion) capabilities |= LI_CCAP_ACCEL | LI_CCAP_GYRO;
+  if (controller.motion && gMotion) capabilities |= LI_CCAP_ACCEL | LI_CCAP_GYRO;
   if (controller.light) capabilities |= LI_CCAP_RGB_LED;
   if (controller.battery) capabilities |= LI_CCAP_BATTERY_STATE;
 
@@ -374,10 +387,10 @@ static short Axis(float value) { return (short)MAX(-32768, MIN(32767, value * 32
     if (!pad.low || !pad.high) pad.single = [MLMotor motorOf:pad.controller locality:GCHapticsLocalityDefault];
   }
   if (pad.low && pad.high) {
-    [pad.low setStrength:low / 65535.0f];
-    [pad.high setStrength:high / 65535.0f];
+    [pad.low setStrength:low / 65535.0f * gRumble];
+    [pad.high setStrength:high / 65535.0f * gRumble];
   } else {
-    [pad.single setStrength:MAX(low, high) / 65535.0f];
+    [pad.single setStrength:MAX(low, high) / 65535.0f * gRumble];
   }
 }
 
@@ -389,14 +402,14 @@ static short Axis(float value) { return (short)MAX(-32768, MIN(32767, value * 32
     pad.leftTrigger = [MLMotor motorOf:pad.controller locality:GCHapticsLocalityLeftTrigger];
     pad.rightTrigger = [MLMotor motorOf:pad.controller locality:GCHapticsLocalityRightTrigger];
   }
-  [pad.leftTrigger setStrength:left / 65535.0f];
-  [pad.rightTrigger setStrength:right / 65535.0f];
+  [pad.leftTrigger setStrength:left / 65535.0f * gRumble];
+  [pad.rightTrigger setStrength:right / 65535.0f * gRumble];
 }
 
 - (void)motion:(uint16_t)number type:(uint8_t)type rate:(uint16_t)reportRateHz {
   MLPad *pad = [self padNumber:number];
   GCMotion *motion = pad.controller.motion;
-  if (!motion) return;
+  if (!motion || !gMotion) return;
   if (type == LI_MOTION_TYPE_GYRO) pad.gyroHz = reportRateHz;
   if (type == LI_MOTION_TYPE_ACCEL) pad.accelHz = reportRateHz;
   // The sensors drain the battery: on only while a game listens.
@@ -406,6 +419,59 @@ static short Axis(float value) { return (short)MAX(-32768, MIN(32767, value * 32
 - (void)light:(uint16_t)number red:(uint8_t)red green:(uint8_t)green blue:(uint8_t)blue {
   GCDeviceLight *light = [self padNumber:number].controller.light;
   if (light) light.color = [[GCColor alloc] initWithRed:red / 255.0f green:green / 255.0f blue:blue / 255.0f];
+}
+
+#pragma mark The Manettes page
+
+static NSString *IdentifierOf(GCController *controller) { return [NSString stringWithFormat:@"%p", controller]; }
+
+static NSString *KindName(GCController *controller) {
+  switch (KindOf(controller)) {
+    case LI_CTYPE_XBOX: return @"xbox";
+    case LI_CTYPE_PS: return @"playstation";
+    case LI_CTYPE_NINTENDO: return @"nintendo";
+    default: return @"other";
+  }
+}
+
++ (NSArray<NSDictionary<NSString *, id> *> *)connected {
+  NSMutableArray *list = [NSMutableArray array];
+  for (GCController *controller in GCController.controllers) {
+    if (!controller.extendedGamepad) continue;
+    NSMutableDictionary *info = [@{
+      @"id" : IdentifierOf(controller),
+      @"name" : controller.vendorName ?: controller.productCategory ?: @"Manette",
+      @"kind" : KindName(controller),
+      @"rumble" : @(controller.haptics != nil),
+      @"motion" : @(controller.motion != nil),
+      @"touchpad" : @(HasTouchpad(controller)),
+      @"light" : @(controller.light != nil),
+    } mutableCopy];
+    GCDeviceBattery *battery = controller.battery;
+    if (battery && battery.batteryLevel >= 0 && battery.batteryLevel <= 1) {
+      info[@"battery"] = @(battery.batteryLevel);
+      info[@"charging"] = @(battery.batteryState == GCDeviceBatteryStateCharging);
+    }
+    [list addObject:info];
+  }
+  return list;
+}
+
++ (void)test:(NSString *)identifier {
+  for (GCController *controller in GCController.controllers) {
+    if (![IdentifierOf(controller) isEqualToString:identifier]) continue;
+    MLMotor *motor = [MLMotor motorOf:controller locality:GCHapticsLocalityDefault];
+    [motor setStrength:MAX(gRumble, 0.3f)];
+    // Kept by the block until it stops.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kTestSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [motor stop]; });
+    return;
+  }
+}
+
++ (void)setRumble:(float)rumble motion:(BOOL)motion kind:(NSString *)kind {
+  gRumble = MAX(0, MIN(1, rumble));
+  gMotion = motion;
+  gKind = [kind copy] ?: @"auto";
 }
 
 @end

@@ -3,9 +3,9 @@ import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { StreamView as NativeStreamView, WakenStream, isNativeStreamAvailable } from 'waken-stream';
-import { isTunnelAvailable, WakenTunnel } from 'waken-tunnel';
-import type { StreamViewProps, WakenPlatform } from '@waken/app';
+import { Gamepads, StreamView as NativeStreamView, WakenStream, isNativeStreamAvailable } from 'waken-stream';
+import { isTunnelAvailable, sendMagicPacket, WakenTunnel } from 'waken-tunnel';
+import { gamepadsFrom, type StreamViewProps, type WakenPlatform } from '@waken/app';
 
 /** The native stream view, behind the shared screens' simpler props. */
 function StreamView({ launch, settings, remote, muted, onStateChange, onStats }: StreamViewProps) {
@@ -80,6 +80,8 @@ export const mobilePlatform: WakenPlatform = {
     },
   },
   tunnel: isTunnelAvailable ? WakenTunnel : null,
+  sendMagicPacket,
+  gamepads: Gamepads ? gamepadsFrom(Gamepads) : undefined,
   StreamView: isNativeStreamAvailable ? StreamView : null,
   toggleKeyboard: isNativeStreamAvailable ? () => WakenStream.toggleKeyboard() : undefined,
   form: 'phone',

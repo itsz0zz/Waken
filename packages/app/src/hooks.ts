@@ -9,6 +9,7 @@ import { platform } from './platform';
 import { useLibraryCache } from './libraryCache';
 import { useNetwork } from './network';
 import { useWaken } from './store';
+import { withWakeInfo } from './wakeOnLan';
 
 const hasAgent = (d: Device) => !!d.stream?.agentUrl && !!d.stream.agentToken;
 
@@ -68,6 +69,12 @@ export function useLibrary() {
     remote.forEach((d, i) => {
       if (fromServer[i] && fromServer[i] !== cached[d.id]) save(d.id, fromServer[i]!);
     });
+    // How to wake each computer, as it left it on the server before going to sleep.
+    const { upsertDevice } = useWaken.getState();
+    for (const d of remote) {
+      const next = withWakeInfo(d, libraries.of(d)?.wake);
+      if (next !== d) upsertDevice(next);
+    }
     // Each time a machine answers anew (its stats change too, not only its list of games).
   }, [queries.map((q) => q.dataUpdatedAt).join(), libraries.query.dataUpdatedAt, all.length]);
   const found: Record<string, HostGame[]> = {};

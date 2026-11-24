@@ -35,6 +35,9 @@ export interface StreamViewProps extends ViewProps {
 interface WakenStreamNative {
   stop(): void;
   toggleKeyboard?(): void;
+  gamepads?(): Promise<Record<string, unknown>[]>;
+  testGamepad?(id: string): Promise<void>;
+  setGamepadOptions?(rumble: number, motion: boolean, kind: string): void;
 }
 
 const native = requireOptionalNativeModule<WakenStreamNative>('WakenStream');
@@ -43,5 +46,14 @@ const native = requireOptionalNativeModule<WakenStreamNative>('WakenStream');
 export const isNativeStreamAvailable = native != null;
 
 export const WakenStream = { stop: () => native?.stop(), toggleKeyboard: () => native?.toggleKeyboard?.() };
+
+/** The controllers of this iPhone or iPad (absent from a build older than these functions). */
+export const Gamepads = native?.gamepads
+  ? {
+      list: () => native.gamepads!(),
+      test: (id: string) => native.testGamepad!(id),
+      setOptions: (rumble: number, motion: boolean, kind: string) => native.setGamepadOptions!(rumble, motion, kind),
+    }
+  : null;
 
 export const StreamView = (isNativeStreamAvailable ? requireNativeView<StreamViewProps>('WakenStream') : () => null) as React.ComponentType<StreamViewProps>;

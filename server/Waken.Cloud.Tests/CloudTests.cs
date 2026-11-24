@@ -533,6 +533,14 @@ public sealed class CloudTests : IDisposable
     }
 
     [Fact]
+    public async Task The_caller_s_address_is_open_to_all()
+    {
+        using var client = _api.CreateClient();
+        var res = await client.GetAsync("/network/address");
+        Assert.True(res.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent);
+    }
+
+    [Fact]
     public async Task Health_is_open()
     {
         using var client = _api.CreateClient();

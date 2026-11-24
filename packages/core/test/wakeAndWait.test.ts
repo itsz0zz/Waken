@@ -219,3 +219,33 @@ describe('Through the Waken network', () => {
     expect(steps).toEqual(['Déjà allumé']);
   });
 });
+
+describe('Wake-on-LAN', () => {
+  const sleeping = (): Device => ({
+    id: 'pc',
+    name: 'PC',
+    kind: 'pc',
+    wake: { type: 'wake-on-lan', mac: 'AA:BB:CC:DD:EE:FF', broadcast: '192.168.1.255', publicAddress: '90.1.2.3' },
+    stream: { host: '127.0.0.1', agentUrl: 'http://127.0.0.1:47102/h/pc/', tunnelHost: 'pc' },
+  });
+
+  it('sends the packet through the app when the computer sleeps', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('unreachable');
+    });
+    const sent: string[] = [];
+    await expect(wakeAndWait(sleeping(), { ...fast, wakeOnLan: async (m) => void sent.push(m.mac) })).rejects.toThrow();
+    expect(sent).toEqual(['AA:BB:CC:DD:EE:FF']);
+  });
+
+  it('can wake a computer that left its card on the server', () => {
+    expect(canWake(sleeping())).toBe(true);
+  });
+
+  it('says so when the app cannot send it', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('unreachable');
+    });
+    await expect(wakeAndWait(sleeping(), fast)).rejects.toThrow(/paquet de réveil/);
+  });
+});

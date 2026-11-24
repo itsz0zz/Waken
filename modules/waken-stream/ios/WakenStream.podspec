@@ -27,7 +27,7 @@ Pod::Spec.new do |s|
   # enet/time.h shadow the system <time.h>. HEADER_SEARCH_PATHS finds them instead.
   s.preserve_paths = 'vendor/moonlight-common-c/**/*.h'
   s.exclude_files = 'vendor/moonlight-common-c/enet/win32.c'
-  s.public_header_files = 'Bridge/MLStreamSession.h'
+  s.public_header_files = ['Bridge/MLStreamSession.h', 'Bridge/MLGamepads.h']
   s.frameworks = 'VideoToolbox', 'AVFoundation', 'AudioToolbox', 'CoreMedia', 'GameController', 'CoreHaptics'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
-import { Gamepad2, LogOut, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
+import { ChevronRight, Gamepad2, LogOut, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cloud, setNetworkMode, signOutAccount, useAccount } from '../account';
 import { hostDisplayName, validateApiUrl } from '@waken/core';
 import { AppMark, Card, colors, Display, Field, IconBubble, PillButton, Segmented, SettingRow, type } from '@waken/ui';
 import { useBestStreak } from '../hooks';
-import { useFrame } from '../nav';
+import { useGamepads } from '../gamepads';
+import { useFrame, useNav } from '../nav';
 import { hasTunnel, signOut, useNetwork } from '../network';
 import { platform } from '../platform';
 import { qualities, qualityOf, type Quality } from '../quality';
@@ -57,6 +58,8 @@ export function SettingsScreen() {
             </Text>
           </Card>
 
+          <GamepadsCard />
+
           <AccountCard />
 
           {hasTunnel() ? (
@@ -99,6 +102,25 @@ export function SettingsScreen() {
 }
 
 /** The Waken account: who is signed in, the account's devices, sign out, delete. */
+/** The controllers of this device: how many, and the way to their page. */
+function GamepadsCard() {
+  const nav = useNav();
+  const { data: pads } = useGamepads();
+  if (!platform().gamepads) return null;
+  const count = pads?.length ?? 0;
+  return (
+    <Card style={{ gap: 0 }}>
+      <SettingRow
+        icon={Gamepad2}
+        color={count ? colors.online : colors.muted}
+        label="Manettes"
+        hint={count ? `${count} connectée${count > 1 ? 's' : ''} : ${pads!.map((p) => p.name).join(', ')}` : 'Vibrations, gyroscope, type de manette'}
+        right={<PillButton label="Ouvrir" icon={ChevronRight} size="sm" variant="white" onPress={nav.gamepads} />}
+      />
+    </Card>
+  );
+}
+
 function AccountCard() {
   const { mode, email, session, provider } = useAccount();
   const queryClient = useQueryClient();

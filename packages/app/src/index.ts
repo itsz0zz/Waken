@@ -18,6 +18,8 @@ export { useLibraryCache } from './libraryCache';
 export { BootScreen } from './screens/Boot';
 export { AccountOverlay, AccountScreen } from './screens/Account';
 export * from './account';
+export * from './gamepads';
+export { GamepadsScreen } from './screens/Gamepads';
 export { useSessionRecaps } from './recaps';
 export { DesktopApp, ensureLocalMachine, type DesktopHost } from './desktop/DesktopApp';
 export { useDesktopNav, tabs, type Route, type Tab } from './desktop/nav';

@@ -13,6 +13,7 @@ interface Native {
   hello(peer: string): Promise<string>;
   logout(): Promise<string>;
   stop(): Promise<void>;
+  sendMagicPacket?(mac: string, targets: string[]): Promise<number>;
 }
 
 const native = Platform.OS === 'ios' ? requireOptionalNativeModule<Native>('WakenTunnel') : null;
@@ -36,6 +37,9 @@ function need(): Native {
   if (!native) throw new Error("Le réseau Waken n'est pas disponible sur cet appareil.");
   return native;
 }
+
+/** Wake-on-LAN from this iPhone (absent from a build older than this function). */
+export const sendMagicPacket = native?.sendMagicPacket ? (mac: string, targets: string[]) => native.sendMagicPacket!(mac, targets) : undefined;
 
 export const WakenTunnel: TunnelApi = {
   start: async (name?: string, network?: TunnelNetwork) =>

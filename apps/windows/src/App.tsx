@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { Gamepad2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
 import { StreamView } from './stream';
@@ -24,6 +24,14 @@ setPlatform({
   setFullscreen: (on) => native.setFullscreen(on),
   form: 'desktop',
   deviceName: 'PC',
+  // The PC's controllers (SDL3, windows/Waken/Stream/Gamepads.cpp).
+  gamepads: native.gamepads
+    ? gamepadsFrom({
+        list: () => native.gamepads!(),
+        test: (id) => native.testGamepad!(id),
+        setOptions: (rumble, motion, kind) => native.setGamepadOptions!(rumble, motion, kind),
+      })
+    : undefined,
 });
 
 /** The Windows app: the shared desktop app, with this PC's services. */

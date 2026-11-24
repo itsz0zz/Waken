@@ -7,6 +7,7 @@ import { AppMark, colors, Display, IconBubble, MachineChip, nativeDriver, PillBu
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { connectionLog, pointStreamAt } from '../network';
+import { sendWakeOnLan } from '../wakeOnLan';
 import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
@@ -108,6 +109,7 @@ export function WakeScreen({
       connectionLog(began, 'tunnel pointé');
       await wakeAndWait(withRelaySettings(device, settings), {
         signal: ctrl.signal,
+        wakeOnLan: (method) => sendWakeOnLan(device, method),
         onProgress: (p) => {
           connectionLog(began, `réveil : ${p.step}${p.message ? ` (${p.message})` : ''}`);
           setProgress(p);

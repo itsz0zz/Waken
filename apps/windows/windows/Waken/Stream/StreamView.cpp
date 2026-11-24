@@ -253,7 +253,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     m_running = true;
     // Every controller of this PC (SDL3: Xbox, DualShock 4, DualSense...), sent once the stream takes input.
     std::weak_ptr<StreamSession> session = m_session;
-    Gamepads::Instance().Start([session] {
+    Gamepads::Instance().SetSender([session] {
       auto live = session.lock();
       return live && live->Live();
     });
@@ -265,7 +265,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     ReleaseKeys();
     m_running = false;
     // Never waits for itself: the last reference can be released by one of these threads.
-    Gamepads::Instance().Stop();
+    Gamepads::Instance().SetSender(nullptr);
     for (std::thread *worker : {&m_stats}) {
       if (!worker->joinable()) continue;
       if (worker->get_id() == std::this_thread::get_id()) worker->detach();

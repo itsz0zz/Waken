@@ -19,6 +19,11 @@ public sealed class HostServicesOptions
     public string TunnelExe { get; set; } = "";
     /// <summary>This computer's name, shown on the other devices.</summary>
     public string DeviceName { get; set; } = Environment.MachineName;
+    /// <summary>
+    /// Started at boot as SYSTEM (scripts\install-service.ps1), before anybody signs in: Sunshine then runs in the
+    /// session on the monitor, the sign-in screen included, and follows it when it changes.
+    /// </summary>
+    public bool ConsoleSession { get; set; }
 }
 
 /// <summary>
@@ -33,6 +38,7 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonNode?>> _pending = new();
     private readonly Lock _lock = new();
     private Process? _sunshine;
+    private uint? _sunshineSession;
     private Process? _tunnel;
     private string? _tunnelStatus;
     private string? _error;
@@ -94,8 +100,8 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
             Directory.CreateDirectory(TunnelFolder);
             WriteSunshineConfig();
             await SetSunshineCredentialsAsync(stopping);
-            StartSunshine();
             StartTunnel();
+            StartSunshine();
         }
         catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
@@ -115,6 +121,9 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
                 break;
             }
             if (_sunshine is { HasExited: true }) Restart("Sunshine", StartSunshine);
+            else if (_sunshine is null && host.ConsoleSession) Restart("Sunshine", StartSunshine);
+            else if (host.ConsoleSession && OperatingSystem.IsWindows() && Host.ConsoleSession.ActiveId is { } session && session != _sunshineSession)
+                Restart("Sunshine (autre session à l'écran)", RestartSunshine);
             if (_tunnel is { HasExited: true }) Restart("le réseau", StartTunnel);
         }
         Stop();
@@ -126,6 +135,7 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
         try
         {
             start();
+            lock (_lock) _error = null;
         }
         catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
@@ -174,6 +184,18 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
 
     private void StartSunshine()
     {
+        if (host.ConsoleSession && OperatingSystem.IsWindows())
+        {
+            // Its own log file (sunshine.log), no pipes: it runs in another session than the agent.
+            var session = Host.ConsoleSession.ActiveId;
+            var started = Host.ConsoleSession.StartAsSystem(host.SunshineExe, [SunshineConfig]);
+            lock (_lock)
+            {
+                _sunshine = started;
+                _sunshineSession = session;
+            }
+            return;
+        }
         var process = Process.Start(Info(host.SunshineExe, [SunshineConfig])) ?? throw new InvalidOperationException("Sunshine n'a pas démarré");
         process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, _stopping);
         process.StandardError.BaseStream.CopyToAsync(Stream.Null, _stopping);

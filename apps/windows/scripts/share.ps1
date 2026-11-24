@@ -20,6 +20,7 @@ Copy-Item -Recurse $layout (Join-Path $staging 'Waken')
 # Your own SteamGridDB key stays with you: the friend's app shows Steam covers, or theirs with their own key.
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $staging 'Waken\Waken\host\steamgriddb.key')
 Copy-Item (Join-Path $PSScriptRoot 'install.ps1') $staging
+Copy-Item (Join-Path $PSScriptRoot 'install-service.ps1') $staging
 
 New-Item -ItemType Directory -Force $dist | Out-Null
 if (Test-Path $zip) { Remove-Item -Force $zip }
