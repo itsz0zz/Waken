@@ -12,6 +12,7 @@
 #include <ws2tcpip.h>
 
 #include <bcrypt.h>
+#include <shellapi.h>
 #include <shlobj.h>
 
 #include <cctype>
@@ -182,6 +183,48 @@ inline bool AgentListening() {
   return open;
 }
 
+/// Runs a program hidden and waits for it: its exit code, -1 when it could not start.
+inline long RunHidden(std::wstring command) {
+  STARTUPINFOW startup{sizeof(startup)};
+  PROCESS_INFORMATION process{};
+  if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process)) return -1;
+  WaitForSingleObject(process.hProcess, INFINITE);
+  DWORD code = 0;
+  GetExitCodeProcess(process.hProcess, &code);
+  CloseHandle(process.hThread);
+  CloseHandle(process.hProcess);
+  return static_cast<long>(code);
+}
+
+/// Waken starts with Windows: the "Waken" task of scripts\install-service.ps1 exists.
+inline bool StartsWithWindows() {
+  wchar_t system[MAX_PATH];
+  GetSystemDirectoryW(system, MAX_PATH);
+  return RunHidden(L"\"" + std::wstring(system) + L"\\schtasks.exe\" /Query /TN Waken") == 0;
+}
+
+/// install-service.ps1 from the app's host folder, elevated: Windows asks the user first (UAC). Its exit code;
+/// ERROR_CANCELLED when the user said no.
+inline long RunStartupScript(bool enable, bool disableFastStartup) {
+  auto script = HostFolder() / L"install-service.ps1";
+  if (!fs::exists(script)) return ERROR_FILE_NOT_FOUND;
+  std::wstring args = L"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + script.wstring() + L"\" -FromApp";
+  if (!enable) args += L" -Uninstall";
+  if (disableFastStartup) args += L" -DisableFastStartup";
+  SHELLEXECUTEINFOW info{sizeof(info)};
+  info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+  info.lpVerb = L"runas";
+  info.lpFile = L"powershell.exe";
+  info.lpParameters = args.c_str();
+  info.nShow = SW_HIDE;
+  if (!ShellExecuteExW(&info)) return static_cast<long>(GetLastError());
+  WaitForSingleObject(info.hProcess, INFINITE);
+  DWORD code = 0;
+  GetExitCodeProcess(info.hProcess, &code);
+  CloseHandle(info.hProcess);
+  return static_cast<long>(code);
+}
+
 /// One key of the app's storage: a file named after it, nothing outside the store folder.
 inline fs::path StoreFile(std::string const &key) {
   std::wstring safe;
@@ -199,6 +242,11 @@ class HostProcess {
 
   void StartOnce() {
     std::lock_guard lock(m_mutex);
+    // Started again when the agent started with Windows is gone (turned off from the Réglages).
+    if (m_started && m_boot && !AgentListening()) {
+      m_started = false;
+      m_boot = false;
+    }
     if (m_started) return;
     m_started = true;
     try {
@@ -211,7 +259,9 @@ class HostProcess {
   std::string StatusJson() {
     std::lock_guard lock(m_mutex);
     bool embedded = fs::exists(HostFolder() / L"agent" / L"Waken.Agent.exe");
-    // Started at boot (a Windows task, as SYSTEM): it outlives the app, which only talks to it.
+    // Started at boot (a Windows task, as SYSTEM): it outlives the app, which only talks to it. Also the case once
+    // turned on from the Réglages, which stopped the app's own agent.
+    if (!m_boot && m_agent.hProcess && WaitForSingleObject(m_agent.hProcess, 0) == WAIT_OBJECT_0 && AgentListening()) m_boot = true;
     bool running = m_boot && AgentListening();
     if (m_agent.hProcess) {
       DWORD code = 0;
@@ -365,6 +415,28 @@ struct WakenHost {
   REACT_METHOD(setGamepadOptions)
   void setGamepadOptions(double rumble, bool motion, std::string kind) noexcept {
     Stream::Gamepads::Instance().SetOptions(rumble, motion, kind);
+  }
+
+  /// Réglages: does Waken start with Windows (and wake from the network)?
+  REACT_METHOD(startsWithWindows)
+  void startsWithWindows(ReactPromise<bool> &&result) noexcept {
+    std::thread([result = std::move(result)]() mutable { result.Resolve(StartsWithWindows()); }).detach();
+  }
+
+  /// Réglages: Waken starts with Windows, or no longer, through install-service.ps1 after Windows' confirmation.
+  REACT_METHOD(setStartsWithWindows)
+  void setStartsWithWindows(bool enable, bool disableFastStartup, ReactPromise<void> &&result) noexcept {
+    std::thread([enable, disableFastStartup, result = std::move(result)]() mutable {
+      long code = RunStartupScript(enable, disableFastStartup);
+      if (code == 0) {
+        // Off again: this app's own agent takes over.
+        if (!enable) HostProcess::Instance().StartOnce();
+        return result.Resolve();
+      }
+      if (code == ERROR_CANCELLED) return result.Reject("Annulé : Windows n'a pas eu ta confirmation.");
+      if (code == ERROR_FILE_NOT_FOUND) return result.Reject("Le script manque dans l'app : reconstruis-la avec build.ps1.");
+      result.Reject(("Le réglage n'a pas abouti (code " + std::to_string(code) + ").").c_str());
+    }).detach();
   }
 
   REACT_METHOD(storageRemove)

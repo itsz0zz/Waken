@@ -72,6 +72,11 @@ export interface WakenPlatform {
    * no need: their own agent sends it. On iPhone a broadcast needs Apple's multicast entitlement, a plain address not.
    */
   sendMagicPacket?: (mac: string, targets: string[]) => Promise<number>;
+  /**
+   * Windows: Waken starts with the PC, before anybody signs in, and its network card answers the magic packet.
+   * set asks Windows for the administrator's confirmation; fastStartupOff also turns off Windows' fast startup.
+   */
+  startup?: { get(): Promise<boolean>; set(on: boolean, fastStartupOff: boolean): Promise<void> };
   /** The controllers connected to this device (the Manettes page). */
   gamepads?: GamepadsApi;
   /** Hands the stream to the Moonlight app (iPhone only, kept from V1). */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
-import { ChevronRight, Gamepad2, LogOut, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
+import { ChevronRight, Gamepad2, LogOut, Power, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cloud, setNetworkMode, signOutAccount, useAccount } from '../account';
 import { hostDisplayName, validateApiUrl } from '@waken/core';
@@ -58,6 +58,8 @@ export function SettingsScreen() {
             </Text>
           </Card>
 
+          <StartupCard />
+
           <GamepadsCard />
 
           <AccountCard />
@@ -102,6 +104,61 @@ export function SettingsScreen() {
 }
 
 /** The Waken account: who is signed in, the account's devices, sign out, delete. */
+/**
+ * Windows: Waken from the PC's start, sign-in screen included, and woken from the network. Windows asks for the
+ * administrator's confirmation each time it changes.
+ */
+function StartupCard() {
+  const startup = platform().startup;
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [fastStartupOff, setFastStartupOff] = useState(true);
+  const { data: on } = useQuery({ queryKey: ['startup'], enabled: !!startup, queryFn: () => startup!.get() });
+  if (!startup) return null;
+  const change = async (next: boolean) => {
+    setBusy(true);
+    try {
+      await startup.set(next, fastStartupOff);
+    } catch (e) {
+      Alert.alert('Démarrage avec Windows', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      void queryClient.invalidateQueries({ queryKey: ['startup'] });
+    }
+  };
+  return (
+    <Card style={{ gap: 12 }}>
+      <SettingRow
+        icon={Power}
+        color={on ? colors.online : colors.muted}
+        label="Démarrer avec Windows et réveil à distance"
+        hint={
+          busy
+            ? 'Confirme dans la fenêtre de Windows…'
+            : on
+              ? 'Waken tourne dès l’allumage du PC, écran de connexion compris, et sa carte réseau répond au réveil.'
+              : 'Waken ne tourne qu’une fois l’app ouverte. Active-le pour réveiller ce PC à distance et jouer dès l’allumage.'
+        }
+        value={!!on}
+        onValueChange={busy ? undefined : (next) => void change(next)}
+      />
+      {!on ? (
+        <SettingRow
+          icon={Power}
+          color={colors.muted}
+          label="Couper le démarrage rapide de Windows"
+          hint="Sans ça, beaucoup de cartes réseau ne réveillent plus un PC éteint (la veille marche toujours)."
+          value={fastStartupOff}
+          onValueChange={setFastStartupOff}
+        />
+      ) : null}
+      <Text style={[type.caption, { color: colors.ink2 }]}>
+        Reste à activer le Wake-on-LAN dans le BIOS. Depuis Internet : sur la box, une IP fixe pour ce PC et une redirection UDP du port 9 vers elle.
+      </Text>
+    </Card>
+  );
+}
+
 /** The controllers of this device: how many, and the way to their page. */
 function GamepadsCard() {
   const nav = useNav();

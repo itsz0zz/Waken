@@ -118,6 +118,8 @@ $keyFile = Join-Path $env:USERPROFILE '.config\waken\steamgriddb.key'
 if ($env:STEAMGRIDDB_KEY) { $env:STEAMGRIDDB_KEY.Trim() | Set-Content -NoNewline (Join-Path $hostDir 'steamgriddb.key') }
 elseif (Test-Path $keyFile) { (Get-Content -Raw $keyFile).Trim() | Set-Content -NoNewline (Join-Path $hostDir 'steamgriddb.key') }
 else { Write-Host 'Pas de clé SteamGridDB : seuls les jeux Steam auront leur pochette.' -ForegroundColor Yellow }
+# The app's Réglages run it to start Waken with Windows (after Windows' administrator confirmation).
+Copy-Item (Join-Path $PSScriptRoot 'install-service.ps1') $hostDir
 
 Step 'App Waken (React Native Windows)'
 # Fresh MSBuild processes, started from this window: reused ones keep the environment they were born with (a

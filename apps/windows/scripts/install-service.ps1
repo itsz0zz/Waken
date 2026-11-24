@@ -9,7 +9,9 @@
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\install-service.ps1
 # Remove:
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\install-service.ps1 -Uninstall
-param([switch]$Uninstall)
+# The app's Réglages run it too (a copy in its host folder), elevated after Windows' confirmation: -FromApp keeps
+# the app open and asks nothing, -DisableFastStartup answers the fast startup question.
+param([switch]$Uninstall, [switch]$FromApp, [switch]$DisableFastStartup)
 
 $ErrorActionPreference = 'Stop'
 $taskName = 'Waken'
@@ -22,7 +24,9 @@ if (-not $admin) { throw 'Lance ce script depuis un PowerShell ouvert en adminis
 function Stop-Waken {
   # The app's own agent (and what it runs), or the one started at boot: the files can then be replaced.
   if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue }
-  Get-Process -Name 'Waken', 'Waken.Agent', 'sunshine', 'waken-tunnel' -ErrorAction SilentlyContinue | Stop-Process -Force
+  # From the app's Réglages, the app stays open: it switches to the agent started here.
+  $names = if ($FromApp) { 'Waken.Agent', 'sunshine', 'waken-tunnel' } else { 'Waken', 'Waken.Agent', 'sunshine', 'waken-tunnel' }
+  Get-Process -Name $names -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
 }
 
@@ -134,7 +138,7 @@ foreach ($card in Get-NetAdapter -Physical | Where-Object Status -eq 'Up') {
 # Fast startup is half a hibernation: many cards then ignore the magic packet once the PC is shut down.
 $power = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
 if ((Get-ItemProperty -Path $power -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled -eq 1) {
-  $answer = Read-Host 'Le démarrage rapide de Windows empêche souvent le réveil d''un PC éteint. Le désactiver ? (o/n)'
+  $answer = if ($FromApp) { if ($DisableFastStartup) { 'o' } else { 'n' } } else { Read-Host 'Le démarrage rapide de Windows empêche souvent le réveil d''un PC éteint. Le désactiver ? (o/n)' }
   if ($answer -match '^[oOyY]') {
     Set-ItemProperty -Path $power -Name HiberbootEnabled -Value 0
     Write-Host '  Démarrage rapide désactivé.'

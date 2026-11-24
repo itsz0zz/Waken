@@ -24,6 +24,10 @@ setPlatform({
   setFullscreen: (on) => native.setFullscreen(on),
   form: 'desktop',
   deviceName: 'PC',
+  // Started with Windows, before any sign-in, and woken from the network (scripts/install-service.ps1).
+  startup: native.startsWithWindows
+    ? { get: () => native.startsWithWindows!(), set: (on, fastStartupOff) => native.setStartsWithWindows!(on, fastStartupOff) }
+    : undefined,
   // The PC's controllers (SDL3, windows/Waken/Stream/Gamepads.cpp).
   gamepads: native.gamepads
     ? gamepadsFrom({

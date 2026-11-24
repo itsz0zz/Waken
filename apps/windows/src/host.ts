@@ -22,6 +22,9 @@ interface Native {
   gamepads?(): Promise<string>;
   testGamepad?(id: string): Promise<void>;
   setGamepadOptions?(rumble: number, motion: boolean, kind: string): void;
+  /** Waken started with Windows (install-service.ps1), and the switch that runs it elevated. */
+  startsWithWindows?(): Promise<boolean>;
+  setStartsWithWindows?(enable: boolean, disableFastStartup: boolean): Promise<void>;
 }
 
 /** The new architecture's registry first, the old bridge otherwise. */
