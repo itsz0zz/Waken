@@ -73,4 +73,13 @@ identity=${WAKEN_SIGN_IDENTITY:-${identity:--}}
 for code in "$res/agent/Waken.Agent" "$res/waken-tunnel" "$app"; do
   codesign --force --sign "$identity" --timestamp=none --preserve-metadata=entitlements "$code"
 done
+
+# 7. The Dock and the Finder take the icon from macOS's register of apps: this copy is the one for its identifier,
+# not the build's intermediate copy (nor the old host-only app of apps/mac, which has no icon).
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+if [ -x "$lsregister" ]; then
+  "$lsregister" -u "$derived/Build/Products/Release/Waken.app" >/dev/null 2>&1 || true
+  "$lsregister" -u "$repo/apps/mac/build/Waken.app" >/dev/null 2>&1 || true
+  "$lsregister" -f "$app" >/dev/null 2>&1 || true
+fi
 echo "$app"

@@ -198,6 +198,12 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   // Get the AppWindow so we can configure its initial title and size
   auto appWindow{reactNativeWin32App.AppWindow()};
   appWindow.Title(L"Waken");
+  // The title bar's icon: a WinUI window shows none by itself. The one in the app's resources (Waken.rc), at the
+  // size Windows draws there.
+  if (auto icon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON,
+                                                GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED))) {
+    appWindow.SetIcon(winrt::Microsoft::UI::GetIconIdFromIcon(icon));
+  }
   appWindow.Resize({1280, 800});
   // For the stream's full screen (WakenHost.setFullscreen).
   Waken::MainWindow() = appWindow;
