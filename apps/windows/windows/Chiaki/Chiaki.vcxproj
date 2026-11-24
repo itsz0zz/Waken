@@ -87,8 +87,18 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- MSVC has no C99 variable length arrays: these files are compiled from a patched copy (patch-vla.ps1). -->
   <ItemGroup>
-    <ClCompile Include="$(ChiakiDir)lib\src\*.c" Exclude="$(ChiakiDir)lib\src\aia.c;$(ChiakiDir)lib\src\aia_openssl.c;$(ChiakiDir)lib\src\ffmpegdecoder.c;$(ChiakiDir)lib\src\pidecoder.c;$(ChiakiDir)lib\src\opusdecoder.c;$(ChiakiDir)lib\src\opusencoder.c">
+    <VlaSource Include="$(ChiakiDir)lib\src\ctrl.c;$(ChiakiDir)lib\src\regist.c;$(ChiakiDir)lib\src\session.c" />
+  </ItemGroup>
+  <Target Name="PatchVla" BeforeTargets="ClCompile" Inputs="@(VlaSource);$(MSBuildThisFileDirectory)patch-vla.ps1" Outputs="@(VlaSource->'$(IntDir)vla\%(Filename)%(Extension)')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)patch-vla.ps1&quot; -Source &quot;%(VlaSource.FullPath)&quot; -OutDir &quot;$(IntDir)vla&quot;" />
+  </Target>
+  <ItemGroup>
+    <ClCompile Include="$(ChiakiDir)lib\src\*.c" Exclude="$(ChiakiDir)lib\src\aia.c;$(ChiakiDir)lib\src\aia_openssl.c;$(ChiakiDir)lib\src\ffmpegdecoder.c;$(ChiakiDir)lib\src\pidecoder.c;$(ChiakiDir)lib\src\opusdecoder.c;$(ChiakiDir)lib\src\opusencoder.c;@(VlaSource)">
+      <ObjectFileName>$(IntDir)chiaki\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="@(VlaSource->'$(IntDir)vla\%(Filename)%(Extension)')">
       <ObjectFileName>$(IntDir)chiaki\</ObjectFileName>
     </ClCompile>
     <ClCompile Include="$(ChiakiDir)lib\src\remote\rudpsendbuffer.c">
