@@ -29,6 +29,11 @@ interface Native {
   registerConsole?(host: string, ps5: boolean, accountId: string, pin: string): Promise<string>;
   wakeConsole?(host: string, registKey: string, ps5: boolean): Promise<void>;
   setStartsWithWindows?(enable: boolean, disableFastStartup: boolean): Promise<void>;
+  /** The copy started with Windows is older than this app. */
+  startupOutdated?(): Promise<boolean>;
+  /** Updates from the GitHub releases (Velopack, the build without MSIX): JSON, and the install that quits. */
+  updateStatus?(check: boolean): Promise<string>;
+  installUpdate?(): Promise<void>;
 }
 
 /** The new architecture's registry first, the old bridge otherwise. */

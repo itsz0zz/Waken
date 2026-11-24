@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { Gamepad2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform, type UpdateStatus } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
 import { PlayStationView, StreamView } from './stream';
@@ -26,7 +26,15 @@ setPlatform({
   deviceName: 'PC',
   // Started with Windows, before any sign-in, and woken from the network (scripts/install-service.ps1).
   startup: native.startsWithWindows
-    ? { get: () => native.startsWithWindows!(), set: (on, fastStartupOff) => native.setStartsWithWindows!(on, fastStartupOff) }
+    ? {
+        get: () => native.startsWithWindows!(),
+        set: (on, fastStartupOff) => native.setStartsWithWindows!(on, fastStartupOff),
+        outdated: native.startupOutdated ? () => native.startupOutdated!() : undefined,
+      }
+    : undefined,
+  // Updates from the GitHub releases (Velopack): only the build installed by Waken-Setup.exe says it can.
+  updates: native.updateStatus
+    ? { status: async (check) => JSON.parse(await native.updateStatus!(check)) as UpdateStatus, install: () => native.installUpdate!() }
     : undefined,
   // A linked PS5 or PS4 streamed in the same native view (Stream/PlayStationSession.cpp).
   PlayStationView,

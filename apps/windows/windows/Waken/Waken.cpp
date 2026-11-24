@@ -15,6 +15,9 @@
 #include "Stream/StreamLog.h"
 #include "Stream/StreamView.h"
 #include "WakenHost.h"
+#ifdef WAKEN_VELOPACK
+#include "Velopack.hpp"
+#endif
 
 // What happened before a crash, in %LOCALAPPDATA%\Waken\waken.log (for this packaged app, Windows keeps it in
 // %LOCALAPPDATA%\Packages\Waken_<id>\LocalCache\Local\Waken). Rewritten at each start.
@@ -141,6 +144,14 @@ struct CompReactPackageProvider
 
 // The entry point of the Win32 application
 _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR /* commandLine */, int showCmd) {
+#ifdef WAKEN_VELOPACK
+  // Velopack starts the app with arguments of its own at install, update and uninstall: answered here, and the
+  // process then ends at once. A normal start goes on.
+  try {
+    Velopack::VelopackApp::Build().Run();
+  } catch (...) {
+  }
+#endif
   // Initialize WinRT
   winrt::init_apartment(winrt::apartment_type::single_threaded);
 

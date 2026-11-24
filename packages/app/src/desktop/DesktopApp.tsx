@@ -21,6 +21,7 @@ import { SettingsScreen } from '../screens/Settings';
 import { GamepadsScreen } from '../screens/Gamepads';
 import { PlayStationAddScreen } from '../screens/PlayStationAdd';
 import { useGamepadOptionsSync } from '../gamepads';
+import { useUpdateOffer } from '../updates';
 import { StreamScreen } from '../screens/Stream';
 import { WakeScreen } from '../screens/Wake';
 import { useConfigLoad, useWaken } from '../store';
@@ -70,6 +71,7 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   useLibrarySync();
   useLibraryPublisher();
   useGamepadOptionsSync();
+  useUpdateOffer();
   const { route, tab, nav } = useDesktopNav();
   const host = useHost();
   useEffect(() => {

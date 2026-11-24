@@ -16,6 +16,15 @@ export type StreamState =
  * displayMs until the screen (decoding included on Windows), jitterMs how unsteady the frames reach it.
  * reserveFrames, the frames the smoothing reserve holds back now.
  */
+/** Where the desktop app stands against the GitHub releases. supported: installed by its setup, able to update. */
+export interface UpdateStatus {
+  supported: boolean;
+  version?: string;
+  available?: string;
+  notes?: string;
+  error?: string;
+}
+
 export type StreamStats = {
   rttMs: number;
   fps: number;
@@ -109,7 +118,17 @@ export interface WakenPlatform {
    * Windows: Waken starts with the PC, before anybody signs in, and its network card answers the magic packet.
    * set asks Windows for the administrator's confirmation; fastStartupOff also turns off Windows' fast startup.
    */
-  startup?: { get(): Promise<boolean>; set(on: boolean, fastStartupOff: boolean): Promise<void> };
+  startup?: {
+    get(): Promise<boolean>;
+    set(on: boolean, fastStartupOff: boolean): Promise<void>;
+    /** The copy started with Windows is older than this app (an update came since): set(true) refreshes it. */
+    outdated?(): Promise<boolean>;
+  };
+  /**
+   * Updates of the desktop app from the GitHub releases (Windows: Velopack). status(check) asks GitHub when check;
+   * install downloads the newest one, quits, and the app starts again updated.
+   */
+  updates?: { status(check: boolean): Promise<UpdateStatus>; install(): Promise<void> };
   /** PS5 and PS4 through chiaki: found on this network, linked, woken. */
   playstation?: PlayStationApi;
   /** The PS5 / PS4 stream view (chiaki), when this build has it. */

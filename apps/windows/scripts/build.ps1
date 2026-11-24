@@ -8,7 +8,8 @@
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1 -Debug     # with Metro, for development
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\build.ps1 -Unpackaged
 #       without MSIX, in apps\windows\dist\Waken and started from there (what the Velopack installer ships)
-param([switch]$Debug, [switch]$Unpackaged)
+# -Version: the app's version (release.ps1 gives it); -NoStart: built, not started (release.ps1).
+param([switch]$Debug, [switch]$Unpackaged, [string]$Version = '0.0.0', [switch]$NoStart)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is ten times slower with its progress bar
@@ -21,6 +22,9 @@ $sunshineVersion = 'v2026.914.233613'
 $sunshineSha256 = '233008e46f4c0e501a586cbfd6c4fd4a4c0d414a0b5fc7f13c070eb92ec3824b'   # Sunshine-Windows-AMD64-lite.zip
 $goVersion = 'go1.27.4'   # same as tunnel/build.sh
 $runtime = '10.0.15'
+# Velopack's C++ library (installer hooks, updates), for the build without MSIX: the release's own SHA-256 on GitHub.
+$velopackVersion = '1.2.161'
+$velopackSha256 = '31de8f2cf05a47bd5328a9f98b0c41aec1582156f6075f1058b26941f7f17c20'   # velopack_libc_1.2.161.zip
 
 function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Need($command, $hint) {
@@ -122,8 +126,16 @@ elseif (Test-Path $keyFile) { (Get-Content -Raw $keyFile).Trim() | Set-Content -
 else { Write-Host 'Pas de clé SteamGridDB : seuls les jeux Steam auront leur pochette.' -ForegroundColor Yellow }
 # The app's Réglages run it to start Waken with Windows (after Windows' administrator confirmation).
 Copy-Item (Join-Path $PSScriptRoot 'install-service.ps1') $hostDir
+# The app's version, also in the copy started with Windows: the app sees when that copy is older than itself.
+Set-Content -NoNewline -Encoding ASCII (Join-Path $hostDir 'version.txt') $Version
 
 if ($Unpackaged) {
+  Step "Velopack $velopackVersion (installateur et mises à jour)"
+  $velopackZip = Join-Path $cache "velopack_libc_$velopackVersion.zip"
+  Download "https://github.com/velopack/velopack/releases/download/$velopackVersion/velopack_libc_$velopackVersion.zip" $velopackZip $velopackSha256
+  $velopackDir = Join-Path $cache "velopack-$velopackVersion"
+  if (-not (Test-Path (Join-Path $velopackDir 'include\Velopack.hpp'))) { Expand-Archive -Force $velopackZip $velopackDir }
+
   Step 'App Waken sans MSIX (React Native Windows)'
   $env:MSBUILDDISABLENODEREUSE = '1'
   $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
@@ -133,7 +145,7 @@ if ($Unpackaged) {
   # Through the solution (React Native Windows' projects refuse to be built alone), its Waken project only: the
   # native modules and libraries it references follow, the MSIX packaging project does not.
   & $msbuild (Join-Path $solutionDir 'Waken.sln') /t:Waken /restore /m /nologo /v:minimal `
-    /p:Configuration=Release /p:Platform=x64 /p:WakenUnpackaged=true /p:RestorePackagesConfig=true
+    /p:Configuration=Release /p:Platform=x64 /p:WakenUnpackaged=true /p:RestorePackagesConfig=true "/p:VelopackDir=$velopackDir"
   $failed = $LASTEXITCODE -ne 0
   $ErrorActionPreference = 'Stop'
   if ($failed) { throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
@@ -156,9 +168,16 @@ if ($Unpackaged) {
     Get-ChildItem $project.FullName -File -Include *.dll, *.pri -Recurse -ErrorAction SilentlyContinue |
       Where-Object { -not (Test-Path (Join-Path $dist $_.Name)) } | Copy-Item -Destination $dist
   }
-  Write-Host "`nWaken sans MSIX : $dist" -ForegroundColor Green
-  Write-Host 'Ferme l''app Waken installée avant (même agent, même port). Le journal : %LOCALAPPDATA%\Waken\waken.log' -ForegroundColor Yellow
-  Start-Process (Join-Path $dist 'Waken.exe')
+  # Where updates come from: the GitHub repository of release.json, read by the app beside Waken.exe.
+  $release = Get-Content -Raw (Join-Path $repo 'release.json') | ConvertFrom-Json
+  if ($release.githubRepo) { Set-Content -NoNewline -Encoding ASCII (Join-Path $dist 'update.txt') "https://github.com/$($release.githubRepo)" }
+  else { Write-Host 'Pas de dépôt GitHub dans release.json : cette app ne cherchera pas de mises à jour.' -ForegroundColor Yellow }
+
+  Write-Host "`nWaken $Version sans MSIX : $dist" -ForegroundColor Green
+  if (-not $NoStart) {
+    Write-Host 'Ferme l''app Waken installée avant (même agent, même port). Le journal : %LOCALAPPDATA%\Waken\waken.log' -ForegroundColor Yellow
+    Start-Process (Join-Path $dist 'Waken.exe')
+  }
   exit 0
 }
 

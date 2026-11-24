@@ -26,6 +26,9 @@
 #include <thread>
 
 #include "NativeModules.h"
+#ifdef WAKEN_VELOPACK
+#include "Velopack.hpp"
+#endif
 #include "Stream/Gamepads.h"
 #include "Stream/PlayStation.h"
 
@@ -210,6 +213,26 @@ inline bool StartsWithWindows() {
   return RunHidden(L"\"" + std::wstring(system) + L"\\schtasks.exe\" /Query /TN Waken") == 0;
 }
 
+/// One line of a small text file (a version, an address), trimmed; empty when there is none.
+inline std::string ReadLine(fs::path const &file) {
+  std::ifstream in(file);
+  std::string line;
+  std::getline(in, line);
+  while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\n')) line.pop_back();
+  return line;
+}
+
+/// The version of the copy that starts with Windows (install-service.ps1 put it in %ProgramFiles%\Waken) is not
+/// this app's: an update came since, the copy needs the script again.
+inline bool StartupOutdated() {
+  wchar_t programs[MAX_PATH];
+  if (!GetEnvironmentVariableW(L"ProgramFiles", programs, MAX_PATH)) return false;
+  auto copy = fs::path(programs) / L"Waken" / L"host";
+  if (!fs::exists(copy / L"agent" / L"Waken.Agent.exe")) return false;
+  auto mine = ReadLine(HostFolder() / L"version.txt");
+  return !mine.empty() && ReadLine(copy / L"version.txt") != mine;
+}
+
 /// install-service.ps1 from the app's host folder, elevated: Windows asks the user first (UAC). Its exit code;
 /// ERROR_CANCELLED when the user said no.
 inline long RunStartupScript(bool enable, bool disableFastStartup) {
@@ -218,6 +241,10 @@ inline long RunStartupScript(bool enable, bool disableFastStartup) {
   std::wstring args = L"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + script.wstring() + L"\" -FromApp";
   if (!enable) args += L" -Uninstall";
   if (disableFastStartup) args += L" -DisableFastStartup";
+#ifdef WAKEN_UNPACKAGED
+  // Installed without MSIX (Velopack): the script cannot find the app through Windows' package list, it is told.
+  args += L" -HostSource \"" + HostFolder().wstring() + L"\" -DataDir \"" + DataRoot().wstring() + L"\"";
+#endif
   SHELLEXECUTEINFOW info{sizeof(info)};
   info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
   info.lpVerb = L"runas";
@@ -234,6 +261,56 @@ inline long RunStartupScript(bool enable, bool disableFastStartup) {
   GetExitCodeProcess(info.hProcess, &code);
   CloseHandle(info.hProcess);
   return static_cast<long>(code);
+}
+
+/// Updates (Velopack, installed by Waken-Setup.exe): as JSON, {supported, version, available?, notes?, error?}.
+/// check also asks GitHub for a newer release. Not supported in a build run from its folder or from the MSIX.
+inline std::string UpdateStatusJson(bool check) {
+#ifdef WAKEN_VELOPACK
+  // The GitHub repository of the releases, written beside Waken.exe by scripts\build.ps1 (release.json).
+  auto repo = ReadLine(HostFolder().parent_path() / L"update.txt");
+  if (repo.empty()) return "{\"supported\":false,\"error\":\"Pas de dépôt GitHub dans release.json au build.\"}";
+  try {
+    Velopack::UpdateManager manager(std::make_unique<Velopack::GithubSource>(repo));
+    std::string json = "{\"supported\":true,\"version\":" + JsonString(manager.GetCurrentVersion());
+    if (check) {
+      try {
+        if (auto info = manager.CheckForUpdates()) {
+          json += ",\"available\":" + JsonString(info->TargetFullRelease.Version) + ",\"notes\":" + JsonString(info->TargetFullRelease.NotesMarkdown);
+        }
+      } catch (std::exception const &e) {
+        json += ",\"error\":" + JsonString(e.what());
+      }
+    }
+    return json + "}";
+  } catch (std::exception const &e) {
+    // Not installed by the setup (a build started from its folder): nothing to update.
+    return "{\"supported\":false,\"error\":" + JsonString(e.what()) + "}";
+  }
+#else
+  (void)check;
+  return "{\"supported\":false}";
+#endif
+}
+
+/// Downloads the newest release and has Velopack apply it once this app has quit, then start it again. Returns
+/// what went wrong, or an empty string once the update waits for the app to quit.
+inline std::string DownloadAndApplyUpdate() {
+#ifdef WAKEN_VELOPACK
+  try {
+    auto repo = ReadLine(HostFolder().parent_path() / L"update.txt");
+    Velopack::UpdateManager manager(std::make_unique<Velopack::GithubSource>(repo));
+    auto info = manager.CheckForUpdates();
+    if (!info) return "Waken est déjà à jour.";
+    manager.DownloadUpdates(*info);
+    manager.WaitExitThenApplyUpdates(*info, false, true);
+    return {};
+  } catch (std::exception const &e) {
+    return e.what();
+  }
+#else
+  return "Mise à jour impossible : Waken n'a pas été installé par Waken-Setup.exe.";
+#endif
 }
 
 /// One key of the app's storage: a file named after it, nothing outside the store folder.
@@ -426,6 +503,31 @@ struct WakenHost {
   REACT_METHOD(setGamepadOptions)
   void setGamepadOptions(double rumble, bool motion, std::string kind) noexcept {
     Stream::Gamepads::Instance().SetOptions(rumble, motion, kind);
+  }
+
+  /// Réglages: updates through the GitHub releases (Velopack), as JSON; check asks GitHub.
+  REACT_METHOD(updateStatus)
+  void updateStatus(bool check, ReactPromise<std::string> &&result) noexcept {
+    std::thread([check, result = std::move(result)]() mutable { result.Resolve(UpdateStatusJson(check)); }).detach();
+  }
+
+  /// Réglages: downloads the newest release, then quits; Velopack installs it and starts Waken again.
+  REACT_METHOD(installUpdate)
+  void installUpdate(ReactPromise<void> &&result) noexcept {
+    std::thread([result = std::move(result)]() mutable {
+      auto error = DownloadAndApplyUpdate();
+      if (!error.empty()) return result.Reject(error.c_str());
+      result.Resolve();
+      // Velopack waits for this process to end. Sunshine, the agent and the network end with it (their job).
+      Sleep(500);
+      TerminateProcess(GetCurrentProcess(), 0);
+    }).detach();
+  }
+
+  /// Réglages: the copy started with Windows is older than this app (an update came since).
+  REACT_METHOD(startupOutdated)
+  void startupOutdated(ReactPromise<bool> &&result) noexcept {
+    std::thread([result = std::move(result)]() mutable { result.Resolve(StartupOutdated()); }).detach();
   }
 
   /// Réglages: does Waken start with Windows (and wake from the network)?

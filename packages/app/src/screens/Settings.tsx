@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Linking, Text, View } from 'react-native';
-import { ChevronRight, Gamepad2, LogOut, Power, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
+import { ChevronRight, Download, Gamepad2, LogOut, Power, RefreshCw, Server, Smartphone, Trash2, UserRound, Wifi } from 'lucide-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cloud, setNetworkMode, signOutAccount, useAccount } from '../account';
 import { hostDisplayName, validateApiUrl } from '@waken/core';
@@ -12,6 +12,7 @@ import { hasTunnel, signOut, useNetwork } from '../network';
 import { platform } from '../platform';
 import { qualities, qualityOf, type Quality } from '../quality';
 import { useWaken, type StreamEngine } from '../store';
+import { installUpdate, updateHint } from '../updates';
 import { PhoneHeader } from './parts';
 import { Screen } from './Screen';
 
@@ -59,6 +60,8 @@ export function SettingsScreen() {
           </Card>
 
           <StartupCard />
+
+          <UpdatesCard />
 
           <GamepadsCard />
 
@@ -114,6 +117,8 @@ function StartupCard() {
   const [busy, setBusy] = useState(false);
   const [fastStartupOff, setFastStartupOff] = useState(true);
   const { data: on } = useQuery({ queryKey: ['startup'], enabled: !!startup, queryFn: () => startup!.get() });
+  // After an update, the copy started with Windows stays the previous one until the script runs again.
+  const { data: outdated } = useQuery({ queryKey: ['startup-outdated'], enabled: !!startup?.outdated && !!on, queryFn: () => startup!.outdated!() });
   if (!startup) return null;
   const change = async (next: boolean) => {
     setBusy(true);
@@ -124,6 +129,7 @@ function StartupCard() {
     } finally {
       setBusy(false);
       void queryClient.invalidateQueries({ queryKey: ['startup'] });
+      void queryClient.invalidateQueries({ queryKey: ['startup-outdated'] });
     }
   };
   return (
@@ -143,6 +149,14 @@ function StartupCard() {
         // Kept on screen while Windows asks, so the row does not lose its switch; a second tap does nothing.
         onValueChange={(next) => (busy ? undefined : void change(next))}
       />
+      {on && outdated && !busy ? (
+        <View style={{ gap: 8 }}>
+          <Text style={[type.caption, { color: colors.ink2 }]}>
+            Waken a été mis à jour : la copie qui démarre avec Windows est encore l’ancienne version. Windows demandera ta confirmation.
+          </Text>
+          <PillButton label="Mettre à jour le démarrage" icon={RefreshCw} size="sm" onPress={() => void change(true)} />
+        </View>
+      ) : null}
       {!on ? (
         <SettingRow
           icon={Power}
@@ -156,6 +170,36 @@ function StartupCard() {
       <Text style={[type.caption, { color: colors.ink2 }]}>
         Reste à activer le Wake-on-LAN dans le BIOS. Depuis Internet : sur la box, une IP fixe pour ce PC et une redirection UDP du port 9 vers elle.
       </Text>
+    </Card>
+  );
+}
+
+/** The app's version and its updates from the GitHub releases (Windows: Velopack). Only where it can update. */
+function UpdatesCard() {
+  const updates = platform().updates;
+  const [installing, setInstalling] = useState(false);
+  const { data: status, refetch, isFetching } = useQuery({ queryKey: ['updates'], enabled: !!updates, queryFn: () => updates!.status(true) });
+  if (!updates || (status && !status.supported)) return null;
+  const install = async () => {
+    setInstalling(true);
+    await installUpdate();
+    // Still here: it went wrong (the alert said why), or there was nothing to install.
+    setInstalling(false);
+  };
+  return (
+    <Card style={{ gap: 12 }}>
+      <SettingRow
+        icon={Download}
+        color={status?.available ? colors.blue : colors.online}
+        label={status?.version ? `Waken ${status.version}` : 'Waken'}
+        hint={installing ? 'Téléchargement de la mise à jour, puis Waken redémarre…' : isFetching ? 'Recherche d’une mise à jour…' : updateHint(status)}
+      />
+      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+        {status?.available ? (
+          <PillButton label={`Installer la ${status.available}`} icon={Download} size="sm" disabled={installing} onPress={() => void install()} />
+        ) : null}
+        <PillButton label="Rechercher" icon={RefreshCw} size="sm" variant="white" disabled={isFetching || installing} onPress={() => void refetch()} />
+      </View>
     </Card>
   );
 }

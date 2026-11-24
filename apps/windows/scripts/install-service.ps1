@@ -11,7 +11,9 @@
 #   powershell -ExecutionPolicy Bypass -File apps\windows\scripts\install-service.ps1 -Uninstall
 # The app's Réglages run it too (a copy in its host folder), elevated after Windows' confirmation: -FromApp keeps
 # the app open and asks nothing, -DisableFastStartup answers the fast startup question.
-param([switch]$Uninstall, [switch]$FromApp, [switch]$DisableFastStartup)
+# -HostSource and -DataDir: the app installed without MSIX (Waken-Setup.exe, Velopack) gives its folders, Windows'
+# package list does not know it.
+param([switch]$Uninstall, [switch]$FromApp, [switch]$DisableFastStartup, [string]$HostSource, [string]$DataDir)
 
 $ErrorActionPreference = 'Stop'
 # Run from the app, PowerShell is elevated and hidden: an error would vanish with it. It goes to a window, and
@@ -53,15 +55,21 @@ if ($Uninstall) {
 }
 
 # 1. The app as installed: its host folder (agent, Sunshine, network), its secrets.
-$package = Get-AppxPackage -Name Waken | Select-Object -First 1
-if (-not $package) { throw 'Waken n''est pas installé : lance d''abord apps\windows\scripts\build.ps1 (ou install.ps1).' }
-# Beside Waken.exe, which sits in the package's Waken folder (or at its root, in older layouts).
-$hostSource = @('Waken\host', 'host') | ForEach-Object { Join-Path $package.InstallLocation $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $hostSource) { $hostSource = Join-Path $package.InstallLocation 'Waken\host' }
+if ($HostSource) {
+  # Installed without MSIX: the app said where it is and where it keeps its files.
+  $hostSource = $HostSource
+  $appData = if ($DataDir) { $DataDir } else { Join-Path $env:LOCALAPPDATA 'Waken' }
+} else {
+  $package = Get-AppxPackage -Name Waken | Select-Object -First 1
+  if (-not $package) { throw 'Waken n''est pas installé : lance d''abord apps\windows\scripts\build.ps1 (ou Waken-Setup.exe).' }
+  # Beside Waken.exe, which sits in the package's Waken folder (or at its root, in older layouts).
+  $hostSource = @('Waken\host', 'host') | ForEach-Object { Join-Path $package.InstallLocation $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $hostSource) { $hostSource = Join-Path $package.InstallLocation 'Waken\host' }
+  # The app's own files, where Windows keeps a packaged app's %LOCALAPPDATA%.
+  $appData = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Local\Waken"
+  if (-not (Test-Path (Join-Path $appData 'agent-token'))) { $appData = Join-Path $env:LOCALAPPDATA 'Waken' }
+}
 if (-not (Test-Path (Join-Path $hostSource 'agent\Waken.Agent.exe'))) { throw "L'agent manque dans l'app ($hostSource) : reconstruis-la avec build.ps1." }
-# The app's own files, where Windows keeps a packaged app's %LOCALAPPDATA%.
-$appData = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Local\Waken"
-if (-not (Test-Path (Join-Path $appData 'agent-token'))) { $appData = Join-Path $env:LOCALAPPDATA 'Waken' }
 $tokenFile = Join-Path $appData 'agent-token'
 $passwordFile = Join-Path $appData 'sunshine-admin'
 if (-not (Test-Path $tokenFile) -or -not (Test-Path $passwordFile)) { throw 'Ouvre Waken une fois (il crée ses clés), ferme-le, puis relance ce script.' }
