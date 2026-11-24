@@ -99,12 +99,25 @@ app.MapGet("/apps", (GameStreamClient gs, CancellationToken ct) =>
 
 app.MapPost("/launch", async (LaunchRequest req, GameStreamClient gs, GameLibrary library, SunshineAppSync sync, GameStats stats, CancellationToken ct) =>
 {
-    // A game installed since the last sync must be launchable at once.
+    var timer = new LaunchTimer();
     var games = await library.GetAsync(refresh: false, ct);
-    await TrySyncAsync(sync, games, ct);
+    timer.Mark("bibliothèque");
     return await CallSunshine(async () =>
     {
-        var launched = await gs.LaunchAsync(req.App, req.Width, req.Height, req.Fps, ct, req.Replace);
+        GameStreamClient.LaunchResult launched;
+        try
+        {
+            launched = await gs.LaunchAsync(req.App, req.Width, req.Height, req.Fps, ct, req.Replace, timer);
+        }
+        catch (SunshineAppMissingException)
+        {
+            // Syncing Sunshine's apps costs several admin calls: only for a game installed since the last sync
+            // (the list of games syncs them too).
+            await TrySyncAsync(sync, games, ct);
+            timer.Mark("synchro des apps");
+            launched = await gs.LaunchAsync(req.App, req.Width, req.Height, req.Fps, ct, req.Replace, timer);
+        }
+        app.Logger.LogInformation("Launch of {App}: {Timings}", req.App, timer);
         // Sunshine apps are named after the games: the session is counted for that game.
         if (games.FirstOrDefault(g => string.Equals(g.Title, req.App, StringComparison.OrdinalIgnoreCase)) is { } game) stats.Begin(game.Id, req.App);
         return Results.Ok(launched);

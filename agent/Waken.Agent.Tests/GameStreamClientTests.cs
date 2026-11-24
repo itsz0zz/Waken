@@ -86,9 +86,20 @@ public sealed class GameStreamClientTests : IDisposable
         var client = Client(sunshine);
         await client.LaunchAsync("Steam Big Picture", 1920, 1080, 60, _timeout.Token);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.LaunchAsync("Not configured", 1920, 1080, 60, _timeout.Token));
+        await Assert.ThrowsAsync<SunshineAppMissingException>(() => client.LaunchAsync("Not configured", 1920, 1080, 60, _timeout.Token));
 
         Assert.Equal(["launch"], sunshine.Verbs);
+    }
+
+    [Fact]
+    public async Task A_launch_reports_the_time_of_each_step()
+    {
+        await using var sunshine = await FakeSunshine.StartAsync(SunshineApi.PairingId);
+        var client = Client(sunshine);
+
+        var launched = await client.LaunchAsync("Steam Big Picture", 1920, 1080, 60, _timeout.Token, timer: new LaunchTimer());
+
+        Assert.Equal(["appairage", "attente lancement précédent", "état de Sunshine", "lancement"], launched.Timings!.Keys);
     }
 
     [Fact]

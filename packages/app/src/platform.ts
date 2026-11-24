@@ -4,7 +4,7 @@ import type { StreamSettings, TunnelApi, AppleCredential } from '@waken/core';
 
 /** What the native stream view reports (waken-stream on iOS, the AppKit view on Mac, Direct3D on Windows). */
 export type StreamState =
-  | { state: 'connecting' }
+  | { state: 'connecting'; stage?: string }
   | { state: 'streaming' }
   | { state: 'stopped' }
   | { state: 'error'; message: string };

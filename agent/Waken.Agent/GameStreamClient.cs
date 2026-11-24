@@ -22,6 +22,9 @@ public sealed class GameStreamClient
     private readonly SemaphoreSlim _pairLock = new(1, 1);
     private readonly SemaphoreSlim _launchLock = new(1, 1);
     private DateTime _lastLaunch = DateTime.MinValue;
+    // Checking the pairing is one more TLS exchange per call: it is trusted for a while, and forgotten on a 401.
+    private DateTime _pairedUntil = DateTime.MinValue;
+    private static readonly TimeSpan PairingTrust = TimeSpan.FromMinutes(10);
 
     public GameStreamClient(AgentOptions o, ILogger<GameStreamClient> log)
     {
@@ -142,10 +145,11 @@ public sealed class GameStreamClient
         };
     }
 
-    private static async Task<XElement> GetXml(HttpClient http, string url, CancellationToken ct)
+    private async Task<XElement> GetXml(HttpClient http, string url, CancellationToken ct)
     {
         var xml = XElement.Parse(await http.GetStringAsync(url, ct));
         var status = (int?)xml.Attribute("status_code") ?? 200;
+        if (status == Unauthorized) _pairedUntil = DateTime.MinValue;
         if (status != 200) throw new InvalidOperationException($"Sunshine: {status} {(string?)xml.Attribute("status_message")}");
         return xml;
     }
@@ -169,11 +173,13 @@ public sealed class GameStreamClient
 
     public async Task EnsurePairedAsync(CancellationToken ct)
     {
+        if (DateTime.UtcNow < _pairedUntil) return;
         await _pairLock.WaitAsync(ct);
         try
         {
-            if (await IsPairedAsync(ct)) return;
-            await PairAsync(ct);
+            if (DateTime.UtcNow < _pairedUntil) return;
+            if (!await IsPairedAsync(ct)) await PairAsync(ct);
+            _pairedUntil = DateTime.UtcNow + PairingTrust;
         }
         finally { _pairLock.Release(); }
     }
@@ -305,18 +311,21 @@ public sealed class GameStreamClient
         return (await AppsAsync(ct)).FirstOrDefault(a => a.Id == running).Title;
     }
 
-    public sealed record LaunchResult(string AppVersion, string? GfeVersion, string RtspSessionUrl, int ServerCodecModeSupport, string RiKey, int RiKeyId);
+    /// <param name="Timings">How long each step took, in ms (LaunchTimer), for the app's own log.</param>
+    public sealed record LaunchResult(string AppVersion, string? GfeVersion, string RtspSessionUrl, int ServerCodecModeSupport, string RiKey, int RiKeyId, IReadOnlyDictionary<string, long>? Timings = null);
 
-    public async Task<LaunchResult> LaunchAsync(string appTitle, int width, int height, int fps, CancellationToken ct, bool replace = false)
+    public async Task<LaunchResult> LaunchAsync(string appTitle, int width, int height, int fps, CancellationToken ct, bool replace = false, LaunchTimer? timer = null)
     {
         await EnsurePairedAsync(ct);
+        timer?.Mark("appairage");
         await _launchLock.WaitAsync(ct);
         try
         {
             // Sunshine ignores a launch while the previous one waits for its stream, yet answers 200: the new key would be lost.
             var window = TimeSpan.FromSeconds(_o.LaunchWindowSeconds);
             if (DateTime.UtcNow - _lastLaunch < window) await Task.Delay(window - (DateTime.UtcNow - _lastLaunch), ct);
-            return await LaunchOnceAsync(appTitle, width, height, fps, replace, ct);
+            timer?.Mark("attente lancement précédent");
+            return await LaunchOnceAsync(appTitle, width, height, fps, replace, ct, timer);
         }
         finally
         {
@@ -324,14 +333,15 @@ public sealed class GameStreamClient
         }
     }
 
-    private async Task<LaunchResult> LaunchOnceAsync(string appTitle, int width, int height, int fps, bool replace, CancellationToken ct)
+    private async Task<LaunchResult> LaunchOnceAsync(string appTitle, int width, int height, int fps, bool replace, CancellationToken ct, LaunchTimer? timer)
     {
         using var http = TlsClient();
         var info = await GetXml(http, $"{HttpsBase}/serverinfo?{Common}", ct);
         var apps = await AppsAsync(ct);
+        timer?.Mark("état de Sunshine");
         var app = apps.FirstOrDefault(a => string.Equals(a.Title, appTitle, StringComparison.OrdinalIgnoreCase));
         // No fallback to Desktop: launching another app would close the game that is running.
-        if (app == default) throw new InvalidOperationException($"Application « {appTitle} » introuvable dans Sunshine. Disponibles : {string.Join(", ", apps.Select(a => a.Title))}.");
+        if (app == default) throw new SunshineAppMissingException($"Application « {appTitle} » introuvable dans Sunshine. Disponibles : {string.Join(", ", apps.Select(a => a.Title))}.");
 
         var running = (int?)info.Element("currentgame") ?? 0;
         if (running != 0 && running != app.Id)
@@ -354,6 +364,7 @@ public sealed class GameStreamClient
         var xml = await GetXml(http,
             $"{HttpsBase}/{verb}?{Common}&appid={app.Id}&mode={width}x{height}x{fps}&additionalStates=1&sops=1" +
             $"&rikey={Convert.ToHexString(riKey)}&rikeyid={riKeyId}&corever=1&localAudioPlayMode=1&surroundAudioInfo=196610&remoteControllersBitmap=0&gcmap=0", ct);
+        timer?.Mark(verb == "resume" ? "reprise" : "lancement");
 
         return new LaunchResult(
             AppVersion: (string?)info.Element("appversion") ?? "7.1.431.-1",
@@ -361,7 +372,8 @@ public sealed class GameStreamClient
             RtspSessionUrl: (string?)xml.Element("sessionUrl0") ?? "",
             ServerCodecModeSupport: (int?)info.Element("ServerCodecModeSupport") ?? 0,
             RiKey: Convert.ToHexString(riKey),
-            RiKeyId: riKeyId);
+            RiKeyId: riKeyId,
+            Timings: timer?.Steps);
     }
 
     public async Task QuitAsync(CancellationToken ct)
@@ -370,6 +382,31 @@ public sealed class GameStreamClient
         using var http = TlsClient();
         await GetXml(http, $"{HttpsBase}/cancel?{Common}", ct);
     }
+}
+
+/// <summary>Sunshine has no app of that name: a game installed since the last sync of the apps.</summary>
+public sealed class SunshineAppMissingException(string message) : InvalidOperationException(message);
+
+/// <summary>
+/// The time each step of a launch took, to find where a slow connection loses its seconds (waken.log and the app's log).
+/// A step marked twice adds up.
+/// </summary>
+public sealed class LaunchTimer
+{
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private readonly Dictionary<string, long> _steps = [];
+    private long _last;
+
+    public IReadOnlyDictionary<string, long> Steps => _steps;
+
+    public void Mark(string step)
+    {
+        var now = _clock.ElapsedMilliseconds;
+        _steps[step] = _steps.GetValueOrDefault(step) + now - _last;
+        _last = now;
+    }
+
+    public override string ToString() => string.Join(", ", _steps.Select(s => $"{s.Key} {s.Value} ms")) + $", total {_clock.ElapsedMilliseconds} ms";
 }
 
 /// <summary>Another game runs on the PC: the caller has to ask before closing it.</summary>

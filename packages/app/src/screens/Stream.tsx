@@ -4,7 +4,7 @@ import { AgentClient, HttpError } from '@waken/core';
 import { colors, PillButton, type } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
-import { pathTo, pointStreamAt, streamAddress } from '../network';
+import { connectionLog, pathTo, pointStreamAt, streamAddress } from '../network';
 import { platform, type LaunchInfo, type StreamState, type StreamStats } from '../platform';
 import { fitToWindow, forPath } from '../quality';
 import { useWaken } from '../store';
@@ -13,6 +13,8 @@ import { applyChoices, defaultChoices, StreamHud, type StreamChoices } from './S
 const CONFLICT = 409;
 /** Connected without a single picture for this long: something is wrong on the computer. */
 const NO_PICTURE_MS = 20_000;
+/** How long a direct path may take to appear before the stream settles for the relay's quality. */
+const PATH_WAIT_MS = 3000;
 
 /**
  * In game: the native video view, and the HUD (StreamHud: one button, its menu, the figures).
@@ -25,8 +27,11 @@ export function StreamScreen({
   app: appParam,
   onLive,
   onFail,
+  startedAt,
 }: {
   deviceId: string;
+  /** When the player asked, for the timings of the log. */
+  startedAt?: number;
   gameId?: string;
   app?: string;
   onLive?: (live: boolean) => void;
@@ -54,6 +59,8 @@ export function StreamScreen({
   const [stats, setStats] = useState<StreamStats | null>(null);
   const [launch, setLaunch] = useState<LaunchInfo | null>(null);
   const requested = useRef(false);
+  const began = useRef(startedAt ?? Date.now());
+  const log = (step: string) => connectionLog(began.current, step);
   const title = game?.title ?? (appParam && appParam !== 'Desktop' ? appParam : 'Bureau');
   const window = useWindowDimensions();
 
@@ -63,8 +70,11 @@ export function StreamScreen({
     const agent = new AgentClient(device);
     const app = appParam || 'Desktop';
     const start = async (replace: boolean) => {
+      log('lancement demandé');
       await pointStreamAt(device);
-      const path = await pathTo(device);
+      // The search for a direct path started with Réveil (pointStreamAt): only what is left of its 3 s is waited for.
+      const path = await pathTo(device, Math.max(0, PATH_WAIT_MS - (Date.now() - began.current)));
+      log(`chemin ${path === 'direct' ? 'direct' : 'relayé'}`);
       // A PC's screen takes the window's shape for the stream (no black bars); a Mac keeps its own.
       const base = forPath(chosen, path);
       const fitted = device.detail === 'Mac' ? base : fitToWindow(base, Math.max(window.width, window.height), Math.min(window.width, window.height));
@@ -72,6 +82,8 @@ export function StreamScreen({
       setRelayed(path === 'relayed');
       setQ(quality);
       const launched = await agent.launch(app, quality, replace);
+      const steps = Object.entries(launched.timings ?? {}).map(([name, ms]) => `${name} ${ms} ms`);
+      log(`jeu lancé${steps.length ? ` (machine : ${steps.join(', ')})` : ''}`);
       setLaunch({ ...launched, address: await streamAddress(device) });
     };
     const fail = (e: Error) => setState({ state: 'error', message: `Lancement impossible : ${e.message}` });
@@ -99,6 +111,11 @@ export function StreamScreen({
   // (screen recording not allowed, a stale stream server) must not show a black screen.
   const live = state.state === 'streaming' && (stats?.fps ?? 0) > 0;
   useEffect(() => {
+    if (everLive) return;
+    const detail = state.state === 'connecting' ? state.stage : state.state === 'error' ? state.message : undefined;
+    log(`stream : ${state.state}${detail ? ` (${detail})` : ''}`);
+  }, [state]);
+  useEffect(() => {
     if (everLive || state.state !== 'streaming') return;
     const timer = setTimeout(
       () => onFail?.("Ta machine est connectée mais n'envoie aucune image. Sur le Mac, vérifie que Waken peut enregistrer l'écran, puis relance Waken."),
@@ -107,6 +124,7 @@ export function StreamScreen({
     return () => clearTimeout(timer);
   }, [state.state, everLive]);
   useEffect(() => {
+    if (live && !everLive) log('première image');
     if (live) setEverLive(true);
     onLive?.(live || everLive);
   }, [live]);
@@ -118,6 +136,7 @@ export function StreamScreen({
 
   // A setting of the menu: the stream starts again with it (the game keeps running, Sunshine resumes it).
   const changeChoices = (next: StreamChoices) => {
+    began.current = Date.now();
     setChoices(next);
     setLaunch(null);
     setStats(null);

@@ -6,7 +6,7 @@ import { wakeAndWait, withRelaySettings, type WakeProgress, type WakeStepId } fr
 import { AppMark, colors, Display, IconBubble, MachineChip, nativeDriver, PillButton, RoundButton, shadows, type, Wordmark } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
-import { pointStreamAt } from '../network';
+import { connectionLog, pointStreamAt } from '../network';
 import { platform } from '../platform';
 import { useWaken } from '../store';
 import { useMachineOf } from './parts';
@@ -103,8 +103,16 @@ export function WakeScreen({
         return nav.back();
       }
       if (useMoonlight && !settings.moonlightUrl) throw new Error("Renseigne le lien d'ouverture de Moonlight dans Réglages, Avancé.");
+      const began = Date.now();
       await pointStreamAt(device);
-      await wakeAndWait(withRelaySettings(device, settings), { signal: ctrl.signal, onProgress: setProgress });
+      connectionLog(began, 'tunnel pointé');
+      await wakeAndWait(withRelaySettings(device, settings), {
+        signal: ctrl.signal,
+        onProgress: (p) => {
+          connectionLog(began, `réveil : ${p.step}${p.message ? ` (${p.message})` : ''}`);
+          setProgress(p);
+        },
+      });
       if (ctrl.signal.aborted) return;
       if (only) return nav.back();
       if (gameId) markPlayed(gameId);
@@ -133,6 +141,7 @@ export function WakeScreen({
   const stream = streaming ? (
     <StreamScreen
       deviceId={device.id}
+      startedAt={startedAt}
       gameId={gameId}
       app={app}
       onLive={setLive}

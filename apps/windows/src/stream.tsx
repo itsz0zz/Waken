@@ -28,7 +28,8 @@ export function StreamView({ launch, settings, remote, muted, onStateChange, onS
       onStateChange={(e) => {
         const s = e.nativeEvent;
         if (s.state === 'error') onStateChange({ state: 'error', message: s.message ?? 'Erreur de stream' });
-        else if (s.state === 'streaming' || s.state === 'stopped' || s.state === 'connecting') onStateChange({ state: s.state });
+        else if (s.state === 'connecting') onStateChange({ state: 'connecting', stage: s.message });
+        else if (s.state === 'streaming' || s.state === 'stopped') onStateChange({ state: s.state });
       }}
       onStats={(e) => onStats(e.nativeEvent)}
     />

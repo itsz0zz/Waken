@@ -1,7 +1,7 @@
 import { requireNativeComponent, type NativeSyntheticEvent, type ViewProps } from 'react-native';
 import type { LaunchInfo, StreamViewProps } from '@waken/app';
 
-type NativeState = { state: 'connecting' | 'streaming' | 'stopped' | 'error'; message?: string };
+type NativeState = { state: 'connecting' | 'streaming' | 'stopped' | 'error'; message?: string; stage?: string };
 type NativeStats = { rttMs: number; fps: number; bitrateKbps: number; droppedFrames: number };
 
 /** The AppKit view (modules/waken-stream/macos): the iPhone's stream code, with the Mac's keyboard and mouse. */
@@ -35,7 +35,9 @@ export function StreamView({ launch, settings, remote, muted, onStateChange, onS
       muted={muted ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;
-        onStateChange(s.state === 'error' ? { state: 'error', message: s.message ?? 'Erreur de stream' } : { state: s.state });
+        if (s.state === 'error') onStateChange({ state: 'error', message: s.message ?? 'Erreur de stream' });
+        else if (s.state === 'connecting') onStateChange({ state: 'connecting', stage: s.stage });
+        else onStateChange({ state: s.state });
       }}
       onStats={(e) => onStats(e.nativeEvent)}
     />

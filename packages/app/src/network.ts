@@ -23,6 +23,14 @@ function report(status: TunnelStatus, network: string) {
   console.log(`[réseau] ${line}`);
 }
 
+/**
+ * One step of connecting to a computer, timed from the moment the player asked (the app's log, as [réseau]):
+ * where a slow connection loses its seconds.
+ */
+export function connectionLog(since: number, step: string) {
+  console.log(`[connexion] +${Date.now() - since} ms ${step}`);
+}
+
 export const hasTunnel = () => platform().tunnel != null;
 
 /**

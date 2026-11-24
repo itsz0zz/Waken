@@ -12,6 +12,8 @@ export interface AgentLaunch {
   serverCodecModeSupport: number;
   riKey: string;
   riKeyId: number;
+  /** How long each step took on the computer, in ms (agent 1.x+). */
+  timings?: Record<string, number>;
 }
 
 /**
