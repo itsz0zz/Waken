@@ -120,6 +120,9 @@ elseif (Test-Path $keyFile) { (Get-Content -Raw $keyFile).Trim() | Set-Content -
 else { Write-Host 'Pas de clé SteamGridDB : seuls les jeux Steam auront leur pochette.' -ForegroundColor Yellow }
 
 Step 'App Waken (React Native Windows)'
+# Fresh MSBuild processes, started from this window: reused ones keep the environment they were born with (a
+# PATH without pnpm or node, when Visual Studio started them).
+$env:MSBUILDDISABLENODEREUSE = '1'
 Push-Location $here
 $runArgs = @('exec', 'react-native', 'run-windows', '--arch', 'x64', '--logging')
 if (-not $Debug) { $runArgs += '--release' }
