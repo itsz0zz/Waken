@@ -157,6 +157,35 @@ app.MapGet("/games/{id}/{kind}", async (string id, string kind, string? size, Ga
     return Results.File(file, type, enableRangeProcessing: false);
 });
 
+// The library as the account's server keeps it: the machine's own app sends it there, every other device reads it
+// from there. Pictures are public addresses (SteamGridDB, Steam): nothing to fetch from this machine.
+app.MapGet("/library", async (GameLibrary library, SunshineAppSync sync, GameStats stats, ArtworkService artwork, CancellationToken ct) =>
+{
+    var games = await library.GetAsync(refresh: false, ct);
+    await TrySyncAsync(sync, games, ct);
+    var list = new List<object>(games.Count);
+    foreach (var game in games)
+    {
+        var played = stats.Of(game.Id);
+        list.Add(new
+        {
+            id = game.Id,
+            title = game.Title,
+            store = game.Store,
+            lastPlayed = played?.LastPlayed,
+            playSeconds = played?.Seconds ?? 0,
+            sessions = played?.Sessions ?? 0,
+            cover = await artwork.PublicUrlAsync(game, ArtworkKind.Cover, ct),
+            coverSmall = await artwork.PublicUrlAsync(game, ArtworkKind.Cover, ct, small: true),
+            hero = await artwork.PublicUrlAsync(game, ArtworkKind.Hero, ct),
+            heroSmall = await artwork.PublicUrlAsync(game, ArtworkKind.Hero, ct, small: true),
+            logo = await artwork.PublicUrlAsync(game, ArtworkKind.Logo, ct),
+            icon = await artwork.PublicUrlAsync(game, ArtworkKind.Icon, ct),
+        });
+    }
+    return Results.Ok(new { games = list, stats = stats.Summary() });
+});
+
 // Starts a game of this machine's library right here, for the desktop app playing on its own machine.
 // Only ids from the library: the command is the one the scan found, never one sent by the caller.
 app.MapPost("/games/{id}/start", async (string id, GameLibrary library, GameStats stats, CancellationToken ct) =>
@@ -184,6 +213,18 @@ app.MapPost("/quit", (GameStreamClient gs, CancellationToken ct) =>
 // Absolute paths: this runs as SYSTEM. No delay on shutdown: any /t above 0 implies /f, which discards unsaved work.
 app.MapPost("/shutdown", () => Run(Path.Combine(Environment.SystemDirectory, "shutdown.exe"), "/s /t 0"));
 app.MapPost("/sleep", () => Run(Path.Combine(Environment.SystemDirectory, "rundll32.exe"), "powrprof.dll,SetSuspendState 0,1,0"));
+
+// Sunshine's app list is slow to answer (15 s on the first real PC): read once Sunshine is up, before any launch.
+app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
+{
+    var gs = app.Services.GetRequiredService<GameStreamClient>();
+    var stopping = app.Lifetime.ApplicationStopping;
+    for (var attempt = 0; attempt < 60 && !stopping.IsCancellationRequested; attempt++)
+    {
+        if (await gs.RefreshAppsAsync(stopping)) return;
+        try { await Task.Delay(TimeSpan.FromSeconds(5), stopping); } catch (OperationCanceledException) { return; }
+    }
+}));
 
 app.Run();
 

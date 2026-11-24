@@ -25,7 +25,7 @@ export function mergeLibrary(found: Record<string, HostGame[]>, kept: Game[], la
         deviceId,
         sunshineApp: g.title,
         store: g.store,
-        art: { cover: g.cover, hero: g.hero, logo: g.logo, icon: g.icon },
+        art: { cover: g.cover ?? undefined, hero: g.hero ?? undefined, logo: g.logo ?? undefined, icon: g.icon ?? undefined },
         // The machine's own date wins when it is later: a game played from another device counts here too.
         lastPlayedAt: latest(lastPlayed[id], g.lastPlayed ?? undefined),
         playSeconds: g.playSeconds,

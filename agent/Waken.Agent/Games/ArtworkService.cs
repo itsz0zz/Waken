@@ -42,7 +42,7 @@ public sealed class ArtworkService(HttpClient http, string cacheDir, string? ste
         try
         {
             var cached = Directory.Exists(folder)
-                ? Directory.EnumerateFiles(folder, name + ".*").Where(f => Path.GetFileNameWithoutExtension(f) == name).FirstOrDefault(f => !f.EndsWith(".miss", StringComparison.Ordinal) && !f.EndsWith(".part", StringComparison.Ordinal))
+                ? Directory.EnumerateFiles(folder, name + ".*").Where(f => Path.GetFileNameWithoutExtension(f) == name).FirstOrDefault(f => !f.EndsWith(".miss", StringComparison.Ordinal) && !f.EndsWith(".part", StringComparison.Ordinal) && !f.EndsWith(UrlSuffix, StringComparison.Ordinal))
                 : null;
             if (cached is not null) return cached;
 
@@ -57,6 +57,7 @@ public sealed class ArtworkService(HttpClient http, string cacheDir, string? ste
                     if (await DownloadAsync(url, Path.Combine(folder, name), ct) is { } saved)
                     {
                         File.Delete(miss);
+                        await File.WriteAllTextAsync(Path.Combine(folder, name + UrlSuffix), url, ct);
                         return saved;
                     }
                 }
@@ -68,6 +69,24 @@ public sealed class ArtworkService(HttpClient http, string cacheDir, string? ste
         {
             gate.Release();
         }
+    }
+
+    private const string UrlSuffix = ".url";
+
+    /// <summary>
+    /// The public address of the picture (SteamGridDB's or Steam's CDN), for the account's library on the server:
+    /// the other devices load it without reaching this machine. Null when the only picture is the app's own icon.
+    /// </summary>
+    public async Task<string?> PublicUrlAsync(GameEntry game, ArtworkKind kind, CancellationToken ct, bool small = false)
+    {
+        var file = await GetAsync(game, kind, ct, small);
+        if (file is null || Path.GetFileNameWithoutExtension(file) == "app-icon") return null;
+        var sidecar = Path.Combine(Path.GetDirectoryName(file)!, Path.GetFileNameWithoutExtension(file) + UrlSuffix);
+        if (File.Exists(sidecar)) return (await File.ReadAllTextAsync(sidecar, ct)).Trim() is { Length: > 0 } known ? known : null;
+        // Downloaded before the addresses were kept: the first candidate is the one that was taken.
+        var first = (await CandidatesAsync(game, kind, small, ct)).FirstOrDefault();
+        if (first is not null) await File.WriteAllTextAsync(sidecar, first, ct);
+        return first;
     }
 
     /// <summary>The app's own icon as PNG, kept apart from the official art so it never hides it.</summary>

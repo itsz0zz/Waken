@@ -25,10 +25,10 @@ public sealed class GameStreamClient
     // Checking the pairing is one more TLS exchange per call: it is trusted for a while, and forgotten on a 401.
     private DateTime _pairedUntil = DateTime.MinValue;
     private static readonly TimeSpan PairingTrust = TimeSpan.FromMinutes(10);
-    // Sunshine's apps only change with a sync (ForgetApps) or by hand in its UI: a launch reuses them for a while.
+    // Sunshine's app list took 15 s to answer on the first real PC: it is read in the background (at start, after a
+    // sync) and a launch uses the one remembered. Read again when a launch does not find its game or fails with it.
     private List<(int Id, string Title)>? _apps;
-    private DateTime _appsUntil = DateTime.MinValue;
-    private static readonly TimeSpan AppsTrust = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan SunshineStartWait = TimeSpan.FromSeconds(20);
 
     public GameStreamClient(AgentOptions o, ILogger<GameStreamClient> log)
     {
@@ -303,15 +303,54 @@ public sealed class GameStreamClient
         var xml = await GetXml(http, $"{HttpsBase}/applist?{Common}", ct);
         var apps = xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
         _apps = apps;
-        _appsUntil = DateTime.UtcNow + AppsTrust;
         return apps;
     }
 
-    /// <summary>After a change of Sunshine's apps: the next launch reads them again.</summary>
-    public void ForgetApps() => _appsUntil = DateTime.MinValue;
+    /// <summary>After a change of Sunshine's apps: read again now, in the background, so the next launch has them.</summary>
+    public void ForgetApps()
+    {
+        _apps = null;
+        _ = RefreshAppsAsync(CancellationToken.None);
+    }
 
-    private async Task<List<(int Id, string Title)>> KnownAppsAsync(CancellationToken ct) =>
-        _apps is { } apps && DateTime.UtcNow < _appsUntil ? apps : await AppsAsync(ct);
+    /// <summary>Reads Sunshine's apps ahead of any launch. False when Sunshine is not there yet.</summary>
+    public async Task<bool> RefreshAppsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await AppsAsync(ct);
+            return true;
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            _log.LogDebug(e, "Sunshine apps not read yet");
+            return false;
+        }
+    }
+
+    private async Task<List<(int Id, string Title)>> KnownAppsAsync(CancellationToken ct) => _apps ?? await AppsAsync(ct);
+
+    /// <summary>
+    /// Sunshine restarting (a new setting, the agent just started it): its port refuses for a few seconds.
+    /// A launch then waits for it instead of failing.
+    /// </summary>
+    private async Task WaitForSunshineAsync(CancellationToken ct)
+    {
+        var until = DateTime.UtcNow + SunshineStartWait;
+        while (true)
+        {
+            try
+            {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                await tcp.ConnectAsync(_o.SunshineHost, _o.SunshinePort + HttpsPortOffset, ct);
+                return;
+            }
+            catch (System.Net.Sockets.SocketException) when (DateTime.UtcNow < until)
+            {
+                await Task.Delay(500, ct);
+            }
+        }
+    }
 
     /// <summary>The title of the app Sunshine is streaming, or null when nothing runs.</summary>
     public async Task<string?> CurrentAppAsync(CancellationToken ct)
@@ -321,7 +360,7 @@ public sealed class GameStreamClient
         var info = await GetXml(http, $"{HttpsBase}/serverinfo?{Common}", ct);
         var running = (int?)info.Element("currentgame") ?? 0;
         if (running == 0) return null;
-        return (await AppsAsync(ct)).FirstOrDefault(a => a.Id == running).Title;
+        return (await KnownAppsAsync(ct)).FirstOrDefault(a => a.Id == running).Title;
     }
 
     /// <param name="Timings">How long each step took, in ms (LaunchTimer), for the app's own log.</param>
@@ -329,6 +368,8 @@ public sealed class GameStreamClient
 
     public async Task<LaunchResult> LaunchAsync(string appTitle, int width, int height, int fps, CancellationToken ct, bool replace = false, LaunchTimer? timer = null)
     {
+        await WaitForSunshineAsync(ct);
+        timer?.Mark("attente de Sunshine");
         await EnsurePairedAsync(ct);
         timer?.Mark("appairage");
         await _launchLock.WaitAsync(ct);
@@ -338,7 +379,18 @@ public sealed class GameStreamClient
             var window = TimeSpan.FromSeconds(_o.LaunchWindowSeconds);
             if (DateTime.UtcNow - _lastLaunch < window) await Task.Delay(window - (DateTime.UtcNow - _lastLaunch), ct);
             timer?.Mark("attente lancement précédent");
-            return await LaunchOnceAsync(appTitle, width, height, fps, replace, ct, timer);
+            var remembered = _apps is not null;
+            try
+            {
+                return await LaunchOnceAsync(appTitle, width, height, fps, replace, ct, timer);
+            }
+            catch (InvalidOperationException e) when (remembered && e is not SunshineAppMissingException)
+            {
+                // Sunshine refused the remembered id: its apps changed by hand since. Its own list decides.
+                _log.LogInformation("Launch with the remembered apps failed ({Message}), reading them again", e.Message);
+                _apps = null;
+                return await LaunchOnceAsync(appTitle, width, height, fps, replace, ct, timer);
+            }
         }
         finally
         {
@@ -351,7 +403,7 @@ public sealed class GameStreamClient
         using var http = TlsClient();
         var info = await GetXml(http, $"{HttpsBase}/serverinfo?{Common}", ct);
         timer?.Mark("état de Sunshine");
-        var remembered = _apps is not null && DateTime.UtcNow < _appsUntil;
+        var remembered = _apps is not null;
         var apps = await KnownAppsAsync(ct);
         var app = apps.FirstOrDefault(a => string.Equals(a.Title, appTitle, StringComparison.OrdinalIgnoreCase));
         // Not in the remembered list: perhaps added since, Sunshine's own list decides.

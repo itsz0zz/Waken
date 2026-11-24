@@ -225,6 +225,7 @@ app.MapPost("/account/delete", async (DeleteAccount body, ClaimsPrincipal me, Us
     }
     await db.PushDevices.Where(d => d.UserId == user.Id).ExecuteDeleteAsync(ct);
     await db.Notifications.Where(n => n.UserId == user.Id).ExecuteDeleteAsync(ct);
+    await db.Libraries.Where(l => l.UserId == user.Id).ExecuteDeleteAsync(ct);
     if (await users.GetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.RefreshToken) is { } appleRefresh
         && await users.GetAuthenticationTokenAsync(user, AppleLogin.Provider, AppleLogin.ClientId) is { } appleClient)
         await apple.RevokeAsync(appleRefresh, appleClient, ct);
@@ -289,6 +290,8 @@ app.MapPost("/events/session-ended", async (SessionEnded body, ClaimsPrincipal m
     await notifier.NotifyAsync(userId, new PushMessage($"Fin de partie : {game}", $"{SessionEnded.Duration(body.Seconds)} de jeu.{streak}", "session"), ct);
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("account");
+
+app.MapLibrary(cloud);
 
 app.Run();
 

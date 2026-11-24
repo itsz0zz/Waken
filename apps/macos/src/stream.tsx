@@ -15,13 +15,14 @@ const NativeStreamView = requireNativeComponent<
     hevc: boolean;
     remote: boolean;
     muted: boolean;
+    paused: boolean;
     onStateChange: (e: NativeSyntheticEvent<NativeState>) => void;
     onStats: (e: NativeSyntheticEvent<NativeStats>) => void;
   }
 >('WakenStreamView');
 
 /** Playing from this Mac on another of the owner's computers, behind the shared screens' simpler props. */
-export function StreamView({ launch, settings, remote, muted, onStateChange, onStats }: StreamViewProps) {
+export function StreamView({ launch, settings, remote, muted, paused, onStateChange, onStats }: StreamViewProps) {
   return (
     <NativeStreamView
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -33,6 +34,7 @@ export function StreamView({ launch, settings, remote, muted, onStateChange, onS
       hevc={settings.codec !== 'h264'}
       remote={remote}
       muted={muted ?? false}
+      paused={paused ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;
         if (s.state === 'error') onStateChange({ state: 'error', message: s.message ?? 'Erreur de stream' });

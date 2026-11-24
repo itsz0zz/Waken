@@ -1,4 +1,5 @@
 import { fetchWithTimeout, HttpError, json } from './http';
+import type { CloudLibrary, MachineLibrary } from './types';
 
 /** What the Waken accounts give after signing in. The app keeps it in its secure storage. */
 export interface CloudSession {
@@ -118,6 +119,19 @@ export class WakenCloud {
 
   removeDevice(id: string) {
     return this.call<void>(`/network/devices/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  /** Every machine's games, as their own apps last sent them: shown even with the machine off. */
+  library() {
+    return this.call<CloudLibrary[]>('/library');
+  }
+
+  /** A machine's own app sends its games (machine: its name on the Waken network). */
+  putLibrary(machine: string, library: MachineLibrary) {
+    return this.call<void>(`/library/${encodeURIComponent(machine.toLowerCase())}`, {
+      method: 'PUT',
+      body: JSON.stringify(library),
+    });
   }
 
   /** This device receives the account's notifications (an APNs token). */

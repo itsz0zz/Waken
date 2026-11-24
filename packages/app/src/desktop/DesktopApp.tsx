@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { colors, fonts, PressScale, type, Wordmark } from '@waken/ui';
 import { usePushRegistration } from '../account';
 import { useLibrarySync } from '../hooks';
+import { useLibraryPublisher } from '../libraryPublisher';
 import { FrameContext, NavContext } from '../nav';
 import { useNetworkRunner } from '../network';
 import { useSessionRecaps } from '../recaps';
@@ -64,6 +65,7 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   // This computer streams: the end of a session here sends its recap to the account's other devices.
   useSessionRecaps(useWaken((s) => s.devices.find((d) => d.local)));
   useLibrarySync();
+  useLibraryPublisher();
   const { route, tab, nav } = useDesktopNav();
   const host = useHost();
   useEffect(() => {

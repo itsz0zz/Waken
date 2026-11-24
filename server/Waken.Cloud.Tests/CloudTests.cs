@@ -445,6 +445,93 @@ public sealed class CloudTests : IDisposable
         Assert.False((await other.GetFromJsonAsync<JsonElement>("/notifications"))[0].GetProperty("read").GetBoolean());
     }
 
+    private static object Library(params string[] titles) => new
+    {
+        games = titles.Select(t => new { id = "steam:" + t.Length, title = t, store = "steam", cover = "https://cdn2.steamgriddb.com/" + t }).ToArray(),
+        stats = new { streakDays = 2, monthSeconds = 3600, sessions = 4 },
+    };
+
+    [Fact]
+    public async Task A_computer_s_library_is_read_by_the_account_s_other_devices()
+    {
+        using var mac = await SignedInAsync("enzo@waken.test");
+        Assert.Equal(HttpStatusCode.NoContent, (await mac.PutAsJsonAsync("/library/Mac-de-Enzo", Library("Hytale", "Portal"))).StatusCode);
+
+        using var phone = _api.CreateClient();
+        phone.DefaultRequestHeaders.Authorization = mac.DefaultRequestHeaders.Authorization;
+        var libraries = await phone.GetFromJsonAsync<JsonElement>("/library");
+        var only = Assert.Single(libraries.EnumerateArray());
+        Assert.Equal("mac-de-enzo", only.GetProperty("machine").GetString());
+        Assert.Equal(["Hytale", "Portal"], only.GetProperty("games").EnumerateArray().Select(g => g.GetProperty("title").GetString()));
+        Assert.Equal(2, only.GetProperty("stats").GetProperty("streakDays").GetInt32());
+    }
+
+    [Fact]
+    public async Task Sending_the_library_again_replaces_it()
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        await client.PutAsJsonAsync("/library/pc", Library("Hytale", "Portal"));
+        await client.PutAsJsonAsync("/library/pc", Library("Rocket League"));
+
+        var only = Assert.Single((await client.GetFromJsonAsync<JsonElement>("/library")).EnumerateArray());
+        Assert.Equal(["Rocket League"], only.GetProperty("games").EnumerateArray().Select(g => g.GetProperty("title").GetString()));
+    }
+
+    [Fact]
+    public async Task An_account_never_sees_another_s_library()
+    {
+        using var enzo = await SignedInAsync("enzo@waken.test");
+        using var other = await SignedInAsync("autre@waken.test");
+        await other.PutAsJsonAsync("/library/pc", Library("Hytale"));
+
+        Assert.Empty((await enzo.GetFromJsonAsync<JsonElement>("/library")).EnumerateArray());
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"games\": [{\"title\": \"sans id\"}]}")]
+    [InlineData("pas du json")]
+    public async Task A_malformed_library_is_refused(string body)
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        var res = await client.PutAsync("/library/pc", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_bad_machine_name_is_refused()
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/library/..%2Fetc", Library("Hytale"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_library_too_large_is_refused()
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        var huge = new { games = new[] { new { id = "x", title = new string('a', LibraryEndpoints.MaxBytes) } } };
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await client.PutAsJsonAsync("/library/pc", huge)).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_library_needs_a_signed_in_account()
+    {
+        using var client = _api.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/library")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PutAsJsonAsync("/library/pc", Library("Hytale"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Deleting_the_account_removes_its_libraries()
+    {
+        using var client = await SignedInAsync("enzo@waken.test");
+        await client.PutAsJsonAsync("/library/pc", Library("Hytale"));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync("/account/delete", new { password = Password })).StatusCode);
+
+        using var scope = _api.Services.CreateScope();
+        Assert.Empty(scope.ServiceProvider.GetRequiredService<CloudDb>().Libraries);
+    }
+
     [Fact]
     public async Task Health_is_open()
     {

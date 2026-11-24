@@ -81,10 +81,26 @@ export interface HostGame {
   lastPlayed?: string | null;
   playSeconds?: number;
   sessions?: number;
-  cover: string;
-  hero: string;
-  logo: string;
-  icon: string;
+  /** A path on the agent (/games/...), or a public address in the account's library (SteamGridDB, Steam). */
+  cover: string | null;
+  hero: string | null;
+  logo: string | null;
+  icon: string | null;
+  /** Public library only: the light versions, for phones. */
+  coverSmall?: string | null;
+  heroSmall?: string | null;
+}
+
+/** What a machine's own app sends to the account's server, and every other device reads there. */
+export interface MachineLibrary {
+  games: HostGame[];
+  stats?: HostStats;
+}
+
+/** One machine's library on the account's server: machine is its name on the Waken network, lower case. */
+export interface CloudLibrary extends MachineLibrary {
+  machine: string;
+  updatedAt: string;
 }
 
 export type WakeStepId = 'signal' | 'ping' | 'service' | 'stream';

@@ -1,4 +1,4 @@
-import type { Device, HostGame, HostStats, StreamSettings } from './types';
+import type { Device, HostGame, HostStats, MachineLibrary, StreamSettings } from './types';
 import { json } from './http';
 
 /** The first launch also pairs the agent with Sunshine, and starting an encoder takes a few seconds. */
@@ -38,6 +38,14 @@ export class AgentClient {
   /** Games installed on the host, whatever the store. refresh rescans the disks instead of the 5 minute cache. */
   games(refresh = false) {
     return json<HostGame[]>(`${this.base}/games${refresh ? '?refresh=true' : ''}`, { headers: this.headers });
+  }
+
+  /**
+   * The library for the account's server, pictures as public addresses. The first call after new games finds and
+   * checks their pictures: slow, hence its long timeout.
+   */
+  library() {
+    return json<MachineLibrary>(`${this.base}/library`, { headers: this.headers }, 180_000);
   }
 
   /**

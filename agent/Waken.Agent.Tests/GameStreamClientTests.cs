@@ -99,7 +99,32 @@ public sealed class GameStreamClientTests : IDisposable
 
         var launched = await client.LaunchAsync("Steam Big Picture", 1920, 1080, 60, _timeout.Token, timer: new LaunchTimer());
 
-        Assert.Equal(["appairage", "attente lancement précédent", "état de Sunshine", "liste des apps", "lancement"], launched.Timings!.Keys);
+        Assert.Equal(["attente de Sunshine", "appairage", "attente lancement précédent", "état de Sunshine", "liste des apps", "lancement"], launched.Timings!.Keys);
+    }
+
+    [Fact]
+    public async Task A_launch_uses_the_apps_read_ahead()
+    {
+        await using var sunshine = await FakeSunshine.StartAsync(SunshineApi.PairingId);
+        var client = Client(sunshine);
+        Assert.True(await client.RefreshAppsAsync(_timeout.Token));
+
+        await client.LaunchAsync("Steam Big Picture", 1920, 1080, 60, _timeout.Token);
+
+        Assert.Equal(1, sunshine.AppListRequests);
+        Assert.Equal(["launch"], sunshine.Verbs);
+    }
+
+    [Fact]
+    public async Task A_game_missing_from_the_remembered_apps_is_looked_up_again()
+    {
+        await using var sunshine = await FakeSunshine.StartAsync(SunshineApi.PairingId);
+        var client = Client(sunshine);
+        await client.RefreshAppsAsync(_timeout.Token);
+
+        await Assert.ThrowsAsync<SunshineAppMissingException>(() => client.LaunchAsync("Pas encore là", 1920, 1080, 60, _timeout.Token));
+
+        Assert.Equal(2, sunshine.AppListRequests);
     }
 
     [Fact]

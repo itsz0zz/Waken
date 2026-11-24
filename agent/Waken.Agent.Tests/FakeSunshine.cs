@@ -64,6 +64,8 @@ internal sealed class FakeSunshine : IAsyncDisposable
     public int AdminRequests => _adminRequests;
     public List<string> ApprovedIds { get; } = [];
     public List<string> Verbs { get; } = [];
+    /// <summary>How many times the app list was asked (slow on a real PC: a launch should not need it).</summary>
+    public int AppListRequests { get; private set; }
     public int CurrentGame { get; set; }
     public int TransientFailures { get; set; }
     public TimeSpan PendingLaunchWindow { get; set; } = TimeSpan.Zero;
@@ -142,6 +144,7 @@ internal sealed class FakeSunshine : IAsyncDisposable
                     new XElement("PairStatus", 1), new XElement("appversion", "7.1.431.-1"), new XElement("GfeVersion", "3.23.0.74"),
                     new XElement("ServerCodecModeSupport", 257), new XElement("currentgame", CurrentGame));
             case "/applist":
+                AppListRequests++;
                 return XmlAsync(context, 200,
                     App("Desktop", 1), App("Steam Big Picture", 2));
             case "/launch":

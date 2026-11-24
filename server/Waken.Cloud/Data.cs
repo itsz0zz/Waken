@@ -18,6 +18,7 @@ public sealed class CloudDb(DbContextOptions<CloudDb> options) : IdentityDbConte
 {
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<AccountNotification> Notifications => Set<AccountNotification>();
+    public DbSet<MachineLibrary> Libraries => Set<MachineLibrary>();
 
     /// <summary>
     /// Tables added after the first deployment: EnsureCreated only creates a database that does not exist yet.
@@ -35,6 +36,13 @@ public sealed class CloudDb(DbContextOptions<CloudDb> options) : IdentityDbConte
                 "CreatedAt" TEXT NOT NULL,
                 "Read" INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS "IX_Notifications_UserId" ON "Notifications" ("UserId");
+            CREATE TABLE IF NOT EXISTS "Libraries" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_Libraries" PRIMARY KEY AUTOINCREMENT,
+                "UserId" TEXT NOT NULL,
+                "Machine" TEXT NOT NULL,
+                "Payload" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Libraries_UserId_Machine" ON "Libraries" ("UserId", "Machine");
             """);
     }
 
@@ -49,6 +57,12 @@ public sealed class CloudDb(DbContextOptions<CloudDb> options) : IdentityDbConte
             e.Property(d => d.Token).HasMaxLength(200);
             e.Property(d => d.Name).HasMaxLength(80);
             e.Property(d => d.Platform).HasMaxLength(10);
+        });
+        builder.Entity<MachineLibrary>(e =>
+        {
+            e.ToTable("Libraries");
+            e.HasIndex(l => new { l.UserId, l.Machine }).IsUnique();
+            e.Property(l => l.UpdatedAt).HasConversion(v => v.UtcDateTime.ToString("O"), v => DateTimeOffset.Parse(v));
         });
         builder.Entity<AccountNotification>(e =>
         {

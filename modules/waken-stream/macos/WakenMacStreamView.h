@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL hevc;
 @property (nonatomic) BOOL remote;
 @property (nonatomic) BOOL muted;
+/// The HUD's menu is open: the cursor shows and the input stays on the Mac.
+@property (nonatomic) BOOL paused;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onStateChange;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onStats;
 

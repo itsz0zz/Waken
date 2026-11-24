@@ -55,6 +55,7 @@ export function StreamScreen({
   // What the player changed from the menu: sound at once, the rest by restarting the stream with it.
   const [choices, setChoices] = useState<StreamChoices>(defaultChoices);
   const [muted, setMuted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [state, setState] = useState<StreamState>({ state: 'connecting' });
   const [stats, setStats] = useState<StreamStats | null>(null);
   const [launch, setLaunch] = useState<LaunchInfo | null>(null);
@@ -185,7 +186,7 @@ export function StreamScreen({
   return (
     // Not live yet: there, connecting, but invisible and untouchable over the screen underneath.
     <View collapsable={false} style={[styles.root, !everLive && styles.hidden]} pointerEvents={everLive ? 'auto' : 'none'}>
-      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} onStateChange={setState} onStats={setStats} /> : null}
+      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} paused={menuOpen} onStateChange={setState} onStats={setStats} /> : null}
       {everLive ? (
         <StreamHud
           title={title}
@@ -201,6 +202,7 @@ export function StreamScreen({
           onFullscreen={setFullscreen ? toggleFullscreen : undefined}
           onKeyboard={toggleKeyboard}
           onLeave={leave}
+          onMenu={setMenuOpen}
         />
       ) : null}
     </View>

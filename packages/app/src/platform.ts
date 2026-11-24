@@ -26,6 +26,8 @@ export interface StreamViewProps {
   remote: boolean;
   /** The sound off, the picture on (the HUD's menu). */
   muted?: boolean;
+  /** The HUD's menu is open: the pointer and keys stay with this device (the Mac shows its cursor again). */
+  paused?: boolean;
   onStateChange: (s: StreamState) => void;
   onStats: (s: StreamStats) => void;
 }

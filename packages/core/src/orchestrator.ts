@@ -27,10 +27,13 @@ export async function wakeAndWait(device: Device, opts: WakeOptions = {}): Promi
   const emit = (step: WakeStepId, message?: string) => opts.onProgress?.({ step, states: { ...states }, elapsedMs: Date.now() - start, message });
 
   if (!device.stream) throw new Error(`${device.name} n'a pas de cible de stream configurée.`);
-  const { host, sunshinePort } = device.stream;
+  const { host, sunshinePort, tunnelHost } = device.stream;
+  // Through the Waken network, 127.0.0.1 is this device's own end of the tunnel (on a Mac, its own Sunshine):
+  // the machine's agent, reached by its name, says it is ready instead (it starts once Sunshine is up).
+  const streamReady = () => (tunnelHost ? probeAgent(device) : probeSunshine(host, sunshinePort).then((s) => !!s));
 
   // Already up? Skip straight to the stream.
-  const [sunshine, agent] = await Promise.all([probeSunshine(host, sunshinePort), probeAgent(device)]);
+  const [sunshine, agent] = await Promise.all([streamReady(), probeAgent(device)]);
   throwIfAborted(opts.signal);
   if (sunshine) {
     states.signal = states.ping = states.service = 'done';
@@ -68,7 +71,7 @@ export async function wakeAndWait(device: Device, opts: WakeOptions = {}): Promi
       states.service = 'running';
       emit('service');
     }
-    if (await probeSunshine(host, sunshinePort)) {
+    if (await streamReady()) {
       states.ping = 'done';
       states.service = 'done';
       states.stream = 'running';

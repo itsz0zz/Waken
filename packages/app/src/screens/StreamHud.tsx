@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Activity,
@@ -61,6 +61,7 @@ export function StreamHud({
   onFullscreen,
   onKeyboard,
   onLeave,
+  onMenu,
 }: {
   title: string;
   state: StreamState;
@@ -77,8 +78,11 @@ export function StreamHud({
   onFullscreen?: () => void;
   onKeyboard?: () => void;
   onLeave: () => void;
+  /** The menu opens or closes: the stream view lets the pointer go meanwhile. */
+  onMenu?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => onMenu?.(open), [open]);
   const [section, setSection] = useState<Section>(null);
   const [figures, setFigures] = useState(false);
   const [hidden, setHidden] = useState(false);

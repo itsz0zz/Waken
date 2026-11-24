@@ -190,3 +190,32 @@ describe('canWake', () => {
     expect(canWake({ id: 'nas', name: 'Homelab', kind: 'homelab', wake: { type: 'none' } })).toBe(false);
   });
 });
+
+describe('Through the Waken network', () => {
+  // 127.0.0.1 is this device's own end of the tunnel: on a Mac, its own Sunshine answers there.
+  const tunnelled = (): Device => ({
+    id: 'pc',
+    name: 'PC',
+    kind: 'pc',
+    wake: { type: 'none' },
+    stream: { host: '127.0.0.1', agentUrl: 'http://127.0.0.1:47102/h/pc/', tunnelHost: 'pc' },
+  });
+
+  it('does not take this Mac’s own Sunshine for the machine’s', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url.includes(':47989/')) return new Response('<root><appversion>7.1.431.-1</appversion></root>');
+      throw new TypeError('unreachable');
+    });
+    await expect(wakeAndWait(tunnelled(), fast)).rejects.toThrow();
+  });
+
+  it('is ready when the machine’s agent answers', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url.includes('/h/pc/health')) return new Response('{"ok":true}');
+      throw new TypeError('unreachable');
+    });
+    const steps: string[] = [];
+    await wakeAndWait(tunnelled(), { ...fast, onProgress: (p) => steps.push(p.message ?? p.step) });
+    expect(steps).toEqual(['Déjà allumé']);
+  });
+});

@@ -135,6 +135,15 @@ static short Clamp(CGFloat value) {
   _muted = v;
   _session.muted = v;
 }
+/// The HUD's menu is open over the picture: the Mac's cursor shows, and nothing goes to the computer meanwhile
+/// (the tracking area still sees the moves over the menu). Held keys and buttons are let go.
+- (void)setPaused:(BOOL)v {
+  _paused = v;
+  if (!v) return;
+  [self releaseKeys];
+  for (int button = 1; button <= 5; button++) [self releaseButton:button];
+  [self showCursor];
+}
 - (void)setRemote:(BOOL)v {
   _remote = v;
   _config.remote = v;
@@ -286,7 +295,7 @@ static short Clamp(CGFloat value) {
 
 /// The computer draws its own cursor in the picture: the Mac's one hides over it, not over the dead zone.
 - (void)mouseEntered:(NSEvent *)event {
-  if (![self inDeadZone:event]) [self hideCursor];
+  if (!_paused && ![self inDeadZone:event]) [self hideCursor];
 }
 - (void)hideCursor {
   if (_session && !_cursorHidden) {
@@ -309,7 +318,7 @@ static short Clamp(CGFloat value) {
 
 /// Where the pointer is, in the picture shown aspect-fit in the view. The black bars clamp to the edges.
 - (void)movePointer:(NSEvent *)event {
-  if (!_session || _config.width <= 0 || _config.height <= 0) return;
+  if (!_session || _paused || _config.width <= 0 || _config.height <= 0) return;
   if (_buttons == 0 && [self inDeadZone:event]) {
     [self showCursor];
     return;
@@ -342,7 +351,7 @@ static short Clamp(CGFloat value) {
 
 // Buttons as moonlight-common-c numbers them: 1 left, 2 middle, 3 right, 4 and 5 the side ones.
 - (void)press:(int)button event:(NSEvent *)event {
-  if ([self inDeadZone:event]) return;
+  if (_paused || [self inDeadZone:event]) return;
   [self.window makeFirstResponder:self];
   [self movePointer:event];
   _buttons |= 1 << button;
@@ -377,7 +386,7 @@ static short Clamp(CGFloat value) {
 
 /// 120 is one notch of a wheel. A trackpad scrolls in points: about ten of them make a notch.
 - (void)scrollWheel:(NSEvent *)event {
-  if ([self inDeadZone:event]) return;
+  if (_paused || [self inDeadZone:event]) return;
   CGFloat amount = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY * 12 : event.scrollingDeltaY * 120;
   _scrollRest += amount;
   CGFloat whole = trunc(_scrollRest);
@@ -405,7 +414,7 @@ static short Clamp(CGFloat value) {
   // A held key: the Mac repeats its keyDown about 30 times a second. The computer repeats on its own side, as with
   // a local keyboard, so only the first press goes (as Moonlight does): the repeats queued behind every other key
   // on the input channel, and games saw combinations late or not at all.
-  if (event.isARepeat) return;
+  if (event.isARepeat || _paused) return;
   uint16_t vk = WindowsKey(event.keyCode);
   if (!vk) return;
   [_pressedKeys addObject:@(vk)];
