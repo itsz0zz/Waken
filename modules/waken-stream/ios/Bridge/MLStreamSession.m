@@ -30,6 +30,8 @@ static dispatch_queue_t ConnectionQueue(void) {
 // them in bursts, and shown as they came the picture stuttered. How many may wait is WakenSmoothing.h's call.
 /// The moment a paced sample was handed to the decoder callback (WakenFrameTiming.h, WakenSmoothing.h).
 static CFStringRef const kWakenSubmittedUs = CFSTR("WakenSubmittedUs");
+/// The moment the computer captured it (its own clock), for the HUD's steadiness (WakenFrameTiming.h).
+static CFStringRef const kWakenPresentationUs = CFSTR("WakenPresentationUs");
 #if TARGET_OS_OSX
 #import <CoreVideo/CoreVideo.h>
 static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output, CVOptionFlags flags,
@@ -78,7 +80,6 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
   CFMutableArrayRef _paced;
   os_unfair_lock _pacedLock;
   WakenSmoothing _smoothing;
-  uint64_t _lastShownUs;
 #if TARGET_OS_OSX
   // A refresh of the Mac's screen: CVDisplayLink, its own high priority thread.
   CVDisplayLinkRef _link;
@@ -100,7 +101,6 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
     _paced = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
     _pacedLock = OS_UNFAIR_LOCK_INIT;
     _smoothing.enabled = 1;
-    _smoothing.primed = 1;
   }
   return self;
 }
@@ -393,6 +393,10 @@ static void ClConnectionStatusUpdate(int status) {}
   CFNumberRef submitted = CFNumberCreate(NULL, kCFNumberSInt64Type, &submittedUs);
   CMSetAttachment(sample, kWakenSubmittedUs, submitted, kCMAttachmentMode_ShouldNotPropagate);
   CFRelease(submitted);
+  const int64_t presentationUs = (int64_t)du->presentationTimeUs;
+  CFNumberRef presentation = CFNumberCreate(NULL, kCFNumberSInt64Type, &presentationUs);
+  CMSetAttachment(sample, kWakenPresentationUs, presentation, kCMAttachmentMode_ShouldNotPropagate);
+  CFRelease(presentation);
   [self paceFrame:sample presentation:du->presentationTimeUs arrival:du->enqueueTimeUs];
   CFRelease(sample);
 
@@ -417,12 +421,13 @@ static void ClConnectionStatusUpdate(int status) {}
 
 #pragma mark - Pacing
 
-static uint64_t SubmittedUs(CMSampleBufferRef sample) {
-  CFNumberRef submitted = CMGetAttachment(sample, kWakenSubmittedUs, NULL);
+static uint64_t AttachedUs(CMSampleBufferRef sample, CFStringRef key) {
+  CFNumberRef value = CMGetAttachment(sample, key, NULL);
   int64_t us = 0;
-  if (submitted) CFNumberGetValue(submitted, kCFNumberSInt64Type, &us);
+  if (value) CFNumberGetValue(value, kCFNumberSInt64Type, &us);
   return (uint64_t)us;
 }
+static uint64_t SubmittedUs(CMSampleBufferRef sample) { return AttachedUs(sample, kWakenSubmittedUs); }
 
 /// On the network thread: the frame waits for a refresh. The display link starts with the first one.
 - (void)paceFrame:(CMSampleBufferRef)sample presentation:(uint64_t)presentationUs arrival:(uint64_t)arrivalUs {
@@ -469,18 +474,18 @@ static uint64_t SubmittedUs(CMSampleBufferRef sample) {
   CFMutableArrayRef batch = NULL;
   os_unfair_lock_lock(&_pacedLock);
   CFIndex count = CFArrayGetCount(_paced);
-  double oldestWaitMs = 0;
-  if (count > 0) {
-    const uint64_t oldest = SubmittedUs((CMSampleBufferRef)CFArrayGetValueAtIndex(_paced, 0));
-    if (oldest > 0 && now > oldest) oldestWaitMs = (double)(now - oldest) / 1000.0;
+  // The frames whose time came: their capture on the computer plus the reserve's fixed delay.
+  int due = 0;
+  for (CFIndex i = 0; i < count; i++) {
+    CMSampleBufferRef sample = (CMSampleBufferRef)CFArrayGetValueAtIndex(_paced, i);
+    if (WakenSmoothingDueUs(&_smoothing, AttachedUs(sample, kWakenPresentationUs), frameMs) > now) break;
+    due++;
   }
-  const double sinceShownMs = _lastShownUs > 0 && now > _lastShownUs ? (double)(now - _lastShownUs) / 1000.0 : 1e9;
-  const CFIndex take = WakenSmoothingTake(&_smoothing, (int)count, oldestWaitMs, sinceShownMs, frameMs);
+  const CFIndex take = WakenSmoothingTake(&_smoothing, (int)count, due);
   if (take > 0) {
     batch = CFArrayCreateMutable(NULL, take, &kCFTypeArrayCallBacks);
     CFArrayAppendArray(batch, _paced, CFRangeMake(0, take));
     CFArrayReplaceValues(_paced, CFRangeMake(0, take), NULL, 0);
-    _lastShownUs = now;
   }
   os_unfair_lock_unlock(&_pacedLock);
   if (!batch) return;
@@ -500,7 +505,7 @@ static uint64_t SubmittedUs(CMSampleBufferRef sample) {
       _dropped++;
     }
     [_displayLayer enqueueSampleBuffer:sample];
-    if (i == total - 1) [self frameShown:SubmittedUs(sample)];
+    if (i == total - 1) [self frameShown:SubmittedUs(sample) presentation:AttachedUs(sample, kWakenPresentationUs)];
   }
   CFRelease(batch);
 }
@@ -508,7 +513,6 @@ static uint64_t SubmittedUs(CMSampleBufferRef sample) {
 - (void)stopPacing {
   os_unfair_lock_lock(&_pacedLock);
   CFArrayRemoveAllValues(_paced);
-  _lastShownUs = 0;
 #if TARGET_OS_OSX
   CVDisplayLinkRef link = _link;
   _link = NULL;
@@ -536,10 +540,7 @@ static uint64_t SubmittedUs(CMSampleBufferRef sample) {
 - (void)setSmoothing:(BOOL)smoothing {
   os_unfair_lock_lock(&_pacedLock);
   _smoothing.enabled = smoothing ? 1 : 0;
-  if (!smoothing) {
-    _smoothing.target = 0;
-    _smoothing.primed = 1;
-  }
+  if (!smoothing) _smoothing.target = 0;
   os_unfair_lock_unlock(&_pacedLock);
 }
 
@@ -560,9 +561,10 @@ static uint64_t SubmittedUs(CMSampleBufferRef sample) {
 #pragma mark - Stats
 
 /// A frame handed to the display layer, on the display link (Mac) or the main thread (iPhone).
-- (void)frameShown:(uint64_t)submittedUs {
+- (void)frameShown:(uint64_t)submittedUs presentation:(uint64_t)presentationUs {
+  const uint64_t now = LiGetMicroseconds();
   os_unfair_lock_lock(&_timingLock);
-  WakenFrameShown(&_timing, submittedUs, LiGetMicroseconds());
+  WakenFrameShown(&_timing, submittedUs, presentationUs, now);
   os_unfair_lock_unlock(&_timingLock);
 }
 

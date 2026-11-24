@@ -18,14 +18,17 @@ typedef struct {
   double queueMs;
   /// Handed to the decoder until it is given to the screen: decoding on Windows, the wait for a refresh on Apple.
   double displayMs;
-  /// How unsteady the frames reach the screen: the standard deviation of the gap between two of them.
+  /// How unsteady the frames reach the screen: the standard deviation of each frame's delay from its capture on
+  /// the computer to this screen. Steady (near 0), the motion is smooth whatever the frame rate: Sunshine sends
+  /// fewer frames when the screen barely moves, so the gaps between frames say nothing on their own.
   double jitterMs;
 } WakenFrameTimes;
 
 typedef struct {
-  double host, receive, queue, display, gaps, gapsSquared;
-  uint32_t frames, hostFrames, shown, gapCount;
-  uint64_t lastShownUs;
+  double host, receive, queue, display, delays, delaysSquared;
+  uint32_t frames, hostFrames, shown, delayCount;
+  /// The computer's clock and this one's differ by a constant: delays are kept from the window's first one.
+  int64_t delayBaseUs;
 } WakenFrameWindow;
 
 /// A complete frame reaches the decoder callback (nowUs).
@@ -40,22 +43,21 @@ static inline void WakenFrameReceived(WakenFrameWindow *w, uint16_t hostLatencyT
   w->frames++;
 }
 
-/// The frame handed to the decoder at submittedUs is given to the screen (nowUs).
-static inline void WakenFrameShown(WakenFrameWindow *w, uint64_t submittedUs, uint64_t nowUs) {
+/// The frame captured at presentationUs (the computer's clock, moonlight-common-c's presentationTimeUs) and handed
+/// to the decoder at submittedUs is given to the screen (nowUs).
+static inline void WakenFrameShown(WakenFrameWindow *w, uint64_t submittedUs, uint64_t presentationUs, uint64_t nowUs) {
   if (submittedUs > 0 && nowUs >= submittedUs) {
     w->display += (double)(nowUs - submittedUs) / 1000.0;
     w->shown++;
   }
-  if (w->lastShownUs > 0 && nowUs > w->lastShownUs) {
-    const double gap = (double)(nowUs - w->lastShownUs) / 1000.0;
-    // A pause (menu open, stream held) is not unsteadiness.
-    if (gap < 250.0) {
-      w->gaps += gap;
-      w->gapsSquared += gap * gap;
-      w->gapCount++;
-    }
+  if (presentationUs > 0) {
+    const int64_t delayUs = (int64_t)nowUs - (int64_t)presentationUs;
+    if (w->delayCount == 0) w->delayBaseUs = delayUs;
+    const double delay = (double)(delayUs - w->delayBaseUs) / 1000.0;
+    w->delays += delay;
+    w->delaysSquared += delay * delay;
+    w->delayCount++;
   }
-  w->lastShownUs = nowUs;
 }
 
 /// The averages of the window, which starts again.
@@ -68,13 +70,11 @@ static inline WakenFrameTimes WakenFrameClose(WakenFrameWindow *w) {
     t.queueMs = w->queue / w->frames;
   }
   if (w->shown) t.displayMs = w->display / w->shown;
-  if (w->gapCount > 1) {
-    const double mean = w->gaps / w->gapCount;
-    const double variance = w->gapsSquared / w->gapCount - mean * mean;
+  if (w->delayCount > 1) {
+    const double mean = w->delays / w->delayCount;
+    const double variance = w->delaysSquared / w->delayCount - mean * mean;
     t.jitterMs = variance > 0 ? sqrt(variance) : 0;
   }
-  const uint64_t last = w->lastShownUs;
   memset(w, 0, sizeof(*w));
-  w->lastShownUs = last;
   return t;
 }

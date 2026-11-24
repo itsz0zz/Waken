@@ -75,8 +75,6 @@ int VideoRenderer::Setup(int videoFormat, int width, int height, int fps) {
     const int enabled = m_smoothing.enabled;
     m_smoothing = {};
     m_smoothing.enabled = enabled;
-    m_smoothing.primed = 1;
-    m_lastShownUs = 0;
   }
   if (!m_timer) m_timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
   m_fps = fps > 0 ? fps : 60;
@@ -169,7 +167,7 @@ int VideoRenderer::Submit(PDECODE_UNIT unit) {
   for (PLENTRY entry = unit->bufferList; entry; entry = entry->next) {
     picture.insert(picture.end(), entry->data, entry->data + entry->length);
   }
-  return SubmitAnnexB(picture.data(), picture.size(), unit->frameType == FRAME_TYPE_IDR, submittedUs);
+  return SubmitAnnexB(picture.data(), picture.size(), unit->frameType == FRAME_TYPE_IDR, submittedUs, unit->presentationTimeUs);
 }
 
 WakenFrameTimes VideoRenderer::CloseTimes() {
@@ -181,10 +179,7 @@ WakenFrameTimes VideoRenderer::CloseTimes() {
 void VideoRenderer::SetSmoothing(bool on) {
   std::lock_guard timing(m_timingLock);
   m_smoothing.enabled = on ? 1 : 0;
-  if (!on) {
-    m_smoothing.target = 0;
-    m_smoothing.primed = 1;
-  }
+  if (!on) m_smoothing.target = 0;
 }
 
 int VideoRenderer::ReserveFrames() {
@@ -205,37 +200,24 @@ void VideoRenderer::SleepUs(int64_t us) {
 
 void VideoRenderer::Pace(PDECODE_UNIT unit) {
   const double frameMs = 1000.0 / (m_fps > 0 ? m_fps : 60);
+  uint64_t due = 0;
   int target = 0;
-  bool primed = true;
-  uint64_t lastShown = 0;
   {
     std::lock_guard timing(m_timingLock);
     target = m_smoothing.target;
-    primed = m_smoothing.primed != 0;
-    lastShown = m_lastShownUs;
+    due = WakenSmoothingDueUs(&m_smoothing, unit->presentationTimeUs, frameMs);
   }
   // No reserve: decoded and shown at once, as moonlight hands it over.
-  if (target == 0) return;
-  // The frames moonlight holds after this one are the reserve (the decoder thread waits here, they queue there).
-  if (!primed) {
-    // Fills again after running dry: enough frames, or this one waited the reserve's time (a still screen).
-    const double reserveMs = target * frameMs;
-    while (LiGetPendingVideoFrames() + 1 < target) {
-      const uint64_t now = LiGetMicroseconds();
-      if (unit->enqueueTimeUs > 0 && now > unit->enqueueTimeUs && (now - unit->enqueueTimeUs) / 1000.0 >= reserveMs) break;
-      SleepUs(1000);
-    }
-    std::lock_guard timing(m_timingLock);
-    m_smoothing.primed = 1;
-  } else if (lastShown > 0 && LiGetPendingVideoFrames() <= target + 1) {
-    // One frame per frame interval; more than the reserve and a margin waiting, the late ones go at once.
-    const uint64_t due = lastShown + static_cast<uint64_t>(frameMs * 1000.0);
-    const uint64_t now = LiGetMicroseconds();
-    if (due > now) SleepUs(static_cast<int64_t>(due - now));
-  }
+  if (due == 0) return;
+  // Far behind (a stall of the network): no waiting, the queue empties.
+  if (LiGetPendingVideoFrames() > target + 3) return;
+  const uint64_t now = LiGetMicroseconds();
+  // Never more than the reserve and a margin, whatever the clocks say.
+  const uint64_t longest = static_cast<uint64_t>((target + 3) * frameMs * 1000.0);
+  if (due > now) SleepUs(static_cast<int64_t>(due - now < longest ? due - now : longest));
 }
 
-int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe, uint64_t submittedUs) {
+int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe, uint64_t submittedUs, uint64_t presentationUs) {
   std::lock_guard lock(m_lock);
   if (!m_decoder) return DR_NEED_IDR;
   m_picture.assign(data, data + size);
@@ -297,10 +279,7 @@ int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe,
     if (submittedUs) {
       const uint64_t shown = LiGetMicroseconds();
       std::lock_guard timing(m_timingLock);
-      WakenFrameShown(&m_timing, submittedUs, shown);
-      m_lastShownUs = shown;
-      // Nothing left behind this one: the reserve ran dry and fills again before the next frames go.
-      if (m_smoothing.target > 0 && LiGetPendingVideoFrames() == 0) m_smoothing.primed = 0;
+      WakenFrameShown(&m_timing, submittedUs, presentationUs, shown);
     }
   }
   bytes += static_cast<uint64_t>(size);

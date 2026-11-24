@@ -41,8 +41,9 @@ class VideoRenderer {
   int Setup(int videoFormat, int width, int height, int fps);
   int Submit(PDECODE_UNIT unit);
   /// A whole picture in Annex B (a PlayStation's, through chiaki): DR_OK, or DR_NEED_IDR when it could not be decoded.
-  /// submittedUs (LiGetMicroseconds) times the frame until it is on screen; 0 leaves it out of the HUD's timings.
-  int SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe, uint64_t submittedUs = 0);
+  /// submittedUs (LiGetMicroseconds) times the frame until it is on screen, presentationUs is its capture on the
+  /// computer (moonlight-common-c's presentationTimeUs); 0 leaves it out of the HUD's timings.
+  int SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe, uint64_t submittedUs = 0, uint64_t presentationUs = 0);
   void Cleanup();
 
   std::atomic<uint64_t> frames{0}, bytes{0}, dropped{0};
@@ -57,7 +58,8 @@ class VideoRenderer {
   bool SetOutputType();
   bool Present(IMFSample *sample);
   bool EnsureProcessor(UINT inputWidth, UINT inputHeight);
-  /// On the decoder thread, before decoding: waits while the reserve fills, then one frame per frame interval.
+  /// On the decoder thread, before decoding: with a reserve, waits for the frame's time (its capture plus a fixed
+  /// delay); the next frames wait in moonlight-common-c's queue meanwhile.
   void Pace(PDECODE_UNIT unit);
   void SleepUs(int64_t us);
 
@@ -65,8 +67,7 @@ class VideoRenderer {
   std::mutex m_timingLock;
   WakenFrameWindow m_timing{};
   // Under m_timingLock too.
-  WakenSmoothing m_smoothing{1, 0, 1, 0, 0, 0, 0};
-  uint64_t m_lastShownUs = 0;
+  WakenSmoothing m_smoothing{.enabled = 1};
   // Sleep() goes by steps of about 15.6 ms, more than a frame: a high resolution timer paces them.
   HANDLE m_timer = nullptr;
   int m_width = 0, m_height = 0, m_fps = 60;
