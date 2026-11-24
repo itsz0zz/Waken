@@ -66,6 +66,10 @@ fi
 sh "$repo/tunnel/build.sh" >/dev/null
 cp "$repo/tunnel/build/waken-tunnel" "$res/waken-tunnel"
 
+# A build number of its own (the moment it was built): macOS keeps app icons by identifier and version, and an
+# entry made when the app had none (or for the old host-only app, same identifier) would otherwise stay.
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d.%H%M)" "$app/Contents/Info.plist"
+
 # 6. Signature: the developer certificate keeps macOS permissions from one build to the next.
 # Sunshine keeps LizardByte's signature.
 identity=$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' | head -1)

@@ -41,7 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
       source.setEventHandler {
         HostServices.shared.stop()
-        exit(0)
+        Self.quitNow()
       }
       source.resume()
       signalSources.append(source)
@@ -51,6 +51,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   /// Sunshine, the agent and the network helper stop with the app, never orphaned.
   func applicationWillTerminate(_ notification: Notification) {
     HostServices.shared.stop()
+    Self.quitNow()
+  }
+
+  /// Ends the process once the services are stopped. exit() would run C++ destructors that tear React Native
+  /// down while its JavaScript thread still runs (an animation's setNativeProps then aborted on a destroyed view
+  /// tree, and every quit ended in a crash report): nothing is left to save at this point.
+  static func quitNow() -> Never {
+    UserDefaults.standard.synchronize()
+    _exit(0)
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
