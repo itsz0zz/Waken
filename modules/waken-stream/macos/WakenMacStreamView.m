@@ -271,10 +271,6 @@ static short Clamp(CGFloat value) {
 }
 - (void)streamStarted {
   [self emitState:@{@"state" : @"streaming"}];
-  // The controllers already plugged in, said once the connection takes input.
-  dispatch_async(dispatch_get_main_queue(), ^{
-    for (GCController *controller in GCController.controllers) [self announceController:controller];
-  });
 }
 - (void)streamTerminated:(int)errorCode {
   [self emitState:@{@"state" : errorCode == 0 ? @"stopped" : @"error", @"message" : [NSString stringWithFormat:@"Connexion terminée (%d)", errorCode]}];
@@ -469,81 +465,14 @@ static short Clamp(CGFloat value) {
   [_pressedKeys removeAllObjects];
 }
 
-// MARK: Controllers
+// MARK: Focus
 
+/// The controllers are the session's own (MLGamepads); the view only lets go of the keys when the app loses focus.
 - (void)watchControllers {
   __weak WakenMacStreamView *weakSelf = self;
-  NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
-  [_observers addObject:[center addObserverForName:GCControllerDidConnectNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-    [weakSelf bindController:note.object];
-  }]];
-  [_observers addObject:[center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+  [_observers addObject:[NSNotificationCenter.defaultCenter addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
     [weakSelf releaseKeys];
   }]];
-  for (GCController *controller in GCController.controllers) [self bindController:controller];
-}
-
-static short ControllerIndex(GCController *controller) {
-  return (short)MAX(0, (NSInteger)[GCController.controllers indexOfObject:controller]);
-}
-
-static short ControllerMask(void) {
-  short mask = 0;
-  for (NSUInteger i = 0; i < GCController.controllers.count && i < 16; i++) {
-    if (GCController.controllers[i].extendedGamepad) mask |= (short)(1 << i);
-  }
-  return mask;
-}
-
-/// A DualSense or DualShock as a PlayStation controller, anything else as an Xbox one: Sunshine emulates that kind.
-- (void)announceController:(GCController *)controller {
-  if (!controller.extendedGamepad) return;
-  NSString *category = controller.productCategory ?: @"";
-  unsigned char type = ([category containsString:@"DualSense"] || [category containsString:@"DualShock"]) ? LI_CTYPE_PS : LI_CTYPE_XBOX;
-  [_session sendControllerArrival:ControllerIndex(controller) mask:ControllerMask() type:type];
-}
-
-/// Gamepad to LiSendMultiControllerEvent. Button bits follow moonlight-common-c (Limelight.h).
-- (void)bindController:(GCController *)controller {
-  GCExtendedGamepad *pad = controller.extendedGamepad;
-  if (!pad) return;
-  [self announceController:controller];
-  short index = ControllerIndex(controller);
-  __weak WakenMacStreamView *weakSelf = self;
-  pad.valueChangedHandler = ^(GCExtendedGamepad *gp, GCControllerElement *element) {
-    int b = 0;
-    if (gp.buttonA.isPressed) b |= 0x1000;
-    if (gp.buttonB.isPressed) b |= 0x2000;
-    if (gp.buttonX.isPressed) b |= 0x4000;
-    if (gp.buttonY.isPressed) b |= 0x8000;
-    if (gp.dpad.up.isPressed) b |= 0x0001;
-    if (gp.dpad.down.isPressed) b |= 0x0002;
-    if (gp.dpad.left.isPressed) b |= 0x0004;
-    if (gp.dpad.right.isPressed) b |= 0x0008;
-    if (gp.buttonMenu.isPressed) b |= 0x0010;
-    if (gp.buttonOptions.isPressed) b |= 0x0020;
-    if (gp.leftThumbstickButton.isPressed) b |= 0x0040;
-    if (gp.rightThumbstickButton.isPressed) b |= 0x0080;
-    if (gp.leftShoulder.isPressed) b |= 0x0100;
-    if (gp.rightShoulder.isPressed) b |= 0x0200;
-    if (gp.buttonHome.isPressed) b |= 0x0400;
-    // Sony's touchpad click, and the share/capture button of the newer controllers.
-    if ([gp isKindOfClass:GCDualSenseGamepad.class] && ((GCDualSenseGamepad *)gp).touchpadButton.isPressed) b |= TOUCHPAD_FLAG;
-    if ([gp isKindOfClass:GCDualShockGamepad.class] && ((GCDualShockGamepad *)gp).touchpadButton.isPressed) b |= TOUCHPAD_FLAG;
-    if ([gp isKindOfClass:GCXboxGamepad.class] && ((GCXboxGamepad *)gp).buttonShare.isPressed) b |= MISC_FLAG;
-    short (^axis)(float) = ^short(float v) { return (short)MAX(-32768, MIN(32767, v * 32767)); };
-    WakenMacStreamView *view = weakSelf;
-    if (!view) return;
-    [view->_session sendController:index
-                           buttons:b
-                                lt:(unsigned char)(gp.leftTrigger.value * 255)
-                                rt:(unsigned char)(gp.rightTrigger.value * 255)
-                                lx:axis(gp.leftThumbstick.xAxis.value)
-                                ly:axis(gp.leftThumbstick.yAxis.value)
-                                rx:axis(gp.rightThumbstick.xAxis.value)
-                                ry:axis(gp.rightThumbstick.yAxis.value)
-                        activeMask:ControllerMask()];
-  };
 }
 
 @end

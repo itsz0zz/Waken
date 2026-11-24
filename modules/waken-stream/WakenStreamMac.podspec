@@ -27,7 +27,7 @@ Pod::Spec.new do |s|
   s.preserve_paths = 'ios/vendor/moonlight-common-c/**/*.h'
   s.exclude_files = 'ios/vendor/moonlight-common-c/enet/win32.c'
   s.public_header_files = ['ios/Bridge/MLStreamSession.h', 'macos/WakenMacStreamView.h']
-  s.frameworks = 'VideoToolbox', 'AVFoundation', 'AudioToolbox', 'CoreMedia', 'CoreVideo', 'GameController', 'IOKit', 'Carbon'
+  s.frameworks = 'VideoToolbox', 'AVFoundation', 'AudioToolbox', 'CoreMedia', 'CoreVideo', 'GameController', 'CoreHaptics', 'IOKit', 'Carbon'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/ios/vendor/moonlight-common-c/src" "$(PODS_TARGET_SRCROOT)/ios/vendor/moonlight-common-c/enet/include" "$(PODS_TARGET_SRCROOT)/ios/vendor/moonlight-common-c/nanors" "$(PODS_TARGET_SRCROOT)/ios/vendor/moonlight-common-c/nanors/deps/obl"',

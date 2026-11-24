@@ -2,6 +2,7 @@
 #import <VideoToolbox/VideoToolbox.h>
 #include <arpa/inet.h>
 #import "WakenAudioPlayer.h"
+#import "MLGamepads.h"
 #include "Limelight.h"
 #include "WakenAnnexB.h"
 #include <stdatomic.h>
@@ -41,6 +42,8 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
 - (void)stopAudio;
 - (void)playAudio:(const char *)data length:(int)length;
 - (void)stageFailed:(NSString *)name error:(int)errorCode;
+/// This stream's controllers: started once connected, stopped with the stream. Main thread only.
+@property (nonatomic, readonly) MLGamepads *gamepads;
 @end
 
 @implementation MLStreamSession {
@@ -70,6 +73,7 @@ static CVReturn PaceFrame(CVDisplayLinkRef link, const CVTimeStamp *now, const C
   if ((self = [super init])) {
     _launch = launch;
     _config = config;
+    _gamepads = [MLGamepads new];
     _displayLayer = [AVSampleBufferDisplayLayer new];
     _displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     _displayLayer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
@@ -141,7 +145,23 @@ static void ClLogMessage(const char *format, ...) {
   NSLogv([NSString stringWithUTF8String:format], args);
   va_end(args);
 }
-static void ClRumble(unsigned short controllerNumber, unsigned short lowFreqMotor, unsigned short highFreqMotor) {}
+// What the computer asks of the controllers, from moonlight's threads: played on the main thread, where they live.
+static void ClRumble(unsigned short controllerNumber, unsigned short lowFreqMotor, unsigned short highFreqMotor) {
+  MLGamepads *gamepads = gSession.gamepads;
+  dispatch_async(dispatch_get_main_queue(), ^{ [gamepads rumble:controllerNumber low:lowFreqMotor high:highFreqMotor]; });
+}
+static void ClRumbleTriggers(uint16_t controllerNumber, uint16_t leftTriggerMotor, uint16_t rightTriggerMotor) {
+  MLGamepads *gamepads = gSession.gamepads;
+  dispatch_async(dispatch_get_main_queue(), ^{ [gamepads rumbleTriggers:controllerNumber left:leftTriggerMotor right:rightTriggerMotor]; });
+}
+static void ClSetMotionEventState(uint16_t controllerNumber, uint8_t motionType, uint16_t reportRateHz) {
+  MLGamepads *gamepads = gSession.gamepads;
+  dispatch_async(dispatch_get_main_queue(), ^{ [gamepads motion:controllerNumber type:motionType rate:reportRateHz]; });
+}
+static void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t b) {
+  MLGamepads *gamepads = gSession.gamepads;
+  dispatch_async(dispatch_get_main_queue(), ^{ [gamepads light:controllerNumber red:r green:g blue:b]; });
+}
 static void ClConnectionStatusUpdate(int status) {}
 
 #pragma mark - Lifecycle
@@ -212,12 +232,19 @@ static void ClConnectionStatusUpdate(int status) {}
   cl.connectionTerminated = ClConnectionTerminated;
   cl.logMessage = ClLogMessage;
   cl.rumble = ClRumble;
+  cl.rumbleTriggers = ClRumbleTriggers;
+  cl.setMotionEventState = ClSetMotionEventState;
+  cl.setControllerLED = ClSetControllerLED;
   cl.connectionStatusUpdate = ClConnectionStatusUpdate;
 
   _windowStart = CFAbsoluteTimeGetCurrent();
   int result = LiStartConnection(&server, &cfg, &cl, &dr, &ar, NULL, 0, NULL, 0);
   if (result == 0) {
     atomic_store(&_connected, true);
+    // The controllers connected now are announced, the next ones as they come.
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (!atomic_load(&self->_cancelled)) [self->_gamepads start];
+    });
   } else if (!atomic_load(&_failureReported)) {
     [self stageFailed:@"connexion" error:result];
   }
@@ -229,6 +256,8 @@ static void ClConnectionStatusUpdate(int status) {}
   [self stopPacing];
 #endif
   atomic_store(&_connected, false);
+  MLGamepads *gamepads = _gamepads;
+  dispatch_async(dispatch_get_main_queue(), ^{ [gamepads stop]; });
   // Unblocks a connection still in progress. Only ours: not the one that may have replaced it.
   if (gSession == self) LiInterruptConnection();
   dispatch_async(ConnectionQueue(), ^{
@@ -451,12 +480,6 @@ static void ClConnectionStatusUpdate(int status) {}
 - (void)sendMouseButton:(int)button down:(BOOL)down {
   if (self.canSend) LiSendMouseButtonEvent(down ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, button);
 }
-- (void)sendControllerArrival:(short)index mask:(short)mask type:(unsigned char)type {
-  if (!self.canSend) return;
-  // Every standard button, the touchpad click on Sony's, the share/capture button on both.
-  uint32_t buttons = 0xFFFF | MISC_FLAG | (type == LI_CTYPE_PS ? TOUCHPAD_FLAG : 0);
-  LiSendControllerArrivalEvent((uint8_t)index, (uint16_t)mask, type, buttons, LI_CCAP_ANALOG_TRIGGERS);
-}
 - (void)sendScroll:(short)amount {
   if (self.canSend) LiSendHighResScrollEvent(amount);
 }
@@ -472,9 +495,6 @@ static void ClConnectionStatusUpdate(int status) {}
                           const char *utf8 = character.UTF8String;
                           if (utf8) LiSendUtf8TextEvent(utf8, (unsigned int)strlen(utf8));
                         }];
-}
-- (void)sendController:(short)index buttons:(int)buttons lt:(unsigned char)lt rt:(unsigned char)rt lx:(short)lx ly:(short)ly rx:(short)rx ry:(short)ry activeMask:(short)mask {
-  if (self.canSend) LiSendMultiControllerEvent(index, mask, buttons, lt, rt, lx, ly, rx, ry);
 }
 
 @end

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SDL3 (vendor/SDL, git submodule): the controllers of the PC playing, every kind with its vibrations, touchpad and
+  gyroscope (Stream/Gamepads.cpp). Built once as a static library with the CMake that comes with Visual Studio, in
+  apps/windows/.cache/sdl. Delete that folder to build it again (after updating the submodule).
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <WakenSdlSource>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\vendor\SDL'))</WakenSdlSource>
+    <WakenSdlConfig Condition="'$(Configuration)' == 'Debug'">Debug</WakenSdlConfig>
+    <WakenSdlConfig Condition="'$(Configuration)' != 'Debug'">Release</WakenSdlConfig>
+    <WakenSdlArch Condition="'$(Platform)' == 'ARM64'">ARM64</WakenSdlArch>
+    <WakenSdlArch Condition="'$(Platform)' != 'ARM64'">x64</WakenSdlArch>
+    <WakenSdlBuild>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\.cache\sdl\$(WakenSdlArch)'))</WakenSdlBuild>
+    <WakenSdlLib>$(WakenSdlBuild)\$(WakenSdlConfig)\SDL3-static.lib</WakenSdlLib>
+    <WakenCMake Condition="'$(WakenCMake)' == '' and Exists('$(VsInstallRoot)\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe')">$(VsInstallRoot)\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe</WakenCMake>
+    <WakenCMake Condition="'$(WakenCMake)' == ''">cmake</WakenCMake>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(WakenSdlSource)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <!-- What SDL's own CMake links on Windows (sdl_link_dependency base), plus the HID ones of its controller drivers. -->
+      <AdditionalDependencies>$(WakenSdlLib);kernel32.lib;user32.lib;gdi32.lib;winmm.lib;imm32.lib;ole32.lib;oleaut32.lib;version.lib;uuid.lib;advapi32.lib;setupapi.lib;shell32.lib;cfgmgr32.lib;hid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- Only what the controllers need: no sound, no rendering, no camera, no tests. -->
+  <Target Name="WakenBuildSdl" BeforeTargets="ClCompile" Condition="!Exists('$(WakenSdlLib)')">
+    <Error Condition="!Exists('$(WakenSdlSource)\CMakeLists.txt')" Text="SDL3 manque : lance « git submodule update --init --recursive » à la racine du dépôt." />
+    <Message Importance="high" Text="SDL3 : compilation des manettes (une seule fois, quelques minutes)..." />
+    <Exec Command="&quot;$(WakenCMake)&quot; -S &quot;$(WakenSdlSource)&quot; -B &quot;$(WakenSdlBuild)&quot; -A $(WakenSdlArch) -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_INSTALL=OFF -DSDL_AUDIO=OFF -DSDL_RENDER=OFF -DSDL_GPU=OFF -DSDL_CAMERA=OFF" />
+    <Exec Command="&quot;$(WakenCMake)&quot; --build &quot;$(WakenSdlBuild)&quot; --config $(WakenSdlConfig) --target SDL3-static" />
+  </Target>
+</Project>

@@ -10,7 +10,6 @@
 #include <winrt/Microsoft.UI.Composition.interop.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.h>
-#include <Xinput.h>
 
 #include <algorithm>
 #include <atomic>
@@ -19,10 +18,10 @@
 #include <set>
 #include <thread>
 
+#include "Gamepads.h"
 #include "StreamLog.h"
 #include "StreamSession.h"
 
-#pragma comment(lib, "xinput.lib")
 
 namespace Waken::Stream {
 
@@ -252,7 +251,12 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     m_session->Start();
     m_view.TryFocus(FocusState::Programmatic);
     m_running = true;
-    m_controllers = std::thread([this, self = get_strong()] { PollControllers(); });
+    // Every controller of this PC (SDL3: Xbox, DualShock 4, DualSense...), sent once the stream takes input.
+    std::weak_ptr<StreamSession> session = m_session;
+    Gamepads::Instance().Start([session] {
+      auto live = session.lock();
+      return live && live->Live();
+    });
     m_stats = std::thread([this, self = get_strong()] { ReportStats(); });
   }
 
@@ -261,7 +265,8 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     ReleaseKeys();
     m_running = false;
     // Never waits for itself: the last reference can be released by one of these threads.
-    for (std::thread *worker : {&m_controllers, &m_stats}) {
+    Gamepads::Instance().Stop();
+    for (std::thread *worker : {&m_stats}) {
       if (!worker->joinable()) continue;
       if (worker->get_id() == std::this_thread::get_id()) worker->detach();
       else worker->join();
@@ -385,34 +390,6 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     if (!properties.IsHorizontalMouseWheel()) LiSendHighResScrollEvent(static_cast<short>(properties.MouseWheelDelta()));
   }
 
-  /// Up to four controllers (XInput, so Xbox and compatible ones), read 250 times a second, sent when they change.
-  /// XInput's button bits are the protocol's own.
-  void PollControllers() {
-    XINPUT_STATE last[XUSER_MAX_COUNT]{};
-    bool connected[XUSER_MAX_COUNT]{};
-    while (m_running) {
-      uint16_t mask = 0;
-      XINPUT_STATE now[XUSER_MAX_COUNT]{};
-      bool present[XUSER_MAX_COUNT]{};
-      for (DWORD i = 0; i < XUSER_MAX_COUNT; i++) {
-        present[i] = XInputGetState(i, &now[i]) == ERROR_SUCCESS;
-        if (present[i]) mask |= static_cast<uint16_t>(1 << i);
-      }
-      for (DWORD i = 0; i < XUSER_MAX_COUNT; i++) {
-        const bool changed = present[i] != connected[i] || (present[i] && now[i].dwPacketNumber != last[i].dwPacketNumber);
-        if (!changed) continue;
-        connected[i] = present[i];
-        last[i] = now[i];
-        if (!CanSend()) continue;
-        const XINPUT_GAMEPAD &pad = now[i].Gamepad;
-        LiSendMultiControllerEvent(static_cast<uint8_t>(i), mask, present[i] ? pad.wButtons : 0, present[i] ? pad.bLeftTrigger : 0,
-                                   present[i] ? pad.bRightTrigger : 0, present[i] ? pad.sThumbLX : 0, present[i] ? pad.sThumbLY : 0,
-                                   present[i] ? pad.sThumbRX : 0, present[i] ? pad.sThumbRY : 0);
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(4));
-    }
-  }
-
   ComponentView m_view{nullptr};
   winrt::Microsoft::UI::Composition::SpriteVisual m_visual{nullptr};
   winrt::Microsoft::UI::Composition::SpriteVisual m_content{nullptr};
@@ -426,7 +403,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   std::set<int> m_pressed;
   int m_buttons = 0;
   std::atomic<bool> m_running{false};
-  std::thread m_controllers, m_stats;
+  std::thread m_stats;
   ComponentView::KeyDown_revoker m_keyDown;
   ComponentView::KeyUp_revoker m_keyUp;
   ComponentView::PointerMoved_revoker m_pointerMoved;

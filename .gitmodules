@@ -1,3 +1,6 @@
 [submodule "modules/waken-stream/ios/vendor/moonlight-common-c"]
 	path = modules/waken-stream/ios/vendor/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c
+[submodule "apps/windows/windows/vendor/SDL"]
+	path = apps/windows/windows/vendor/SDL
+	url = https://github.com/libsdl-org/SDL

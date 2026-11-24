@@ -153,45 +153,11 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
     observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
       self?.captureHardwareKeyboard()
     })
-    observers.append(center.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] note in
-      if let c = note.object as? GCController { self?.bind(controller: c) }
-    })
-    GCController.controllers().forEach(bind(controller:))
+    // Controllers are the session's own (MLGamepads in the bridge): vibrations, touchpad and gyroscope included.
     observers.append(center.addObserver(forName: .GCMouseDidConnect, object: nil, queue: .main) { [weak self] note in
       if let m = note.object as? GCMouse { self?.bind(mouse: m) }
     })
     GCMouse.mice().forEach(bind(mouse:))
-  }
-
-  /// Gamepad → LiSendMultiControllerEvent. Button bits follow moonlight-common-c (Limelight.h).
-  private func bind(controller: GCController) {
-    guard let pad = controller.extendedGamepad else { return }
-    let index = Int16(GCController.controllers().firstIndex(of: controller) ?? 0)
-    pad.valueChangedHandler = { [weak self] gp, _ in
-      var b: Int32 = 0
-      func set(_ pressed: Bool, _ flag: Int32) { if pressed { b |= flag } }
-      set(gp.buttonA.isPressed, 0x1000)       // A_FLAG
-      set(gp.buttonB.isPressed, 0x2000)       // B_FLAG
-      set(gp.buttonX.isPressed, 0x4000)       // X_FLAG
-      set(gp.buttonY.isPressed, Int32(bitPattern: 0x8000)) // Y_FLAG
-      set(gp.dpad.up.isPressed, 0x0001)
-      set(gp.dpad.down.isPressed, 0x0002)
-      set(gp.dpad.left.isPressed, 0x0004)
-      set(gp.dpad.right.isPressed, 0x0008)
-      set(gp.buttonMenu.isPressed, 0x0010)    // PLAY_FLAG
-      set(gp.buttonOptions?.isPressed ?? false, 0x0020) // BACK_FLAG
-      set(gp.leftThumbstickButton?.isPressed ?? false, 0x0040)
-      set(gp.rightThumbstickButton?.isPressed ?? false, 0x0080)
-      set(gp.leftShoulder.isPressed, 0x0100)
-      set(gp.rightShoulder.isPressed, 0x0200)
-      set(gp.buttonHome?.isPressed ?? false, 0x0400) // SPECIAL_FLAG
-      let axis = { (v: Float) in Int16(max(-32768, min(32767, v * 32767))) }
-      self?.session?.sendController(index, buttons: b,
-                                    lt: UInt8(gp.leftTrigger.value * 255), rt: UInt8(gp.rightTrigger.value * 255),
-                                    lx: axis(gp.leftThumbstick.xAxis.value), ly: axis(gp.leftThumbstick.yAxis.value),
-                                    rx: axis(gp.rightThumbstick.xAxis.value), ry: axis(gp.rightThumbstick.yAxis.value),
-                                    activeMask: Int16(1 << index))
-    }
   }
 
   /// Relative mouse (iPad pointer, Mac): needed for FPS games.

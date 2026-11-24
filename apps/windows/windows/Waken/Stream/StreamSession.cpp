@@ -7,6 +7,7 @@
 #include <deque>
 #include <thread>
 
+#include "Gamepads.h"
 #include "StreamLog.h"
 
 namespace Waken::Stream {
@@ -130,7 +131,11 @@ void ClLog(const char *format, ...) {
   while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
   Log("[moonlight] " + line);
 }
-void ClRumble(unsigned short, unsigned short, unsigned short) {}
+// What the computer asks of the controllers: queued for their own thread (Gamepads).
+void ClRumble(unsigned short number, unsigned short low, unsigned short high) { Gamepads::Instance().Rumble(number, low, high); }
+void ClRumbleTriggers(uint16_t number, uint16_t left, uint16_t right) { Gamepads::Instance().RumbleTriggers(number, left, right); }
+void ClMotion(uint16_t number, uint8_t type, uint16_t hz) { Gamepads::Instance().Motion(number, type, hz); }
+void ClLight(uint16_t number, uint8_t r, uint8_t g, uint8_t b) { Gamepads::Instance().Light(number, r, g, b); }
 void ClStatus(int) {}
 
 } // namespace
@@ -220,6 +225,9 @@ void StreamSession::Connect() {
   listener.connectionTerminated = ClTerminated;
   listener.logMessage = ClLog;
   listener.rumble = ClRumble;
+  listener.rumbleTriggers = ClRumbleTriggers;
+  listener.setMotionEventState = ClMotion;
+  listener.setControllerLED = ClLight;
   listener.connectionStatusUpdate = ClStatus;
 
   Log("[stream] connexion à " + m_launch.address + ", " + std::to_string(m_launch.width) + "x" + std::to_string(m_launch.height) + " " + std::to_string(m_launch.fps) + " i/s");
