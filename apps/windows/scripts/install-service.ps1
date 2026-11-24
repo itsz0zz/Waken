@@ -74,7 +74,7 @@ Stop-Waken
 # 2. The programs where only administrators can change them: a task running as SYSTEM never runs a file a user could replace.
 Write-Host "== Programmes dans $programs" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force $programs | Out-Null
-robocopy $hostSource (Join-Path $programs 'host') /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+robocopy $hostSource (Join-Path $programs 'host') /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "Copie des programmes impossible (robocopy $LASTEXITCODE)" }
 
 # 3. The data, kept from the app the first time (the network's identity, Sunshine's pairing): nothing to redo.
@@ -86,7 +86,7 @@ icacls $data /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(C
 if ($first) {
   foreach ($part in 'sunshine', 'tunnel', 'agent') {
     $from = Join-Path $appData $part
-    if (Test-Path $from) { robocopy $from (Join-Path $data $part) /E /NFL /NDL /NJH /NJS /NP /XF '*.log' | Out-Null }
+    if (Test-Path $from) { robocopy $from (Join-Path $data $part) /E /NFL /NDL /NJH /NJS /NP /R:2 /W:2 /XF '*.log' | Out-Null }
   }
   $control = Join-Path $appData 'network-control.txt'
   if (Test-Path $control) { Copy-Item $control $data }
