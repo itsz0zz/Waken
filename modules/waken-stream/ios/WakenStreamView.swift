@@ -14,6 +14,9 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
   let config = MLStreamConfig()
 
   private(set) var session: MLStreamSession?
+  var muted = false {
+    didSet { session?.muted = muted }
+  }
   private var statsTimer: Timer?
   private var started = false
 
@@ -75,6 +78,7 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
 
     let s = MLStreamSession(launch: info, config: config)
     s.delegate = self
+    s.muted = muted
     s.displayLayer.frame = videoArea
     layer.addSublayer(s.displayLayer)
     session = s

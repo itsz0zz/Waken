@@ -1,5 +1,6 @@
 #import "WakenMacStreamView.h"
 #import "MLStreamSession.h"
+#include "Limelight.h"
 #import <Carbon/Carbon.h>
 #import <GameController/GameController.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
@@ -54,6 +55,10 @@ static uint16_t WindowsKey(unsigned short code) {
 /// moonlight-common-c wants the high bit set on virtual keys.
 static short KeyCode(uint16_t vk) { return (short)(vk | 0x8000); }
 
+/// The top of the view, where the HUD's button sits: the pointer stays the Mac's there and nothing goes to the
+/// computer, as in Parsec. A click there never lands in the game.
+static const CGFloat kDeadZone = 72;
+
 static short Clamp(CGFloat value) {
   if (!isfinite(value)) return 0;
   return (short)MAX(SHRT_MIN, MIN(SHRT_MAX, value));
@@ -74,6 +79,7 @@ static short Clamp(CGFloat value) {
   IOPMAssertionID _awake;
   NSMutableArray<id<NSObject>> *_observers;
   CGFloat _scrollRest;
+  int _buttons; // pressed in the picture: released there too, even from the dead zone
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -125,6 +131,10 @@ static short Clamp(CGFloat value) {
   _hevc = v;
   _config.hevc = v;
 }
+- (void)setMuted:(BOOL)v {
+  _muted = v;
+  _session.muted = v;
+}
 - (void)setRemote:(BOOL)v {
   _remote = v;
   _config.remote = v;
@@ -161,6 +171,7 @@ static short Clamp(CGFloat value) {
 
   _session = [[MLStreamSession alloc] initWithLaunch:info config:_config];
   _session.delegate = self;
+  _session.muted = _muted;
   _session.displayLayer.frame = self.bounds;
   [self.layer addSublayer:_session.displayLayer];
 
@@ -249,6 +260,10 @@ static short Clamp(CGFloat value) {
 }
 - (void)streamStarted {
   [self emitState:@{@"state" : @"streaming"}];
+  // The controllers already plugged in, said once the connection takes input.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    for (GCController *controller in GCController.controllers) [self announceController:controller];
+  });
 }
 - (void)streamTerminated:(int)errorCode {
   [self emitState:@{@"state" : errorCode == 0 ? @"stopped" : @"error", @"message" : [NSString stringWithFormat:@"Connexion terminée (%d)", errorCode]}];
@@ -269,12 +284,18 @@ static short Clamp(CGFloat value) {
   [self addTrackingArea:_tracking];
 }
 
-/// The computer draws its own cursor in the picture: the Mac's one hides over it.
+/// The computer draws its own cursor in the picture: the Mac's one hides over it, not over the dead zone.
 - (void)mouseEntered:(NSEvent *)event {
+  if (![self inDeadZone:event]) [self hideCursor];
+}
+- (void)hideCursor {
   if (_session && !_cursorHidden) {
     [NSCursor hide];
     _cursorHidden = YES;
   }
+}
+- (BOOL)inDeadZone:(NSEvent *)event {
+  return [self convertPoint:event.locationInWindow fromView:nil].y < kDeadZone;
 }
 - (void)mouseExited:(NSEvent *)event {
   [self showCursor];
@@ -289,6 +310,11 @@ static short Clamp(CGFloat value) {
 /// Where the pointer is, in the picture shown aspect-fit in the view. The black bars clamp to the edges.
 - (void)movePointer:(NSEvent *)event {
   if (!_session || _config.width <= 0 || _config.height <= 0) return;
+  if (_buttons == 0 && [self inDeadZone:event]) {
+    [self showCursor];
+    return;
+  }
+  [self hideCursor];
   NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
   CGSize video = CGSizeMake(_config.width, _config.height);
   NSRect box = self.bounds;
@@ -315,32 +341,43 @@ static short Clamp(CGFloat value) {
 }
 
 // Buttons as moonlight-common-c numbers them: 1 left, 2 middle, 3 right, 4 and 5 the side ones.
-- (void)mouseDown:(NSEvent *)event {
+- (void)press:(int)button event:(NSEvent *)event {
+  if ([self inDeadZone:event]) return;
   [self.window makeFirstResponder:self];
   [self movePointer:event];
-  [_session sendMouseButton:1 down:YES];
+  _buttons |= 1 << button;
+  [_session sendMouseButton:button down:YES];
+}
+- (void)releaseButton:(int)button {
+  if (!(_buttons & (1 << button))) return;
+  _buttons &= ~(1 << button);
+  [_session sendMouseButton:button down:NO];
+}
+- (void)mouseDown:(NSEvent *)event {
+  [self press:1 event:event];
 }
 - (void)mouseUp:(NSEvent *)event {
-  [_session sendMouseButton:1 down:NO];
+  [self releaseButton:1];
 }
 - (void)rightMouseDown:(NSEvent *)event {
-  [_session sendMouseButton:3 down:YES];
+  [self press:3 event:event];
 }
 - (void)rightMouseUp:(NSEvent *)event {
-  [_session sendMouseButton:3 down:NO];
+  [self releaseButton:3];
 }
 - (int)otherButton:(NSEvent *)event {
   return event.buttonNumber == 2 ? 2 : event.buttonNumber == 3 ? 4 : 5;
 }
 - (void)otherMouseDown:(NSEvent *)event {
-  [_session sendMouseButton:[self otherButton:event] down:YES];
+  [self press:[self otherButton:event] event:event];
 }
 - (void)otherMouseUp:(NSEvent *)event {
-  [_session sendMouseButton:[self otherButton:event] down:NO];
+  [self releaseButton:[self otherButton:event]];
 }
 
 /// 120 is one notch of a wheel. A trackpad scrolls in points: about ten of them make a notch.
 - (void)scrollWheel:(NSEvent *)event {
+  if ([self inDeadZone:event]) return;
   CGFloat amount = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY * 12 : event.scrollingDeltaY * 120;
   _scrollRest += amount;
   CGFloat whole = trunc(_scrollRest);
@@ -434,11 +471,32 @@ static short Clamp(CGFloat value) {
   for (GCController *controller in GCController.controllers) [self bindController:controller];
 }
 
+static short ControllerIndex(GCController *controller) {
+  return (short)MAX(0, (NSInteger)[GCController.controllers indexOfObject:controller]);
+}
+
+static short ControllerMask(void) {
+  short mask = 0;
+  for (NSUInteger i = 0; i < GCController.controllers.count && i < 16; i++) {
+    if (GCController.controllers[i].extendedGamepad) mask |= (short)(1 << i);
+  }
+  return mask;
+}
+
+/// A DualSense or DualShock as a PlayStation controller, anything else as an Xbox one: Sunshine emulates that kind.
+- (void)announceController:(GCController *)controller {
+  if (!controller.extendedGamepad) return;
+  NSString *category = controller.productCategory ?: @"";
+  unsigned char type = ([category containsString:@"DualSense"] || [category containsString:@"DualShock"]) ? LI_CTYPE_PS : LI_CTYPE_XBOX;
+  [_session sendControllerArrival:ControllerIndex(controller) mask:ControllerMask() type:type];
+}
+
 /// Gamepad to LiSendMultiControllerEvent. Button bits follow moonlight-common-c (Limelight.h).
 - (void)bindController:(GCController *)controller {
   GCExtendedGamepad *pad = controller.extendedGamepad;
   if (!pad) return;
-  short index = (short)MAX(0, (NSInteger)[GCController.controllers indexOfObject:controller]);
+  [self announceController:controller];
+  short index = ControllerIndex(controller);
   __weak WakenMacStreamView *weakSelf = self;
   pad.valueChangedHandler = ^(GCExtendedGamepad *gp, GCControllerElement *element) {
     int b = 0;
@@ -457,6 +515,10 @@ static short Clamp(CGFloat value) {
     if (gp.leftShoulder.isPressed) b |= 0x0100;
     if (gp.rightShoulder.isPressed) b |= 0x0200;
     if (gp.buttonHome.isPressed) b |= 0x0400;
+    // Sony's touchpad click, and the share/capture button of the newer controllers.
+    if ([gp isKindOfClass:GCDualSenseGamepad.class] && ((GCDualSenseGamepad *)gp).touchpadButton.isPressed) b |= TOUCHPAD_FLAG;
+    if ([gp isKindOfClass:GCDualShockGamepad.class] && ((GCDualShockGamepad *)gp).touchpadButton.isPressed) b |= TOUCHPAD_FLAG;
+    if ([gp isKindOfClass:GCXboxGamepad.class] && ((GCXboxGamepad *)gp).buttonShare.isPressed) b |= MISC_FLAG;
     short (^axis)(float) = ^short(float v) { return (short)MAX(-32768, MIN(32767, v * 32767)); };
     WakenMacStreamView *view = weakSelf;
     if (!view) return;
@@ -468,7 +530,7 @@ static short Clamp(CGFloat value) {
                                 ly:axis(gp.leftThumbstick.yAxis.value)
                                 rx:axis(gp.rightThumbstick.xAxis.value)
                                 ry:axis(gp.rightThumbstick.yAxis.value)
-                        activeMask:(short)(1 << index)];
+                        activeMask:ControllerMask()];
   };
 }
 

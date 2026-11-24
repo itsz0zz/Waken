@@ -290,9 +290,6 @@ public sealed class GameStreamClient
     {
         await EnsurePairedAsync(ct);
         using var http = TlsClient();
-        // localAudioPlayMode=1: the computer keeps its own sound. With 0, Sunshine moves Windows' default outputs
-        // (normal and communication) to its virtual speaker during the stream, and apps like Discord stay stuck
-        // on it afterwards.
         var xml = await GetXml(http, $"{HttpsBase}/applist?{Common}", ct);
         return xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
     }
@@ -349,8 +346,13 @@ public sealed class GameStreamClient
         var riKeyId = RandomNumberGenerator.GetInt32(int.MaxValue);
         var verb = running == app.Id ? "resume" : "launch";
         _lastLaunch = DateTime.UtcNow;
+        // sops=1 ("optimize game settings"): Sunshine on Windows may set the screen to the requested size, as Parsec
+        // does (dd_resolution_option, see HostSupervisor), and gives it back after.
+        // localAudioPlayMode=1: the computer keeps its own sound. With 0, Sunshine moves Windows' default outputs
+        // (normal and communication) to its virtual speaker during the stream, and apps like Discord stay stuck
+        // on it afterwards.
         var xml = await GetXml(http,
-            $"{HttpsBase}/{verb}?{Common}&appid={app.Id}&mode={width}x{height}x{fps}&additionalStates=1&sops=0" +
+            $"{HttpsBase}/{verb}?{Common}&appid={app.Id}&mode={width}x{height}x{fps}&additionalStates=1&sops=1" +
             $"&rikey={Convert.ToHexString(riKey)}&rikeyid={riKeyId}&corever=1&localAudioPlayMode=1&surroundAudioInfo=196610&remoteControllersBitmap=0&gcmap=0", ct);
 
         return new LaunchResult(

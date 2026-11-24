@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
-import { ChevronDown, ChevronUp, Keyboard, Maximize2, Minimize2, X } from 'lucide-react-native';
+import { Alert, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AgentClient, HttpError } from '@waken/core';
-import { colors, fonts, PillButton, PressScale, RoundButton, type } from '@waken/ui';
+import { colors, PillButton, type } from '@waken/ui';
 import { useDevice, useGame } from '../hooks';
 import { useNav } from '../nav';
 import { pathTo, pointStreamAt, streamAddress } from '../network';
 import { platform, type LaunchInfo, type StreamState, type StreamStats } from '../platform';
-import { forPath } from '../quality';
+import { fitToWindow, forPath } from '../quality';
 import { useWaken } from '../store';
+import { applyChoices, defaultChoices, StreamHud, type StreamChoices } from './StreamHud';
 
 const CONFLICT = 409;
 /** Connected without a single picture for this long: something is wrong on the computer. */
 const NO_PICTURE_MS = 20_000;
 
 /**
- * In game: the native video view, and a small HUD (game, connection, keyboard, quit).
+ * In game: the native video view, and the HUD (StreamHud: one button, its menu, the figures).
  * Until the first picture it shows nothing: it sits, invisible, over the screen that started it (Réveil), which
  * keeps the player waiting. onLive says when the picture is there; onFail, why it never came.
  */
@@ -47,22 +47,28 @@ export function StreamScreen({
   // Lowered when the tunnel only has a relayed path: 40 Mb/s through a relay loses most of the video.
   const [q, setQ] = useState(chosen);
   const [relayed, setRelayed] = useState(false);
-  const [hud, setHud] = useState(true);
+  // What the player changed from the menu: sound at once, the rest by restarting the stream with it.
+  const [choices, setChoices] = useState<StreamChoices>(defaultChoices);
+  const [muted, setMuted] = useState(false);
   const [state, setState] = useState<StreamState>({ state: 'connecting' });
   const [stats, setStats] = useState<StreamStats | null>(null);
   const [launch, setLaunch] = useState<LaunchInfo | null>(null);
   const requested = useRef(false);
   const title = game?.title ?? (appParam && appParam !== 'Desktop' ? appParam : 'Bureau');
+  const window = useWindowDimensions();
 
   // Ask the machine's agent to launch the game (it pairs with Sunshine by itself the first time).
-  const run = () => {
+  const run = (with_: StreamChoices = choices) => {
     if (!device) return;
     const agent = new AgentClient(device);
     const app = appParam || 'Desktop';
     const start = async (replace: boolean) => {
       await pointStreamAt(device);
       const path = await pathTo(device);
-      const quality = forPath(chosen, path);
+      // A PC's screen takes the window's shape for the stream (no black bars); a Mac keeps its own.
+      const base = forPath(chosen, path);
+      const fitted = device.detail === 'Mac' ? base : fitToWindow(base, Math.max(window.width, window.height), Math.min(window.width, window.height));
+      const quality = applyChoices(fitted, with_);
       setRelayed(path === 'relayed');
       setQ(quality);
       const launched = await agent.launch(app, quality, replace);
@@ -110,6 +116,15 @@ export function StreamScreen({
     else if (state.state === 'stopped') onFail?.('La machine a arrêté le stream avant la première image.');
   }, [state, everLive]);
 
+  // A setting of the menu: the stream starts again with it (the game keeps running, Sunshine resumes it).
+  const changeChoices = (next: StreamChoices) => {
+    setChoices(next);
+    setLaunch(null);
+    setStats(null);
+    setState({ state: 'connecting' });
+    run(next);
+  };
+
   const closeGame = async () => {
     try {
       await new AgentClient(device!).quit();
@@ -148,48 +163,27 @@ export function StreamScreen({
     );
   }
 
-  const quality = state.state === 'error' ? 'Erreur' : state.state !== 'streaming' ? 'Connexion…' : relayed ? 'Relais · 720p' : 'Connexion top';
-  const dot = state.state === 'error' ? colors.danger : state.state !== 'streaming' ? colors.waking : relayed ? colors.hot : colors.online;
-
   return (
     // Not live yet: there, connecting, but invisible and untouchable over the screen underneath.
     <View collapsable={false} style={[styles.root, !everLive && styles.hidden]} pointerEvents={everLive ? 'auto' : 'none'}>
-      {launch ? (
-        <StreamView launch={launch} settings={q} remote onStateChange={setState} onStats={setStats} />
+      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} onStateChange={setState} onStats={setStats} /> : null}
+      {everLive ? (
+        <StreamHud
+          title={title}
+          state={state}
+          stats={stats}
+          settings={q}
+          relayed={relayed}
+          choices={choices}
+          onChoices={changeChoices}
+          muted={muted}
+          onMuted={setMuted}
+          fullscreen={fullscreen}
+          onFullscreen={setFullscreen ? toggleFullscreen : undefined}
+          onKeyboard={toggleKeyboard}
+          onLeave={leave}
+        />
       ) : null}
-      {!everLive ? null : hud ? (
-        <>
-          <View pointerEvents="none" style={[styles.pill, { top: 18, left: 24 }]}>
-            <Text numberOfLines={1} style={[type.display, { fontSize: 20, lineHeight: 26, color: colors.white, maxWidth: 260 }]}>
-              {title}
-            </Text>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />
-            <Text style={[type.chip, { color: colors.white }]}>{quality}</Text>
-            {stats ? <Text style={styles.metric}>{`${stats.rttMs} ms · ${Math.round(stats.fps)} i/s`}</Text> : null}
-          </View>
-          <View style={{ position: 'absolute', top: 18, right: 24, flexDirection: 'row', gap: 8 }}>
-            {toggleKeyboard ? <RoundButton icon={Keyboard} label="Clavier" size={44} variant="frost" onPress={toggleKeyboard} /> : null}
-            {setFullscreen ? (
-              <RoundButton icon={fullscreen ? Minimize2 : Maximize2} label={fullscreen ? 'Quitter le plein écran' : 'Plein écran'} size={44} variant="frost" onPress={toggleFullscreen} />
-            ) : null}
-            <RoundButton icon={ChevronUp} label="Masquer les contrôles" size={44} variant="frost" onPress={() => setHud(false)} />
-            <PressScale onPress={leave} style={styles.quit} accessibilityRole="button" accessibilityLabel="Quitter">
-              <X size={16} color={colors.white} strokeWidth={3} />
-              <Text style={[type.button, { fontSize: 14, color: colors.white }]}>Quitter</Text>
-            </PressScale>
-          </View>
-          <View pointerEvents="none" style={[styles.pill, { bottom: 18, alignSelf: 'center' }]}>
-            <Text style={[type.caption, { color: colors.white }]}>
-              {state.state === 'error' ? state.message : state.state === 'stopped' ? 'Stream terminé' : 'Masque les contrôles pour jouer plein écran'}
-            </Text>
-          </View>
-        </>
-      ) : (
-        // A button, not a full-screen overlay: every other touch belongs to the game.
-        <View style={styles.showControls}>
-          <RoundButton icon={ChevronDown} label="Afficher les contrôles" size={34} variant="frost" onPress={() => setHud(true)} />
-        </View>
-      )}
     </View>
   );
 }
@@ -197,8 +191,4 @@ export function StreamScreen({
 const styles = StyleSheet.create({
   hidden: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, backgroundColor: 'transparent' },
   root: { flex: 1, backgroundColor: '#000' },
-  pill: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 10, height: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassLine },
-  metric: { fontFamily: fonts.semibold, fontSize: 12, color: colors.sky },
-  showControls: { position: 'absolute', top: 8, alignSelf: 'center', opacity: 0.6 },
-  quit: { height: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.danger, flexDirection: 'row', alignItems: 'center', gap: 7 },
 });

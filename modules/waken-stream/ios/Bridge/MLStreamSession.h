@@ -33,6 +33,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MLStreamSession : NSObject
 @property (nonatomic, weak, nullable) id<MLStreamSessionDelegate> delegate;
 @property (nonatomic, readonly) AVSampleBufferDisplayLayer *displayLayer;
+/// The sound off, the picture on (the HUD's menu).
+@property (atomic) BOOL muted;
 
 - (instancetype)initWithLaunch:(MLLaunchInfo *)launch config:(MLStreamConfig *)config;
 /// Both return at once: connections are started and stopped one after the other on a private queue.
@@ -53,6 +55,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)sendMouseX:(short)x y:(short)y referenceWidth:(short)referenceWidth referenceHeight:(short)referenceHeight;
 - (void)sendText:(NSString *)text;
 - (void)sendKey:(short)keyCode down:(BOOL)down modifiers:(char)modifiers;
+/// Says which controller this is (LI_CTYPE_XBOX, LI_CTYPE_PS): the computer then emulates the same kind, and
+/// games show its buttons. Sent once connected, and for each controller plugged in afterwards.
+- (void)sendControllerArrival:(short)index mask:(short)mask type:(unsigned char)type;
 - (void)sendController:(short)index buttons:(int)buttons lt:(unsigned char)lt rt:(unsigned char)rt lx:(short)lx ly:(short)ly rx:(short)rx ry:(short)ry activeMask:(short)mask;
 @end
 

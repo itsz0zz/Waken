@@ -22,6 +22,7 @@ public class WakenStreamModule: Module {
       Prop("bitrateKbps") { (view: WakenStreamView, v: Int) in view.config.bitrateKbps = Int32(v) }
       Prop("hevc") { (view: WakenStreamView, v: Bool) in view.config.hevc = v }
       Prop("remote") { (view: WakenStreamView, v: Bool) in view.config.remote = v }
+      Prop("muted") { (view: WakenStreamView, v: Bool) in view.muted = v }
 
       OnViewDidUpdateProps { view in view.startIfReady() }
     }

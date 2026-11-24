@@ -47,6 +47,7 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
       bitrateKbps = from->bitrateKbps;
       hevc = from->hevc;
       remote = from->remote;
+      muted = from->muted;
     }
   }
 
@@ -80,6 +81,8 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
   bool hevc{true};
   REACT_FIELD(remote)
   bool remote{true};
+  REACT_FIELD(muted)
+  bool muted{false};
   REACT_FIELD(onStateChange)
   bool onStateChange{false};
   REACT_FIELD(onStats)
@@ -89,6 +92,8 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
 };
 
 namespace {
+
+constexpr float kDeadZone = 72;
 
 char Modifiers() {
   char m = 0;
@@ -169,6 +174,10 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   }
 
   void UpdateProps(winrt::com_ptr<StreamViewProps> const &props) {
+    if (props) {
+      m_muted = props->muted;
+      if (m_session) m_session->Audio().SetMuted(m_muted);
+    }
     if (!props || m_session || m_pending || props->address.empty() || props->rtspSessionUrl.empty() || props->videoWidth <= 0 || props->videoHeight <= 0) return;
     LaunchInfo launch;
     launch.address = props->address;
@@ -204,6 +213,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       });
     };
     m_session = std::make_shared<StreamSession>(std::move(launch), listener);
+    m_session->Audio().SetMuted(m_muted);
 
     std::string error;
     if (!m_session->CreateVideo(error)) {
@@ -328,6 +338,9 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   void Pointer(Input::PointerRoutedEventArgs const &args) {
     args.Handled(true);
     auto point = args.GetCurrentPoint(m_view.Tag());
+    // The top of the view, where the HUD's button sits, stays the app's (as in Parsec): nothing goes to the
+    // computer from there, unless a button pressed in the picture is still held.
+    if (m_buttons == 0 && point.Position().Y < kDeadZone) return;
     auto frame = m_view.LayoutMetrics().Frame;
     if (CanSend() && frame.Width > 0 && frame.Height > 0 && m_videoWidth > 0 && m_videoHeight > 0) {
       const double scale = std::min(frame.Width / m_videoWidth, frame.Height / m_videoHeight);
@@ -361,7 +374,9 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   void Wheel(Input::PointerRoutedEventArgs const &args) {
     args.Handled(true);
     if (!CanSend()) return;
-    auto properties = args.GetCurrentPoint(m_view.Tag()).Properties();
+    auto point = args.GetCurrentPoint(m_view.Tag());
+    if (point.Position().Y < kDeadZone) return;
+    auto properties = point.Properties();
     if (!properties.IsHorizontalMouseWheel()) LiSendHighResScrollEvent(static_cast<short>(properties.MouseWheelDelta()));
   }
 
@@ -402,6 +417,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   std::mutex m_emitterLock;
   EventEmitter m_emitter{nullptr};
   int m_videoWidth = 0, m_videoHeight = 0;
+  bool m_muted = false;
   std::set<int> m_pressed;
   int m_buttons = 0;
   std::atomic<bool> m_running{false};

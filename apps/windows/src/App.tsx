@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
-import { TriangleAlert } from 'lucide-react-native';
+import { Linking, Text, View } from 'react-native';
+import { Gamepad2, TriangleAlert } from 'lucide-react-native';
 import { DesktopApp, ensureLocalMachine, setPlatform } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
@@ -40,6 +40,20 @@ function useWindowsHost() {
 function HostBanner({ status }: { status: HostStatus | null }) {
   if (!status) return null;
   const problem = !status.embedded ? 'Le serveur de stream manque dans cette app : reconstruis-la avec scripts\\build.ps1.' : status.error;
+  // Controllers from the other devices need Sunshine's virtual gamepad driver, installed once by the user (admin).
+  if (!problem && status.gamepadDriver === false) {
+    return (
+      <View style={{ paddingHorizontal: 32 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, paddingLeft: 12, borderRadius: 999, backgroundColor: colors.white, ...shadows.card }}>
+          <IconBubble icon={Gamepad2} color={colors.ink} fg={colors.lime} size={34} />
+          <Text style={[type.label, { flex: 1, color: colors.ink, fontFamily: fonts.semibold }]}>
+            Pour jouer à la manette sur ce PC depuis tes autres appareils, installe le pilote de manette virtuelle (ViGEmBus), puis relance Waken.
+          </Text>
+          <PillButton label="Installer" size="sm" onPress={() => void Linking.openURL('https://github.com/nefarius/ViGEmBus/releases/latest')} />
+        </View>
+      </View>
+    );
+  }
   if (!problem) return null;
   return (
     <View style={{ paddingHorizontal: 32 }}>

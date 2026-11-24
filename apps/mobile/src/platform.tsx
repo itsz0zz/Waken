@@ -8,7 +8,7 @@ import { isTunnelAvailable, WakenTunnel } from 'waken-tunnel';
 import type { StreamViewProps, WakenPlatform } from '@waken/app';
 
 /** The native stream view, behind the shared screens' simpler props. */
-function StreamView({ launch, settings, remote, onStateChange, onStats }: StreamViewProps) {
+function StreamView({ launch, settings, remote, muted, onStateChange, onStats }: StreamViewProps) {
   return (
     <NativeStreamView
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -19,6 +19,7 @@ function StreamView({ launch, settings, remote, onStateChange, onStats }: Stream
       bitrateKbps={settings.bitrate}
       hevc={settings.codec !== 'h264'}
       remote={remote}
+      muted={muted ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;
         onStateChange(s.state === 'error' ? { state: 'error', message: s.message ?? 'Erreur de stream' } : { state: s.state });

@@ -26,6 +26,8 @@ export interface StreamViewProps extends ViewProps {
   bitrateKbps: number;
   hevc: boolean;
   remote: boolean;
+  /** The sound off, the picture on. */
+  muted?: boolean;
   onStateChange?: (e: NativeSyntheticEvent<StreamState>) => void;
   onStats?: (e: NativeSyntheticEvent<StreamStats>) => void;
 }

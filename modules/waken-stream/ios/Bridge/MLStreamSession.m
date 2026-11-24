@@ -256,7 +256,9 @@ static void ClConnectionStatusUpdate(int status) {}
 
 - (void)startAudio { [_audio start]; }
 - (void)stopAudio { [_audio stop]; }
-- (void)playAudio:(const char *)data length:(int)length { [_audio play:data length:length]; }
+- (void)playAudio:(const char *)data length:(int)length {
+  if (!self.muted) [_audio play:data length:length];
+}
 
 #pragma mark - Video
 
@@ -448,6 +450,12 @@ static void ClConnectionStatusUpdate(int status) {}
 }
 - (void)sendMouseButton:(int)button down:(BOOL)down {
   if (self.canSend) LiSendMouseButtonEvent(down ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, button);
+}
+- (void)sendControllerArrival:(short)index mask:(short)mask type:(unsigned char)type {
+  if (!self.canSend) return;
+  // Every standard button, the touchpad click on Sony's, the share/capture button on both.
+  uint32_t buttons = 0xFFFF | MISC_FLAG | (type == LI_CTYPE_PS ? TOUCHPAD_FLAG : 0);
+  LiSendControllerArrivalEvent((uint8_t)index, (uint16_t)mask, type, buttons, LI_CCAP_ANALOG_TRIGGERS);
 }
 - (void)sendScroll:(short)amount {
   if (self.canSend) LiSendHighResScrollEvent(amount);

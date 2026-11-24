@@ -139,7 +139,7 @@ bool AudioRenderer::CreateOutput() {
 
 void AudioRenderer::Play(const char *data, int length) {
   std::lock_guard lock(m_lock);
-  if (!m_decoder || !m_client || length <= 0) return;
+  if (!m_decoder || !m_client || length <= 0 || m_muted) return;
   EnsureCom();
 
   winrt::com_ptr<IMFMediaBuffer> buffer;

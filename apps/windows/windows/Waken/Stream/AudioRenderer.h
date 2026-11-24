@@ -8,6 +8,7 @@
 #include <mftransform.h>
 #include <mmdeviceapi.h>
 
+#include <atomic>
 #include <mutex>
 
 #include <winrt/base.h>
@@ -21,6 +22,8 @@ class AudioRenderer {
   int Init(const OPUS_MULTISTREAM_CONFIGURATION *opus);
   void Play(const char *data, int length);
   void Cleanup();
+  /// The sound off, the picture on (the HUD's menu).
+  void SetMuted(bool muted) { m_muted = muted; }
 
  private:
   bool CreateDecoder(const OPUS_MULTISTREAM_CONFIGURATION *opus);
@@ -38,6 +41,7 @@ class AudioRenderer {
   winrt::com_ptr<IAudioRenderClient> m_render;
   UINT32 m_bufferFrames = 0;
   bool m_started = false;
+  std::atomic<bool> m_muted{false};
   LONGLONG m_time = 0;
 };
 

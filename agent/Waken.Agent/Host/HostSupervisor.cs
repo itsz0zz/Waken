@@ -56,8 +56,20 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
                 sunshine = SunshineRunning,
                 tunnel = _tunnelStatus is null ? null : JsonNode.Parse(_tunnelStatus),
                 error = _error ?? (OtherSunshineListening(agent.SunshinePort) ? OtherSunshine : null),
+                gamepadDriver = GamepadDriverInstalled(),
             };
         }
+    }
+
+    /// <summary>
+    /// Sunshine plays a controller on Windows through a virtual gamepad driver (ViGEmBus), installed apart with
+    /// administrator rights: without it, controllers from the other devices do nothing. Null off Windows.
+    /// </summary>
+    public static bool? GamepadDriverInstalled()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        using var service = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ViGEmBus");
+        return service is not null;
     }
 
     public const string OtherSunshine =
@@ -140,6 +152,12 @@ public sealed class HostSupervisor(HostServicesOptions host, AgentOptions agent,
             // This computer only: the other devices come in through Waken's encrypted network, never from the LAN.
             "bind_address = 127.0.0.1",
             "notify_pre_releases = disabled",
+            // The PC's screen takes the size the other device asks for (its window's shape: no black bars), as
+            // Parsec does, and gets its own back when that device disconnects. The refresh rate stays the screen's.
+            "dd_configuration_option = verify_only",
+            "dd_resolution_option = auto",
+            "dd_refresh_rate_option = disabled",
+            "dd_config_revert_on_disconnect = enabled",
         };
         File.WriteAllText(SunshineConfig, string.Join('\n', lines) + "\n");
         var apps = P("apps.json");

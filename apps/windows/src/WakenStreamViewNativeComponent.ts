@@ -26,6 +26,7 @@ export interface NativeProps extends ViewProps {
   bitrateKbps: CodegenTypes.Int32;
   hevc: boolean;
   remote: boolean;
+  muted: boolean;
   onStateChange?: CodegenTypes.DirectEventHandler<StateEvent>;
   onStats?: CodegenTypes.DirectEventHandler<StatsEvent>;
 }

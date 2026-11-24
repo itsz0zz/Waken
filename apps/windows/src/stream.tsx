@@ -5,7 +5,7 @@ import NativeStreamView from './WakenStreamViewNativeComponent';
  * Playing from this PC on another of the owner's computers: the native view (Media Foundation and Direct3D for the
  * picture, this PC's keyboard, mouse and Xbox controllers), behind the shared screens' simpler props.
  */
-export function StreamView({ launch, settings, remote, onStateChange, onStats }: StreamViewProps) {
+export function StreamView({ launch, settings, remote, muted, onStateChange, onStats }: StreamViewProps) {
   return (
     <NativeStreamView
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -24,6 +24,7 @@ export function StreamView({ launch, settings, remote, onStateChange, onStats }:
       bitrateKbps={settings.bitrate}
       hevc={settings.codec !== 'h264'}
       remote={remote}
+      muted={muted ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;
         if (s.state === 'error') onStateChange({ state: 'error', message: s.message ?? 'Erreur de stream' });

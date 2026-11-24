@@ -31,6 +31,8 @@ export interface HostStatus extends NativeStatus {
   sunshine: boolean;
   /** The Waken network helper's status, from the agent. */
   tunnel?: TunnelStatus | null;
+  /** The virtual gamepad driver Sunshine needs for controllers (ViGEmBus). */
+  gamepadDriver?: boolean;
 }
 
 let token: string | undefined;
@@ -61,9 +63,9 @@ export async function hostStatus(): Promise<HostStatus> {
     return { ...own, sunshine: false };
   }
   try {
-    const services = await agent<{ sunshine: boolean; tunnel: TunnelStatus | null; error?: string }>('/host/status');
+    const services = await agent<{ sunshine: boolean; tunnel: TunnelStatus | null; error?: string; gamepadDriver?: boolean | null }>('/host/status');
     note(`Sunshine ${services.sunshine ? 'prêt' : 'arrêté'}, réseau ${services.tunnel ? services.tunnel.state : 'sans état'}${services.error ? ` : ${services.error}` : ''}`);
-    return { ...own, sunshine: services.sunshine, tunnel: services.tunnel, error: own.error ?? services.error ?? undefined };
+    return { ...own, sunshine: services.sunshine, tunnel: services.tunnel, gamepadDriver: services.gamepadDriver ?? undefined, error: own.error ?? services.error ?? undefined };
   } catch (e) {
     // The agent is starting: its port answers a moment later.
     note(`agent injoignable : ${(e as Error).message}`);

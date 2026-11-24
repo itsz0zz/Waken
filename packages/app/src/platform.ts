@@ -24,6 +24,8 @@ export interface StreamViewProps {
   settings: StreamSettings;
   /** Smaller packets for a path that is not the local network. */
   remote: boolean;
+  /** The sound off, the picture on (the HUD's menu). */
+  muted?: boolean;
   onStateChange: (s: StreamState) => void;
   onStats: (s: StreamStats) => void;
 }

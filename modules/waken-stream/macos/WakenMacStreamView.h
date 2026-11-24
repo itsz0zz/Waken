@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger bitrateKbps;
 @property (nonatomic) BOOL hevc;
 @property (nonatomic) BOOL remote;
+@property (nonatomic) BOOL muted;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onStateChange;
 @property (nonatomic, copy, nullable) RCTDirectEventBlock onStats;
 
