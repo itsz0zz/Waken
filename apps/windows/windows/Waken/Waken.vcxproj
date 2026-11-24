@@ -21,6 +21,10 @@
     <!-- The JavaScript bundle through pnpm, like the rest of the repository (the default runs npx, whose failure
          MSBuild ignores and only surfaces later, when Hermes compiles a missing bundle). -->
     <BundleCliCommand>pnpm exec react-native bundle</BundleCliCommand>
+    <!-- The bundle step rebuilds without Metro's cache every time (--reset-cache) over the whole monorepo, and is cut
+         after 5 minutes by default, its error ignored: a bundle cut in the middle broke Hermes ("Invalid UTF-8",
+         or code 5 without one). Twenty minutes. -->
+    <BundleCommandTimeoutMs>1200000</BundleCommandTimeoutMs>
     <!-- Same for the native code generation: npx misreads pnpm's links (it looked for apps\@react-native-community). -->
     <CodegenCommand>pnpm exec react-native codegen-windows</CodegenCommand>
     <AutolinkCommand>pnpm exec react-native autolink-windows</AutolinkCommand>
