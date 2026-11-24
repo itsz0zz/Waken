@@ -130,8 +130,10 @@ if ($Unpackaged) {
   if (-not $msbuild) { throw 'MSBuild introuvable (Visual Studio 2022).' }
   $solutionDir = (Join-Path $here 'windows') + '\'
   $ErrorActionPreference = 'Continue'
-  & $msbuild (Join-Path $solutionDir 'Waken\Waken.vcxproj') /restore /m /nologo /v:minimal `
-    /p:Configuration=Release /p:Platform=x64 /p:WakenUnpackaged=true "/p:SolutionDir=$solutionDir" /p:RestorePackagesConfig=true
+  # Through the solution (React Native Windows' projects refuse to be built alone), its Waken project only: the
+  # native modules and libraries it references follow, the MSIX packaging project does not.
+  & $msbuild (Join-Path $solutionDir 'Waken.sln') /t:Waken /restore /m /nologo /v:minimal `
+    /p:Configuration=Release /p:Platform=x64 /p:WakenUnpackaged=true /p:RestorePackagesConfig=true
   $failed = $LASTEXITCODE -ne 0
   $ErrorActionPreference = 'Stop'
   if ($failed) { throw "L'app n'a pas compilé : colle les erreurs ci-dessus à Claude." }
