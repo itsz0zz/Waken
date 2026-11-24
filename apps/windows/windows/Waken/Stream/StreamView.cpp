@@ -93,7 +93,12 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
 
 namespace {
 
-constexpr float kDeadZone = 72;
+// Around the HUD's button only (top left, 40 DIP at 16 from the edge, lower when the figures show). The rest of the
+// top belongs to the computer, whose window title bars sit there.
+constexpr float kDeadZoneWidth = 72;
+constexpr float kDeadZoneHeight = 96;
+
+template <typename Point> bool InDeadZone(Point const &p) { return p.X < kDeadZoneWidth && p.Y < kDeadZoneHeight; }
 
 char Modifiers() {
   char m = 0;
@@ -338,9 +343,9 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   void Pointer(Input::PointerRoutedEventArgs const &args) {
     args.Handled(true);
     auto point = args.GetCurrentPoint(m_view.Tag());
-    // The top of the view, where the HUD's button sits, stays the app's (as in Parsec): nothing goes to the
-    // computer from there, unless a button pressed in the picture is still held.
-    if (m_buttons == 0 && point.Position().Y < kDeadZone) return;
+    // The HUD's button stays the app's: nothing goes to the computer from there, unless a button pressed in the
+    // picture is still held.
+    if (m_buttons == 0 && InDeadZone(point.Position())) return;
     auto frame = m_view.LayoutMetrics().Frame;
     if (CanSend() && frame.Width > 0 && frame.Height > 0 && m_videoWidth > 0 && m_videoHeight > 0) {
       const double scale = std::min(frame.Width / m_videoWidth, frame.Height / m_videoHeight);
@@ -375,7 +380,7 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     args.Handled(true);
     if (!CanSend()) return;
     auto point = args.GetCurrentPoint(m_view.Tag());
-    if (point.Position().Y < kDeadZone) return;
+    if (InDeadZone(point.Position())) return;
     auto properties = point.Properties();
     if (!properties.IsHorizontalMouseWheel()) LiSendHighResScrollEvent(static_cast<short>(properties.MouseWheelDelta()));
   }

@@ -55,9 +55,11 @@ static uint16_t WindowsKey(unsigned short code) {
 /// moonlight-common-c wants the high bit set on virtual keys.
 static short KeyCode(uint16_t vk) { return (short)(vk | 0x8000); }
 
-/// The top of the view, where the HUD's button sits: the pointer stays the Mac's there and nothing goes to the
-/// computer, as in Parsec. A click there never lands in the game.
-static const CGFloat kDeadZone = 72;
+/// Around the HUD's button only (top left, 40 pt at 16 pt from the edge, lower when the figures show): the pointer
+/// stays the Mac's there and nothing goes to the computer. The rest of the top belongs to the computer, whose
+/// window title bars sit there.
+static const CGFloat kDeadZoneWidth = 72;
+static const CGFloat kDeadZoneHeight = 96;
 
 static short Clamp(CGFloat value) {
   if (!isfinite(value)) return 0;
@@ -304,7 +306,8 @@ static short Clamp(CGFloat value) {
   }
 }
 - (BOOL)inDeadZone:(NSEvent *)event {
-  return [self convertPoint:event.locationInWindow fromView:nil].y < kDeadZone;
+  NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+  return p.x < kDeadZoneWidth && p.y < kDeadZoneHeight;
 }
 - (void)mouseExited:(NSEvent *)event {
   [self showCursor];
