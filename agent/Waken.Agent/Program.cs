@@ -210,7 +210,7 @@ async Task TrySyncAsync(SunshineAppSync sync, IReadOnlyList<GameEntry> games, Ca
 {
     try
     {
-        await sync.SyncAsync(games, ct);
+        if (await sync.SyncAsync(games, ct)) app.Services.GetRequiredService<GameStreamClient>().ForgetApps();
     }
     catch (Exception e) when (e is not OperationCanceledException)
     {

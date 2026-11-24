@@ -99,7 +99,7 @@ public sealed class GameStreamClientTests : IDisposable
 
         var launched = await client.LaunchAsync("Steam Big Picture", 1920, 1080, 60, _timeout.Token, timer: new LaunchTimer());
 
-        Assert.Equal(["appairage", "attente lancement précédent", "état de Sunshine", "lancement"], launched.Timings!.Keys);
+        Assert.Equal(["appairage", "attente lancement précédent", "état de Sunshine", "liste des apps", "lancement"], launched.Timings!.Keys);
     }
 
     [Fact]

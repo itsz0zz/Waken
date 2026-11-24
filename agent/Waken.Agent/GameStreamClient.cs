@@ -25,6 +25,10 @@ public sealed class GameStreamClient
     // Checking the pairing is one more TLS exchange per call: it is trusted for a while, and forgotten on a 401.
     private DateTime _pairedUntil = DateTime.MinValue;
     private static readonly TimeSpan PairingTrust = TimeSpan.FromMinutes(10);
+    // Sunshine's apps only change with a sync (ForgetApps) or by hand in its UI: a launch reuses them for a while.
+    private List<(int Id, string Title)>? _apps;
+    private DateTime _appsUntil = DateTime.MinValue;
+    private static readonly TimeSpan AppsTrust = TimeSpan.FromMinutes(10);
 
     public GameStreamClient(AgentOptions o, ILogger<GameStreamClient> log)
     {
@@ -297,8 +301,17 @@ public sealed class GameStreamClient
         await EnsurePairedAsync(ct);
         using var http = TlsClient();
         var xml = await GetXml(http, $"{HttpsBase}/applist?{Common}", ct);
-        return xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
+        var apps = xml.Elements("App").Select(a => ((int)a.Element("ID")!, (string)a.Element("AppTitle")!)).ToList();
+        _apps = apps;
+        _appsUntil = DateTime.UtcNow + AppsTrust;
+        return apps;
     }
+
+    /// <summary>After a change of Sunshine's apps: the next launch reads them again.</summary>
+    public void ForgetApps() => _appsUntil = DateTime.MinValue;
+
+    private async Task<List<(int Id, string Title)>> KnownAppsAsync(CancellationToken ct) =>
+        _apps is { } apps && DateTime.UtcNow < _appsUntil ? apps : await AppsAsync(ct);
 
     /// <summary>The title of the app Sunshine is streaming, or null when nothing runs.</summary>
     public async Task<string?> CurrentAppAsync(CancellationToken ct)
@@ -337,9 +350,17 @@ public sealed class GameStreamClient
     {
         using var http = TlsClient();
         var info = await GetXml(http, $"{HttpsBase}/serverinfo?{Common}", ct);
-        var apps = await AppsAsync(ct);
         timer?.Mark("état de Sunshine");
+        var remembered = _apps is not null && DateTime.UtcNow < _appsUntil;
+        var apps = await KnownAppsAsync(ct);
         var app = apps.FirstOrDefault(a => string.Equals(a.Title, appTitle, StringComparison.OrdinalIgnoreCase));
+        // Not in the remembered list: perhaps added since, Sunshine's own list decides.
+        if (app == default && remembered)
+        {
+            apps = await AppsAsync(ct);
+            app = apps.FirstOrDefault(a => string.Equals(a.Title, appTitle, StringComparison.OrdinalIgnoreCase));
+        }
+        timer?.Mark("liste des apps");
         // No fallback to Desktop: launching another app would close the game that is running.
         if (app == default) throw new SunshineAppMissingException($"Application « {appTitle} » introuvable dans Sunshine. Disponibles : {string.Join(", ", apps.Select(a => a.Title))}.");
 

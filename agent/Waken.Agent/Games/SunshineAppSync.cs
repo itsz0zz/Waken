@@ -13,14 +13,15 @@ internal sealed class SunshineAppSync(Func<SunshineAdminClient> connect, ILogger
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _lastSynced;
 
-    public async Task SyncAsync(IReadOnlyList<GameEntry> games, CancellationToken ct)
+    /// <returns>True when Sunshine's apps changed.</returns>
+    public async Task<bool> SyncAsync(IReadOnlyList<GameEntry> games, CancellationToken ct)
     {
         var wanted = Wanted(games);
         var fingerprint = string.Join("\n", wanted.Select(g => $"{g.Id}\t{g.Title}\t{g.Detached}"));
         await _gate.WaitAsync(ct);
         try
         {
-            if (fingerprint == _lastSynced) return;
+            if (fingerprint == _lastSynced) return false;
             using var admin = connect();
             var current = await admin.GetAppsAsync(ct);
 
@@ -47,6 +48,7 @@ internal sealed class SunshineAppSync(Func<SunshineAdminClient> connect, ILogger
 
             _lastSynced = fingerprint;
             if (stale.Count > 0 || added > 0) log.LogInformation("Sunshine apps synced: {Added} added, {Removed} removed", added, stale.Count);
+            return stale.Count > 0 || added > 0;
         }
         finally
         {
