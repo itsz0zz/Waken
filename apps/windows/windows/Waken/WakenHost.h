@@ -225,7 +225,11 @@ inline long RunStartupScript(bool enable, bool disableFastStartup) {
   info.lpParameters = args.c_str();
   info.nShow = SW_HIDE;
   if (!ShellExecuteExW(&info)) return static_cast<long>(GetLastError());
-  WaitForSingleObject(info.hProcess, INFINITE);
+  // A few minutes at most (copy, task, network card): past that the app stops waiting, the script goes on.
+  if (WaitForSingleObject(info.hProcess, 5 * 60 * 1000) == WAIT_TIMEOUT) {
+    CloseHandle(info.hProcess);
+    return static_cast<long>(WAIT_TIMEOUT);
+  }
   DWORD code = 0;
   GetExitCodeProcess(info.hProcess, &code);
   CloseHandle(info.hProcess);
@@ -442,6 +446,7 @@ struct WakenHost {
       }
       if (code == ERROR_CANCELLED) return result.Reject("Annulé : Windows n'a pas eu ta confirmation.");
       if (code == ERROR_FILE_NOT_FOUND) return result.Reject("Le script manque dans l'app : reconstruis-la avec build.ps1.");
+      if (code == WAIT_TIMEOUT) return result.Reject("Le script ne s'est pas terminé après 5 minutes : regarde %TEMP%\\waken-install.log.");
       if (code == 1) return result.Reject("Le script s'est arrêté sur une erreur : elle est dans la fenêtre qu'il vient d'ouvrir, et dans %TEMP%\\waken-install.log.");
       result.Reject(("Le réglage n'a pas abouti (code " + std::to_string(code) + ").").c_str());
     }).detach();

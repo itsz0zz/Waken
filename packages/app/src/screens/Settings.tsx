@@ -140,7 +140,8 @@ function StartupCard() {
               : 'Waken ne tourne qu’une fois l’app ouverte. Active-le pour réveiller ce PC à distance et jouer dès l’allumage.'
         }
         value={!!on}
-        onValueChange={busy ? undefined : (next) => void change(next)}
+        // Kept on screen while Windows asks, so the row does not lose its switch; a second tap does nothing.
+        onValueChange={(next) => (busy ? undefined : void change(next))}
       />
       {!on ? (
         <SettingRow
