@@ -162,9 +162,9 @@ int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe)
 
   winrt::com_ptr<IMFMediaBuffer> buffer;
   if (FAILED(MFCreateMemoryBuffer(static_cast<DWORD>(m_picture.size()), buffer.put()))) return DR_NEED_IDR;
-  BYTE *data = nullptr;
-  buffer->Lock(&data, nullptr, nullptr);
-  memcpy(data, m_picture.data(), m_picture.size());
+  BYTE *target = nullptr;
+  buffer->Lock(&target, nullptr, nullptr);
+  memcpy(target, m_picture.data(), m_picture.size());
   buffer->Unlock();
   buffer->SetCurrentLength(static_cast<DWORD>(m_picture.size()));
   winrt::com_ptr<IMFSample> sample;
