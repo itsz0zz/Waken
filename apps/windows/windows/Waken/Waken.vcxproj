@@ -137,8 +137,8 @@
   </ItemDefinitionGroup>
   <ItemGroup Condition="'$(WakenUnpackaged)'=='true' And '$(VelopackDir)'!=''">
     <Content Include="$(VelopackDir)\lib\velopack_libc_win_x64_msvc.dll">
-      <!-- At the output's root, not under the path of the folder it comes from. -->
-      <Link>velopack_libc_win_x64_msvc.dll</Link>
+      <!-- At the output's root, under the name its import library gives Waken.exe (velopack_libc.dll). -->
+      <Link>velopack_libc.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
