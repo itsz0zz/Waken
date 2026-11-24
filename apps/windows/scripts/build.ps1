@@ -144,10 +144,17 @@ if ($Unpackaged) {
   Get-Process -Name Waken -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dist*" } | Stop-Process -Force
   if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
   New-Item -ItemType Directory -Force $dist | Out-Null
-  Copy-Item -Recurse (Join-Path $built 'Waken\*') $dist
-  Get-ChildItem $built -Directory | Where-Object { $_.Name -notin @('Waken', 'Moonlight', 'Chiaki') } | ForEach-Object {
-    Get-ChildItem $_.FullName -File -Include *.dll, *.pri -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Path (Join-Path $dist $_.Name)) } |
-      Copy-Item -Destination $dist
+  # Waken.exe sits at the root of x64\Release, beside the folders of the solution's other projects: the static
+  # libraries (Moonlight, Chiaki, nothing to ship) and the native modules (a .winmd each, RNSVG): only their DLLs come.
+  $buildOnly = @('.pdb', '.lib', '.exp', '.ilk', '.iobj', '.ipdb', '.winmd', '.lastbuildstate')
+  $projects = Get-ChildItem $built -Directory | Where-Object {
+    $_.Name -in @('Moonlight', 'Chiaki') -or (Get-ChildItem $_.FullName -Filter *.winmd -File -ErrorAction SilentlyContinue)
+  }
+  Get-ChildItem $built | Where-Object { $_.Name -notin $projects.Name -and $_.Extension -notin $buildOnly } |
+    Copy-Item -Recurse -Destination $dist
+  foreach ($project in $projects) {
+    Get-ChildItem $project.FullName -File -Include *.dll, *.pri -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { -not (Test-Path (Join-Path $dist $_.Name)) } | Copy-Item -Destination $dist
   }
   Write-Host "`nWaken sans MSIX : $dist" -ForegroundColor Green
   Write-Host 'Ferme l''app Waken installée avant (même agent, même port). Le journal : %LOCALAPPDATA%\Waken\waken.log' -ForegroundColor Yellow

@@ -277,9 +277,9 @@ int VideoRenderer::SubmitAnnexB(const uint8_t *data, size_t size, bool keyframe,
     }
     frames++;
     if (submittedUs) {
-      const uint64_t shown = LiGetMicroseconds();
+      const uint64_t shownUs = LiGetMicroseconds();
       std::lock_guard timing(m_timingLock);
-      WakenFrameShown(&m_timing, submittedUs, presentationUs, shown);
+      WakenFrameShown(&m_timing, submittedUs, presentationUs, shownUs);
     }
   }
   bytes += static_cast<uint64_t>(size);
