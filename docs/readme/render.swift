@@ -169,6 +169,93 @@ func pill(_ cg: CGContext, _ label: String, iconName: String, at p: CGPoint, dar
   return w
 }
 
+// MARK: Bureau
+
+// The illustration of "Bureau" (the computer's whole desktop, streamed): window stickers and a pointer on the home
+// screen's yellow. Drawn here once for the app (packages/ui/assets/art, through useGameArt) and for this README.
+
+/// The classic pointer, tip at p, height h.
+func cursor(_ cg: CGContext, at p: CGPoint, height h: CGFloat, fill: NSColor, rim: NSColor, rimWidth: CGFloat, tilt: CGFloat = -8) {
+  let k = h / 40
+  let pts: [CGPoint] = [(0, 0), (0, 34), (9, 26.5), (15, 40), (21.5, 37), (15.5, 24), (27, 24)].map { CGPoint(x: p.x + $0.0 * k, y: p.y + $0.1 * k) }
+  let path = NSBezierPath()
+  path.move(to: pts[0])
+  for q in pts.dropFirst() { path.line(to: q) }
+  path.close()
+  path.lineJoinStyle = .round
+  path.lineWidth = rimWidth * 2
+  rotated(cg, tilt, about: p) {
+    cg.saveGState()
+    shadow(cg, blur: 14, y: 8, alpha: 0.22)
+    rim.setStroke()
+    path.stroke()
+    cg.restoreGState()
+    rim.setStroke()
+    path.stroke()
+    fill.setFill()
+    path.fill()
+  }
+}
+
+/// A window sticker: white rim, title bar with three dots, a few content lines, maybe a button.
+func windowSticker(_ cg: CGContext, _ r: CGRect, bar: NSColor, body: NSColor, tilt: CGFloat, lines: NSColor, button: NSColor? = nil) {
+  sticker(cg, r, radius: 16, rim: 6, fill: body, tilt: tilt) {
+    bar.setFill()
+    CGRect(x: r.minX, y: r.minY, width: r.width, height: 26).fill()
+    for i in 0..<3 {
+      white.withAlphaComponent(0.9).setFill()
+      NSBezierPath(ovalIn: CGRect(x: r.minX + 12 + CGFloat(i) * 15, y: r.minY + 8, width: 10, height: 10)).fill()
+    }
+    lines.setFill()
+    rounded(CGRect(x: r.minX + 16, y: r.minY + 44, width: r.width * 0.55, height: 10), 5).fill()
+    rounded(CGRect(x: r.minX + 16, y: r.minY + 62, width: r.width * 0.38, height: 10), 5).fill()
+    if let button {
+      button.setFill()
+      rounded(CGRect(x: r.minX + 16, y: r.maxY - 36, width: 64, height: 22), 11).fill()
+    }
+  }
+}
+
+/// A four-point sparkle.
+func sparkle(_ c: CGPoint, _ r: CGFloat, _ color: NSColor) {
+  let k = r * 0.15
+  let p = NSBezierPath()
+  p.move(to: CGPoint(x: c.x, y: c.y - r))
+  p.curve(to: CGPoint(x: c.x + r, y: c.y), controlPoint1: CGPoint(x: c.x + k, y: c.y - k), controlPoint2: CGPoint(x: c.x + k, y: c.y - k))
+  p.curve(to: CGPoint(x: c.x, y: c.y + r), controlPoint1: CGPoint(x: c.x + k, y: c.y + k), controlPoint2: CGPoint(x: c.x + k, y: c.y + k))
+  p.curve(to: CGPoint(x: c.x - r, y: c.y), controlPoint1: CGPoint(x: c.x - k, y: c.y + k), controlPoint2: CGPoint(x: c.x - k, y: c.y + k))
+  p.curve(to: CGPoint(x: c.x, y: c.y - r), controlPoint1: CGPoint(x: c.x - k, y: c.y - k), controlPoint2: CGPoint(x: c.x - k, y: c.y - k))
+  color.setFill()
+  p.fill()
+}
+
+let art = root.appendingPathComponent("packages/ui/assets/art")
+try? FileManager.default.createDirectory(at: art, withIntermediateDirectories: true)
+
+/// Wide, for the "hero" pictures (home, grid, game page): 480x300.
+canvas("../../packages/ui/assets/art/desktop-hero", 480, 300) { cg in
+  ground(cg, CGRect(x: 0, y: 0, width: 480, height: 300), sun, [0, 0.55, 1], angle: 165)
+  windowSticker(cg, CGRect(x: 70, y: 70, width: 190, height: 140), bar: ink, body: lime, tilt: -8, lines: ink.withAlphaComponent(0.25))
+  windowSticker(cg, CGRect(x: 150, y: 46, width: 210, height: 150), bar: hex("#1E5FD6"), body: blue, tilt: 4, lines: white.withAlphaComponent(0.45))
+  windowSticker(cg, CGRect(x: 214, y: 120, width: 200, height: 138), bar: ink, body: white, tilt: -3, lines: soft, button: blue)
+  cursor(cg, at: CGPoint(x: 330, y: 196), height: 70, fill: ink, rim: white, rimWidth: 5)
+  sparkle(CGPoint(x: 410, y: 70), 15, white)
+  sparkle(CGPoint(x: 56, y: 236), 11, blue)
+}
+
+/// Tall, for the "cover" pictures (the phone's home cards, search): 300x400.
+canvas("../../packages/ui/assets/art/desktop-cover", 300, 400) { cg in
+  ground(cg, CGRect(x: 0, y: 0, width: 300, height: 400), sun, [0, 0.55, 1], angle: 165)
+  windowSticker(cg, CGRect(x: 30, y: 60, width: 170, height: 130), bar: ink, body: lime, tilt: -8, lines: ink.withAlphaComponent(0.25))
+  windowSticker(cg, CGRect(x: 92, y: 132, width: 180, height: 130), bar: hex("#1E5FD6"), body: blue, tilt: 5, lines: white.withAlphaComponent(0.45))
+  windowSticker(cg, CGRect(x: 40, y: 222, width: 190, height: 136), bar: ink, body: white, tilt: -3, lines: soft, button: blue)
+  cursor(cg, at: CGPoint(x: 170, y: 292), height: 66, fill: ink, rim: white, rimWidth: 5)
+  sparkle(CGPoint(x: 250, y: 62), 15, white)
+  sparkle(CGPoint(x: 262, y: 340), 11, blue)
+}
+
+let desktopHero = NSImage(contentsOf: art.appendingPathComponent("desktop-hero.png"))!
+
 // MARK: Banner
 
 canvas("banner", 1280, 520) { cg in
@@ -191,11 +278,13 @@ canvas("banner", 1280, 520) { cg in
 
   // The tilted cards of the home screen: a lime one behind, the blue "Bureau" one, the W sticker over them.
   sticker(cg, CGRect(x: 840, y: 92, width: 360, height: 250), radius: 34, rim: 8, fill: lime, tilt: 7)
-  sticker(cg, CGRect(x: 770, y: 120, width: 400, height: 270), radius: 36, rim: 9, fill: blue, tilt: -5) {
-    text("BUREAU", anton(64), white, in: CGRect(x: 806, y: 286, width: 360, height: 90), kern: 1)
-    // The HUD's figures along its top, as on a stream.
-    let figures = "Réseau 12 ms   ·   60 i/s   ·   HEVC 4K"
-    text(figures, inter("Bold", 17), white.withAlphaComponent(0.92), in: CGRect(x: 800, y: 142, width: 360, height: 30))
+  let desk = CGRect(x: 770, y: 120, width: 400, height: 270)
+  sticker(cg, desk, radius: 36, rim: 9, fill: blue, tilt: -5) {
+    // The app's own "Bureau" picture, filling the card as a cover does.
+    let fill = max(desk.width / desktopHero.size.width, desk.height / desktopHero.size.height)
+    let w = desktopHero.size.width * fill, h = desktopHero.size.height * fill
+    desktopHero.draw(in: CGRect(x: desk.midX - w / 2, y: desk.midY - h / 2, width: w, height: h), from: .zero,
+                     operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
   }
   sticker(cg, CGRect(x: 1068, y: 318, width: 150, height: 150), radius: 36, rim: 8, fill: ink, tilt: 8) {
     mark(in: CGRect(x: 1068, y: 318, width: 150, height: 150))

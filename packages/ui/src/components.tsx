@@ -15,6 +15,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Gamepad2, Laptop, Monitor, Play, Search, Server, X, type LucideIcon } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Art, Gradient, type ArtSource } from './primitives';
 import { PressScale, Skeleton } from './motion';
 import { SecureTextInput } from './secureInput';
@@ -245,12 +246,75 @@ export function TiltedArt({
             <Art source={source} style={StyleSheet.absoluteFill} onError={() => setFailed(true)} accessibilityLabel={title} />
           </>
         ) : (
-          <View style={{ flex: 1, padding: 8, justifyContent: 'flex-end', backgroundColor: colors.blue }}>
-            <Text numberOfLines={3} style={[type.display, { fontSize: Math.max(14, Math.min(28, width / 6)), lineHeight: Math.max(16, Math.min(30, width / 5.5)), color: colors.white }]}>
-              {title}
-            </Text>
-          </View>
+          <NoCover title={title} width={width - border * 2} height={height - border * 2} />
         )}
+      </View>
+    </View>
+  );
+}
+
+/** The colours of a game without a picture, from its name: always the same for a game, varied along a list. */
+const noCoverPalette = [
+  { from: colors.blue, to: '#1E5FD6', fg: colors.white },
+  { from: colors.violet, to: '#5A3FE0', fg: colors.white },
+  { from: colors.hot, to: '#E05A00', fg: colors.white },
+  { from: colors.lime, to: '#9FD800', fg: colors.ink },
+  { from: colors.ink, to: '#26262E', fg: colors.lime },
+] as const;
+
+export function noCoverColors(title: string) {
+  let h = 0;
+  for (const ch of title) h = (Math.imul(h, 31) + (ch.codePointAt(0) ?? 0)) >>> 0;
+  return noCoverPalette[h % noCoverPalette.length];
+}
+
+/** A four-point sparkle, as on Waken's illustrations. */
+function Sparkle({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M12 0C13.8 10.2 13.8 10.2 24 12C13.8 13.8 13.8 13.8 12 24C10.2 13.8 10.2 13.8 0 12C10.2 10.2 10.2 10.2 12 0Z" fill={color} />
+    </Svg>
+  );
+}
+
+/**
+ * Stands for a missing cover: the game's colour in a gradient, its giant first letter faded behind, a sparkle, and
+ * its name over it. Sized to the picture it replaces (width and height inside the border).
+ */
+export function NoCover({ title, width, height }: { title: string; width: number; height: number }) {
+  const c = noCoverColors(title);
+  const initial = (title.trim()[0] ?? 'W').toUpperCase();
+  const big = Math.round(height * 1.35);
+  const size = Math.max(13, Math.min(40, width / 6.2));
+  const pad = Math.max(8, Math.round(width * 0.06));
+  // Too small for a name (search results): the initial alone, plain.
+  if (width < 64) {
+    const letter = Math.round(height * 0.62);
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} accessible={false}>
+        <Gradient colors={[c.from, c.to]} angle={150} style={StyleSheet.absoluteFill} />
+        <Text style={[type.display, { fontSize: letter, lineHeight: Math.round(letter * 1.22), color: c.fg, includeFontPadding: false }]}>{initial}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={{ flex: 1 }} accessible={false}>
+      <Gradient colors={[c.from, c.to]} angle={150} style={StyleSheet.absoluteFill} />
+      <Text
+        style={[
+          type.display,
+          { position: 'absolute', left: width - height * 0.95, top: -height * 0.3, fontSize: big, lineHeight: Math.round(big * 1.22), color: c.fg, opacity: 0.16, includeFontPadding: false },
+        ]}
+      >
+        {initial}
+      </Text>
+      <View style={{ position: 'absolute', left: width * 0.08, top: height * 0.1 }}>
+        <Sparkle size={Math.max(8, Math.round(height * 0.14))} color={c.fg} />
+      </View>
+      <View style={{ flex: 1, padding: pad, justifyContent: 'flex-end' }}>
+        <Text numberOfLines={3} style={[type.display, { fontSize: size, lineHeight: Math.round(size * 1.18), color: c.fg, textTransform: 'uppercase' }]}>
+          {title}
+        </Text>
       </View>
     </View>
   );

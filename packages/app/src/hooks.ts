@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AgentClient, checkDevice, mergeLibrary, probeSunshine, type CloudLibrary, type Device, type Game, type GameArtKind, type HostGame } from '@waken/core';
-import type { ArtSource, DeviceStatus } from '@waken/ui';
+import { desktopArt, type ArtSource, type DeviceStatus } from '@waken/ui';
 import { useShallow } from 'zustand/react/shallow';
 import { cloud, useAccount } from './account';
 import { platform } from './platform';
@@ -120,10 +120,12 @@ export function useDevice(id?: string) {
 
 /**
  * Official picture from the game's host (SteamGridDB or Steam, cached by the agent). Phones take the light
- * version, desktops the full one. Undefined when there is none: the tile then writes the title.
+ * version, desktops the full one. Undefined when there is none: the tile then writes the title. "Bureau" (the
+ * computer's desktop) has Waken's own picture.
  */
 export function useGameArt(game: Game | undefined, kind: GameArtKind): ArtSource | undefined {
   const device = useWaken((s) => s.devices.find((d) => d.id === game?.deviceId));
+  if (game?.sunshineApp === 'Desktop') return kind === 'hero' || kind === 'cover' ? desktopArt[kind] : undefined;
   const path = game?.art?.[kind];
   // From the account's library: a public picture, loaded straight from its CDN.
   if (path?.startsWith('https://')) return { uri: path };
