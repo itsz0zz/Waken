@@ -48,6 +48,9 @@ public static partial class LibraryEndpoints
                     ["updatedAt"] = r.UpdatedAt.ToString("O"),
                     ["games"] = payload["games"]?.DeepClone(),
                     ["stats"] = payload["stats"]?.DeepClone(),
+                    // How to wake it (Wake-on-LAN: its card's address, the home network's broadcast and public
+                    // address): what the other devices need to start it while it sleeps.
+                    ["wake"] = payload["wake"]?.DeepClone(),
                 };
             }));
         });

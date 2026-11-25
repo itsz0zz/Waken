@@ -467,6 +467,23 @@ public sealed class CloudTests : IDisposable
     }
 
     [Fact]
+    public async Task How_to_wake_a_computer_reaches_the_account_s_other_devices()
+    {
+        using var pc = await SignedInAsync("enzo@waken.test");
+        var library = new
+        {
+            games = new[] { new { id = "steam:1", title = "Hytale" } },
+            wake = new { mac = "74:56:3C:8C:00:04", address = "192.168.1.20", broadcast = "192.168.1.255", publicAddress = "203.0.113.7" },
+        };
+        await pc.PutAsJsonAsync("/library/desktop-enzo", library);
+
+        var wake = Assert.Single((await pc.GetFromJsonAsync<JsonElement>("/library")).EnumerateArray()).GetProperty("wake");
+        Assert.Equal("74:56:3C:8C:00:04", wake.GetProperty("mac").GetString());
+        Assert.Equal("192.168.1.255", wake.GetProperty("broadcast").GetString());
+        Assert.Equal("203.0.113.7", wake.GetProperty("publicAddress").GetString());
+    }
+
+    [Fact]
     public async Task Sending_the_library_again_replaces_it()
     {
         using var client = await SignedInAsync("enzo@waken.test");
