@@ -53,8 +53,13 @@ export async function sendWakeSignal(device: Device, signal?: AbortSignal, confi
     case 'shelly-cloud':
       return wakeViaShelly(method, signal, confirmPowerCut);
     case 'playstation':
-    case 'none':
       return;
+    case 'none':
+      // Nothing was sent: saying "done" would only make the wait run out. The machine leaves how to wake it on
+      // the account's server (its Wake-on-LAN details) once its Waken app runs with its agent.
+      throw new Error(
+        `Waken ne sait pas encore comment réveiller ${device.name}. Allume-la une fois avec Waken ouvert : elle laissera sur ton compte de quoi la réveiller (Wake-on-LAN).`
+      );
   }
 }
 
