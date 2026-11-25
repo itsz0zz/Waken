@@ -3,12 +3,23 @@ import Darwin
 import Foundation
 import Network
 import React
+import Security
 
 /// The Mac host, seen from JavaScript: starts the services, reports their state and the permissions,
 /// relays the network commands, and keeps the app's settings in a private file.
 @objc(WakenHost)
 final class WakenHostModule: NSObject {
   @objc static func requiresMainQueueSetup() -> Bool { false }
+
+  /// Read once by JavaScript: whether this build may use Sign in with Apple. A release (Developer ID) never may,
+  /// Apple keeps it for the Mac App Store; the app then hides the button.
+  @objc func constantsToExport() -> [AnyHashable: Any]! {
+    var signIn = false
+    if let task = SecTaskCreateFromSelf(nil) {
+      signIn = SecTaskCopyValueForEntitlement(task, "com.apple.developer.applesignin" as CFString, nil) != nil
+    }
+    return ["appleSignIn": signIn]
+  }
 
   private var services: HostServices { HostServices.shared }
 

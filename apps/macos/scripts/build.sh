@@ -28,14 +28,29 @@ if [ -n "$version" ]; then
   archive="$cache/Waken.xcarchive"
   exported="$cache/export"
   rm -rf "$archive" "$exported"
+  # Outside the Mac App Store, Apple allows no Sign in with Apple (its Developer ID profiles never carry it): the
+  # release goes without (the app then hides the button), with production notifications. Restored at the end.
+  entitlements="$here/macos/Waken-macOS/Waken.entitlements"
+  cp "$entitlements" "$cache/Waken.entitlements.saved"
+  trap 'cp "$cache/Waken.entitlements.saved" "$entitlements"' EXIT
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.applesignin" "$entitlements" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Set :com.apple.developer.aps-environment production" "$entitlements"
+  # The Developer ID profile is made once on developer.apple.com (Profiles, +, Developer ID, fr.wakenplay.mac) and
+  # installed by a double click: Xcode will not make one for an account it does not see as the Account Holder.
+  profile="${WAKEN_DEVELOPER_ID_PROFILE:-Waken Developer ID}"
   cat > "$cache/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>method</key><string>developer-id</string>
-  <key>signingStyle</key><string>automatic</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Developer ID Application</string>
   <key>teamID</key><string>$team</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>fr.wakenplay.mac</key><string>$profile</string>
+  </dict>
 </dict>
 </plist>
 PLIST
@@ -46,6 +61,7 @@ PLIST
     -allowProvisioningUpdates >>"$cache/xcodebuild.log" 2>&1 \
     || { grep -E "error" "$cache/xcodebuild.log" | sort -u | tail -20; exit 1; }
   built="$exported/Waken.app"
+  cp "$cache/Waken.entitlements.saved" "$entitlements"
 else
   xcodebuild -workspace "$here/macos/Waken.xcworkspace" -scheme Waken-macOS -configuration Release \
     -derivedDataPath "$derived" -allowProvisioningUpdates build >"$cache/xcodebuild.log" 2>&1 \

@@ -7,6 +7,12 @@ import { host, hostTunnel, localDevice, type HostStatus } from './host';
 import { PlayStationView } from './playstation';
 import { StreamView } from './stream';
 
+/** The native module's constants (WakenHostModule.constantsToExport): the old bridge's properties, or getConstants. */
+function appleSignInAllowed(): boolean {
+  const module = NativeModules.WakenHost as { appleSignIn?: boolean; getConstants?: () => { appleSignIn?: boolean } } | undefined;
+  return module?.appleSignIn ?? module?.getConstants?.().appleSignIn ?? true;
+}
+
 setPlatform({
   storage: {
     getItem: (k) => host.storageGet(k),
@@ -25,7 +31,8 @@ setPlatform({
   form: 'desktop',
   deviceName: 'Mac',
   pushToken: () => host.pushToken(),
-  appleSignIn: () => host.appleSignIn(),
+  // Only where this build may (a development build): Apple keeps Sign in with Apple from Developer ID releases.
+  appleSignIn: appleSignInAllowed() ? () => host.appleSignIn() : undefined,
   wifiInfo: () => host.wifiInfo(),
   copyText: (text) => host.copyText(text),
   pushPlatform: 'macos',
