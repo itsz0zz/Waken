@@ -34,7 +34,9 @@ function Providers({ children }: { children: React.ReactNode }) {
   const nav = useRouterNav();
   return (
     <NavContext.Provider value={nav}>
-      <FrameContext.Provider value={{ top: insets.top, bottom: insets.bottom, wide: width >= 900 }}>{children}</FrameContext.Provider>
+      <FrameContext.Provider value={{ top: insets.top, bottom: insets.bottom, left: insets.left, right: insets.right, wide: width >= 900 }}>
+        {children}
+      </FrameContext.Provider>
     </NavContext.Provider>
   );
 }

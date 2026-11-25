@@ -27,6 +27,9 @@ export interface WakenNav {
 export interface Frame {
   top: number;
   bottom: number;
+  /** The sides' safe area (a phone held sideways: its notch and rounded corners). Absent on desktop. */
+  left?: number;
+  right?: number;
   /** Wide layouts (desktop windows, iPad landscape): two columns where the mockups have them. */
   wide: boolean;
 }
