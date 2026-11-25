@@ -78,13 +78,15 @@ if ($LASTEXITCODE -ne 0) {
   if ($LASTEXITCODE -ne 0) { throw "Création de la release $tag impossible." }
 }
 # This version's files and the feeds the apps read (releases.win.json); the installer also under a plain name.
-$files = Get-ChildItem $out -File | Where-Object {
-  $_.Name -like "*-$Version-*" -or $_.Name -like '*Setup.exe' -or $_.Name -like '*Portable.zip' -or
-  $_.Name -in @('releases.win.json', 'assets.win.json', 'RELEASES')
-}
-$setup = $files | Where-Object { $_.Name -like '*Setup.exe' } | Select-Object -First 1
-if (-not $setup) { throw 'vpk n''a pas produit d''installateur (*Setup.exe).' }
+# The plain copy is left out of the list: the one of an earlier run would pass for vpk's installer.
 $plain = Join-Path $out 'Waken-Windows-Setup.exe'
+$files = Get-ChildItem $out -File | Where-Object {
+  $_.Name -ne 'Waken-Windows-Setup.exe' -and (
+    $_.Name -like "*-$Version-*" -or $_.Name -like '*Setup.exe' -or $_.Name -like '*Portable.zip' -or
+    $_.Name -in @('releases.win.json', 'assets.win.json', 'RELEASES'))
+}
+$setup = Get-Item (Join-Path $out "$packId-win-Setup.exe") -ErrorAction SilentlyContinue
+if (-not $setup) { throw "vpk n'a pas produit d'installateur ($packId-win-Setup.exe)." }
 Copy-Item -Force $setup.FullName $plain
 gh release upload $tag --repo $github --clobber @($files.FullName) $plain
 if ($LASTEXITCODE -ne 0) { throw 'Envoi des fichiers à la release impossible.' }
