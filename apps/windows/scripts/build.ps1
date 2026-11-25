@@ -136,6 +136,19 @@ if ($Unpackaged) {
   $velopackDir = Join-Path $cache "velopack-$velopackVersion"
   if (-not (Test-Path (Join-Path $velopackDir 'include\Velopack.hpp'))) { Expand-Archive -Force $velopackZip $velopackDir }
 
+  Step 'Modules natifs (react-native-svg, les icônes)'
+  # run-windows links the native modules into the solution by itself; MSBuild alone does not. Without this step
+  # react-native-svg is never built nor registered, and the app shows no icon at all.
+  Push-Location $here
+  $ErrorActionPreference = 'Continue'
+  & pnpm exec react-native autolink-windows --logging 2>&1 | Out-Host
+  $failed = $LASTEXITCODE -ne 0
+  $ErrorActionPreference = 'Stop'
+  Pop-Location
+  if ($failed) { throw "L'autolinking des modules natifs a échoué : colle les erreurs ci-dessus à Claude." }
+  $autolinked = Get-Content -Raw (Join-Path $here 'windows\Waken\AutolinkedNativeModules.g.cpp')
+  if ($autolinked -notmatch 'RNSVG') { throw "react-native-svg n'est pas lié à l'app (AutolinkedNativeModules.g.cpp) : les icônes manqueraient." }
+
   Step 'App Waken sans MSIX (React Native Windows)'
   $env:MSBUILDDISABLENODEREUSE = '1'
   $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
@@ -168,6 +181,11 @@ if ($Unpackaged) {
     Get-ChildItem $project.FullName -File -Include *.dll, *.pri -Recurse -ErrorAction SilentlyContinue |
       Where-Object { -not (Test-Path (Join-Path $dist $_.Name)) } | Copy-Item -Destination $dist
   }
+  if (-not (Test-Path (Join-Path $dist 'RNSVG.dll'))) { throw "RNSVG.dll manque dans $dist : les icônes manqueraient." }
+  # The fonts: an MSIX declares them to Windows, here Waken.exe installs them for the user at start (Waken.cpp).
+  $fonts = Join-Path $dist 'Fonts'
+  New-Item -ItemType Directory -Force $fonts | Out-Null
+  Copy-Item (Join-Path $here 'windows\Waken.Package\Assets\Fonts\*.ttf') $fonts
   # Where updates come from: the GitHub repository of release.json, read by the app beside Waken.exe.
   $release = Get-Content -Raw (Join-Path $repo 'release.json') | ConvertFrom-Json
   if ($release.githubRepo) { Set-Content -NoNewline -Encoding ASCII (Join-Path $dist 'update.txt') "https://github.com/$($release.githubRepo)" }

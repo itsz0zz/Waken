@@ -1,10 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { Gamepad2, TriangleAlert } from 'lucide-react-native';
-import { DesktopApp, ensureLocalMachine, gamepadsFrom, playstationFrom, setPlatform, type UpdateStatus } from '@waken/app';
+import { DesktopApp, ensureLocalMachine, type DesktopTitleBar, gamepadsFrom, playstationFrom, setPlatform, type UpdateStatus } from '@waken/app';
 import { colors, fonts, IconBubble, PillButton, shadows, type } from '@waken/ui';
 import { hostStatus, hostTunnel, localDevice, native, type HostStatus } from './host';
 import { PlayStationView, StreamView } from './stream';
+
+// The window full screen (a stream) has no title bar: the app's strip under it goes too.
+let fullscreen = false;
+const fullscreenListeners = new Set<() => void>();
+function setFullscreen(on: boolean) {
+  native.setFullscreen(on);
+  fullscreen = on;
+  fullscreenListeners.forEach((listener) => listener());
+}
+function useFullscreen() {
+  return useSyncExternalStore(
+    (listener) => {
+      fullscreenListeners.add(listener);
+      return () => fullscreenListeners.delete(listener);
+    },
+    () => fullscreen,
+  );
+}
 
 setPlatform({
   // The app's folder in the user's profile (%LOCALAPPDATA%\Waken\app): one file per key.
@@ -21,7 +39,7 @@ setPlatform({
   tunnel: hostTunnel,
   // Playing from this PC on another computer: the native view, through the Waken network on ::1.
   StreamView,
-  setFullscreen: (on) => native.setFullscreen(on),
+  setFullscreen,
   form: 'desktop',
   deviceName: 'PC',
   // Started with Windows, before any sign-in, and woken from the network (scripts/install-service.ps1).
@@ -58,8 +76,17 @@ setPlatform({
 
 /** The Windows app: the shared desktop app, with this PC's services. */
 export default function App() {
-  return <DesktopApp useHost={useWindowsHost} />;
+  return <DesktopApp useHost={useWindowsHost} titleBar={titleBar} />;
 }
+
+/**
+ * Waken draws under Windows' title bar (Waken.cpp, StyleTitleBar), as Discord does: the system's own strip, 32
+ * pixels at standard height, stays free at the top for dragging, with its three buttons; an older build without
+ * setTitleBarDark keeps the system's bar and needs no strip.
+ */
+const titleBar: DesktopTitleBar | undefined = native.setTitleBarDark
+  ? { height: 32, useHidden: useFullscreen, setDark: (dark) => native.setTitleBarDark!(dark) }
+  : undefined;
 
 function useWindowsHost() {
   const status = useHostStatus();

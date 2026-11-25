@@ -15,6 +15,8 @@ interface Native {
   start(): Promise<void>;
   status(): Promise<string>;
   setFullscreen(on: boolean): void;
+  /** The title bar's buttons white over a stream, ink on the app; absent from an older build. */
+  setTitleBarDark?(dark: boolean): void;
   storageGet(key: string): Promise<string | null>;
   storageSet(key: string, value: string): Promise<void>;
   storageRemove(key: string): Promise<void>;

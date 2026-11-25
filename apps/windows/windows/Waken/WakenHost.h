@@ -51,6 +51,25 @@ inline winrt::Microsoft::UI::Dispatching::DispatcherQueue &UiQueue() {
   return queue;
 }
 
+/// The app drawn under the title bar (DesktopApp's titleBar strip): only the minimise, maximise and close buttons
+/// stay, on a clear ground, ink on the app's light grounds or white over a stream (dark).
+inline void StyleTitleBar(winrt::Microsoft::UI::Windowing::AppWindow const &window, bool dark) {
+  using winrt::Windows::UI::Color;
+  auto bar = window.TitleBar();
+  bar.ExtendsContentIntoTitleBar(true);
+  bar.PreferredHeightOption(winrt::Microsoft::UI::Windowing::TitleBarHeightOption::Standard);
+  const uint8_t ink = dark ? 0xFF : 0x0B;
+  const Color clear{0x00, 0x00, 0x00, 0x00};
+  bar.ButtonBackgroundColor(clear);
+  bar.ButtonInactiveBackgroundColor(clear);
+  bar.ButtonForegroundColor(Color{0xFF, ink, ink, ink});
+  bar.ButtonInactiveForegroundColor(Color{0x80, ink, ink, ink});
+  bar.ButtonHoverForegroundColor(Color{0xFF, ink, ink, ink});
+  bar.ButtonHoverBackgroundColor(Color{0x1F, ink, ink, ink});
+  bar.ButtonPressedForegroundColor(Color{0xFF, ink, ink, ink});
+  bar.ButtonPressedBackgroundColor(Color{0x33, ink, ink, ink});
+}
+
 /// Everything Waken writes, in the user's own profile: %LOCALAPPDATA%\Waken.
 inline fs::path DataRoot() {
   PWSTR local = nullptr;
@@ -485,6 +504,16 @@ struct WakenHost {
       if (!window) return;
       using winrt::Microsoft::UI::Windowing::AppWindowPresenterKind;
       window.SetPresenter(on ? AppWindowPresenterKind::FullScreen : AppWindowPresenterKind::Default);
+    });
+  }
+
+  /// The title bar's buttons light on a dark ground (a stream under them) or ink on the app's light one.
+  REACT_METHOD(setTitleBarDark)
+  void setTitleBarDark(bool dark) noexcept {
+    auto queue = UiQueue();
+    if (!queue) return;
+    queue.TryEnqueue([dark] {
+      if (auto window = MainWindow()) StyleTitleBar(window, dark);
     });
   }
 

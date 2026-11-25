@@ -38,11 +38,23 @@ export interface DesktopHost {
 }
 
 /**
+ * A window without the system's title bar (Windows): the app draws under it. A strip of its height stays free at
+ * the top, which the system drags as a title bar, with its minimise, maximise and close buttons on the right.
+ */
+export interface DesktopTitleBar {
+  height: number;
+  /** The strip is hidden (the window full screen): no title bar then. */
+  useHidden?: () => boolean;
+  /** The buttons white over a stream (dark), ink on the app. */
+  setDark?: (dark: boolean) => void;
+}
+
+/**
  * The desktop apps (Mac, Windows): boot screen, top bar with the tabs and the search, the shared screens.
  * useHost is the platform's own: it starts this computer's services and says what they need.
  * leftInset leaves room for the window's own buttons (the Mac's traffic lights).
  */
-export function DesktopApp({ useHost, leftInset = 32 }: { useHost: () => DesktopHost; leftInset?: number }) {
+export function DesktopApp({ useHost, leftInset = 32, titleBar }: { useHost: () => DesktopHost; leftInset?: number; titleBar?: DesktopTitleBar }) {
   const config = useConfigLoad((s) => s.state);
   // The boot screen lays over the app until its configuration is read and its server has started (3 s at most).
   const [waited, setWaited] = useState(false);
@@ -55,7 +67,7 @@ export function DesktopApp({ useHost, leftInset = 32 }: { useHost: () => Desktop
     <View style={{ flex: 1, backgroundColor: colors.white }}>
       {config === 'loading' ? null : (
         <QueryClientProvider client={queryClient}>
-          <Shell useHost={useHost} leftInset={leftInset} onHostUp={() => setHostUp(true)} />
+          <Shell useHost={useHost} leftInset={leftInset} titleBar={titleBar} onHostUp={() => setHostUp(true)} />
         </QueryClientProvider>
       )}
       <BootScreen ready={config !== 'loading' && (hostUp || waited)} />
@@ -63,7 +75,9 @@ export function DesktopApp({ useHost, leftInset = 32 }: { useHost: () => Desktop
   );
 }
 
-function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; leftInset: number; onHostUp: () => void }) {
+const noTitleBar = () => false;
+
+function Shell({ useHost, leftInset, titleBar, onHostUp }: { useHost: () => DesktopHost; leftInset: number; titleBar?: DesktopTitleBar; onHostUp: () => void }) {
   useNetworkRunner();
   usePushRegistration();
   // This computer streams: the end of a session here sends its recap to the account's other devices.
@@ -81,14 +95,22 @@ function Shell({ useHost, leftInset, onHostUp }: { useHost: () => DesktopHost; l
   const [streamLive, setStreamLive] = useState(false);
   useEffect(() => setStreamLive(false), [route]);
   const immersive = route.name === 'stream' || (route.name === 'wake' && streamLive);
+  // The title bar's strip: over a stream it is black, the game starting under it; full screen, there is none.
+  const hidden = (titleBar?.useHidden ?? noTitleBar)();
+  const strip = titleBar && !hidden ? titleBar.height : 0;
+  const setDark = titleBar?.setDark;
+  useEffect(() => setDark?.(immersive), [setDark, immersive]);
+  const barHeight = strip ? TOP_BAR - 24 : TOP_BAR;
   return (
     <NavContext.Provider value={nav}>
-      <FrameContext.Provider value={{ top: immersive ? 0 : TOP_BAR + 12, bottom: 12, wide: true }}>
-        <View style={{ flex: 1, backgroundColor: colors.white }}>
-          <Content route={route} onLive={setStreamLive} />
+      <FrameContext.Provider value={{ top: immersive ? 0 : strip + barHeight + 12, bottom: 12, wide: true }}>
+        <View style={{ flex: 1, backgroundColor: immersive && strip ? '#000' : colors.white }}>
+          <View style={{ flex: 1, marginTop: immersive ? strip : 0 }}>
+            <Content route={route} onLive={setStreamLive} />
+          </View>
           {immersive ? null : (
-            <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
-              <TopBar tab={tab} leftInset={leftInset} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} />
+            <View style={{ position: 'absolute', left: 0, right: 0, top: strip }}>
+              <TopBar tab={tab} height={barHeight} leftInset={leftInset} onSelect={(t) => nav[t === 'home' ? 'home' : t === 'games' ? 'games' : t === 'machines' ? 'machines' : 'settings']()} />
               {host.banner}
             </View>
           )}
@@ -128,9 +150,9 @@ function Content({ route, onLive }: { route: Route; onLive: (live: boolean) => v
 }
 
 /** The Arcade top bar: wordmark, tabs in a frosted pill, and the game search. */
-function TopBar({ tab, leftInset, onSelect }: { tab: Tab; leftInset: number; onSelect: (t: Tab) => void }) {
+function TopBar({ tab, height, leftInset, onSelect }: { tab: Tab; height: number; leftInset: number; onSelect: (t: Tab) => void }) {
   return (
-    <View style={{ height: TOP_BAR, flexDirection: 'row', alignItems: 'center', paddingLeft: leftInset, paddingRight: 44, gap: 16 }}>
+    <View style={{ height, flexDirection: 'row', alignItems: 'center', paddingLeft: leftInset, paddingRight: 44, gap: 16 }}>
       <Wordmark height={30} />
       <View style={{ flexDirection: 'row', gap: 2, marginLeft: 20, padding: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)' }}>
         {tabs.map((t) => {
