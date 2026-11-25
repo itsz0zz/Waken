@@ -21,8 +21,6 @@ export function SettingsScreen() {
   const settings = useWaken((s) => s.settings);
   const update = useWaken((s) => s.updateSettings);
   const devices = useWaken((s) => s.devices);
-  const status = useNetwork((s) => s.status);
-  const mode = useAccount((s) => s.mode);
   const quality = qualityOf(settings.stream);
   // The longest run of days played, across the machines (each one keeps its own).
   const streak = useBestStreak(devices);
@@ -34,7 +32,9 @@ export function SettingsScreen() {
         Réglages
       </Display>
       <View style={{ marginTop: 20, gap: 16, flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'flex-start' : 'stretch' }}>
+        {/* This device on the left, the account and the network on the right: two columns of about the same height. */}
         <View style={{ flex: wide ? 1 : undefined, gap: 16 }}>
+          {wide ? <ColumnTitle>Cet appareil</ColumnTitle> : null}
           <Card lifted style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <AppMark size={56} />
             <View style={{ flex: 1 }}>
@@ -61,48 +61,62 @@ export function SettingsScreen() {
 
           <StartupCard />
 
-          <UpdatesCard />
-
           <GamepadsCard />
 
-          <AccountCard />
-
-          {hasTunnel() ? (
-            <Card style={{ gap: 8 }}>
-              <SettingRow
-                icon={Wifi}
-                color={status?.state === 'running' ? colors.online : colors.muted}
-                label="Réseau Waken"
-                hint={
-                  status?.state === 'running'
-                    ? `Connecté${status.self ? ` (${status.self.ip})` : ''}`
-                    : status?.state === 'needs-login'
-                      ? 'Pas encore connecté'
-                      : status?.error ?? 'Démarrage…'
-                }
-              />
-              {status?.state === 'running'
-                ? status.hosts
-                    .filter((h) => h.name !== status.self?.name)
-                    .map((h) => (
-                      <Text key={h.name} style={[type.caption, { color: colors.ink2, textTransform: 'capitalize' }]}>
-                        {hostDisplayName(h.name)} · {!h.online ? 'hors ligne' : h.direct ? 'connexion directe' : `via un relais${h.relay ? ` (${h.relay})` : ''}, image en 720p`}
-                      </Text>
-                    ))
-                : null}
-              {mode === 'tailscale' && status?.state === 'needs-login' && status.loginUrl ? (
-                <PillButton label="Se connecter à Tailscale" size="sm" onPress={() => Linking.openURL(status.loginUrl!)} />
-              ) : null}
-              {mode === 'tailscale' && status?.state === 'running' ? <PillButton label="Se déconnecter de Tailscale" icon={LogOut} variant="ghost" size="sm" onPress={confirmSignOut} /> : null}
-            </Card>
-          ) : null}
+          <UpdatesCard />
         </View>
 
-        <View style={{ flex: wide ? 1 : undefined }}>
+        <View style={{ flex: wide ? 1 : undefined, gap: 16 }}>
+          {wide ? <ColumnTitle>Compte et réseau</ColumnTitle> : null}
+          <AccountCard />
+
+          <NetworkCard />
+
           <Advanced />
         </View>
       </View>
     </Screen>
+  );
+}
+
+/** The title of a column on a wide screen. */
+function ColumnTitle({ children }: { children: string }) {
+  return <Text style={[type.label, { color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1, marginLeft: 4 }]}>{children}</Text>;
+}
+
+/** The Waken network: connected or not, and how each other machine is reached (directly or through a relay). */
+function NetworkCard() {
+  const status = useNetwork((s) => s.status);
+  const mode = useAccount((s) => s.mode);
+  if (!hasTunnel()) return null;
+  return (
+    <Card style={{ gap: 8 }}>
+      <SettingRow
+        icon={Wifi}
+        color={status?.state === 'running' ? colors.online : colors.muted}
+        label="Réseau Waken"
+        hint={
+          status?.state === 'running'
+            ? `Connecté${status.self ? ` (${status.self.ip})` : ''}`
+            : status?.state === 'needs-login'
+              ? 'Pas encore connecté'
+              : status?.error ?? 'Démarrage…'
+        }
+      />
+      {status?.state === 'running'
+        ? status.hosts
+            .filter((h) => h.name !== status.self?.name)
+            .map((h) => (
+              <Text key={h.name} style={[type.caption, { color: colors.ink2, textTransform: 'capitalize' }]}>
+                {hostDisplayName(h.name)} · {!h.online ? 'hors ligne' : h.direct ? 'connexion directe' : `via un relais${h.relay ? ` (${h.relay})` : ''}, image en 720p`}
+              </Text>
+            ))
+        : null}
+      {mode === 'tailscale' && status?.state === 'needs-login' && status.loginUrl ? (
+        <PillButton label="Se connecter à Tailscale" size="sm" onPress={() => Linking.openURL(status.loginUrl!)} />
+      ) : null}
+      {mode === 'tailscale' && status?.state === 'running' ? <PillButton label="Se déconnecter de Tailscale" icon={LogOut} variant="ghost" size="sm" onPress={confirmSignOut} /> : null}
+    </Card>
   );
 }
 
