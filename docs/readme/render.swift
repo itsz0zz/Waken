@@ -366,29 +366,149 @@ canvas("plateformes", 1280, 460) { cg in
   }
 }
 
-// MARK: Screenshot
+// MARK: Home screen
 
-canvas("accueil", 1280, 940) { cg in
-  ground(cg, CGRect(x: 0, y: 0, width: 1280, height: 940), sky, [0, 0.55, 1])
-  let shot = NSImage(contentsOf: out.appendingPathComponent("source/home.png"))!
-  let w: CGFloat = 1120
-  let h = w * shot.size.height / shot.size.width
-  let window = CGRect(x: (1280 - w) / 2, y: (940 - h - 40) / 2, width: w, height: h + 40)
-  cg.saveGState()
-  shadow(cg, blur: 60, y: 26, alpha: 0.28)
-  white.setFill()
-  rounded(window, 22).fill()
-  cg.restoreGState()
-  cg.saveGState()
-  rounded(window, 22).addClip()
-  // The window's title bar and its three buttons.
-  hex("#F6F6F8").setFill()
-  CGRect(x: window.minX, y: window.minY, width: w, height: 40).fill()
-  for (i, c) in ["#FF5F57", "#FEBC2E", "#28C840"].enumerated() {
-    hex(c).setFill()
-    NSBezierPath(ovalIn: CGRect(x: window.minX + 18 + CGFloat(i) * 22, y: window.minY + 13, width: 14, height: 14)).fill()
+// The app's home screen, drawn as the app draws it: a made-up machine (PC-SALON) and games whose covers come from
+// SteamGridDB (docs/readme/source/games, fetched with a SteamGridDB key, kept out of the repository), with Waken's own
+// pictures for Bureau and for a game without a cover.
+
+/** A picture filling a rect, cropped as a cover. */
+func cover(_ image: NSImage, in rect: CGRect) {
+  let fill = max(rect.width / image.size.width, rect.height / image.size.height)
+  let w = image.size.width * fill, h = image.size.height * fill
+  image.draw(in: CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h), from: .zero, operation: .sourceOver,
+             fraction: 1, respectFlipped: true, hints: nil)
+}
+
+/** Waken's picture for a game without one (NoCover in packages/ui): its colour, its giant initial, its name. */
+func noCover(_ cg: CGContext, _ title: String, in r: CGRect) {
+  ground(cg, r, [hex("#7A5CFF"), hex("#5A3FE0")], [0, 1], angle: 150)
+  text(String(title.prefix(1)), anton(r.height * 1.35), white.withAlphaComponent(0.16),
+       in: CGRect(x: r.maxX - r.height * 0.95, y: r.minY - r.height * 0.3, width: r.width, height: r.height * 2))
+  sparkle(CGPoint(x: r.minX + r.width * 0.14, y: r.minY + r.height * 0.2), r.height * 0.08, white)
+  let size = max(13, min(40, r.width / 6.2))
+  text(title.uppercased(), anton(size), white, in: CGRect(x: r.minX + 8, y: r.maxY - size * 1.5 - 6, width: r.width - 16, height: size * 1.4))
+}
+
+/** A rank digit of the arcade lists: blue Anton, thick white outline, black drop. */
+func rank(_ n: Int, at p: CGPoint, size: CGFloat) {
+  let font = anton(size)
+  let s = String(n)
+  let draw = { (color: NSColor, stroke: CGFloat, dx: CGFloat, dy: CGFloat) in
+    NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color, .strokeColor: color, .strokeWidth: -stroke])
+      .draw(at: CGPoint(x: p.x + dx, y: p.y + dy))
   }
-  shot.draw(in: CGRect(x: window.minX, y: window.minY + 40, width: w, height: h), from: .zero, operation: .sourceOver,
-            fraction: 1, respectFlipped: true, hints: nil)
-  cg.restoreGState()
+  draw(ink, 16, size * 0.08, size * 0.09)
+  draw(white, 16, 0, 0)
+  NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: blue]).draw(at: p)
+}
+
+/** The four squares the app puts after a Windows game's name. */
+func windowsMark(at p: CGPoint, size: CGFloat) {
+  ink.setFill()
+  let c = size * 0.46, g = size - c * 2
+  for (x, y) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+    CGRect(x: p.x + CGFloat(x) * (c + g), y: p.y + CGFloat(y) * (c + g), width: c, height: c).fill()
+  }
+}
+
+let gamesDir = out.appendingPathComponent("source/games")
+func game(_ name: String) -> NSImage? {
+  for ext in ["png", "jpg"] {
+    if let image = NSImage(contentsOf: gamesDir.appendingPathComponent("\(name).\(ext)")) { return image }
+  }
+  return nil
+}
+
+if let gta = game("gta-vi"), let elden = game("elden-ring") {
+  canvas("accueil", 1280, 800) { cg in
+    ground(cg, CGRect(x: 0, y: 0, width: 1280, height: 800), sky, [0, 0.55, 1])
+    let win = CGRect(x: 80, y: 60, width: 1120, height: 680)
+    cg.saveGState()
+    shadow(cg, blur: 60, y: 26, alpha: 0.28)
+    white.setFill()
+    rounded(win, 22).fill()
+    cg.restoreGState()
+    cg.saveGState()
+    rounded(win, 22).addClip()
+    hex("#F6F6F8").setFill()
+    CGRect(x: win.minX, y: win.minY, width: win.width, height: 40).fill()
+    for (i, c) in ["#FF5F57", "#FEBC2E", "#28C840"].enumerated() {
+      hex(c).setFill()
+      NSBezierPath(ovalIn: CGRect(x: win.minX + 18 + CGFloat(i) * 22, y: win.minY + 13, width: 14, height: 14)).fill()
+    }
+    // The app, from its top left.
+    let o = CGPoint(x: win.minX, y: win.minY + 40)
+    let app = CGRect(x: o.x, y: o.y, width: win.width, height: win.height - 40)
+    ground(cg, app, sun, [0, 0.42, 1], angle: 165)
+    func at(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect { CGRect(x: o.x + x, y: o.y + y, width: w, height: h) }
+
+    // Top bar: the wordmark, the tabs, the search, the notifications, the account.
+    text("WAKEN", anton(34), ink, in: at(28, 22, 140, 50), kern: 0.5)
+    white.withAlphaComponent(0.6).setFill()
+    rounded(at(150, 20, 420, 50), 25).fill()
+    ink.setFill()
+    rounded(at(156, 25, 104, 40), 20).fill()
+    for (label, x, active) in [("Accueil", 172.0, true), ("Jeux", 284.0, false), ("Machines", 352.0, false), ("Réglages", 466.0, false)] {
+      text(label, inter("Bold", 16), active ? white : ink, in: at(CGFloat(x), 34, 110, 24))
+    }
+    white.withAlphaComponent(0.6).setFill()
+    rounded(at(690, 20, 270, 50), 25).fill()
+    icon("search", color: "#3F424D", in: at(708, 34, 22, 22), stroke: 2)
+    text("Rechercher un jeu", inter("Medium", 16), ink2, in: at(740, 33, 200, 24))
+    white.setFill()
+    NSBezierPath(ovalIn: at(972, 20, 50, 50)).fill()
+    icon("bell", color: "#0B0B0F", in: at(985, 33, 24, 24), stroke: 2)
+    blue.setFill()
+    NSBezierPath(ovalIn: at(1034, 20, 50, 50)).fill()
+    text("AL", inter("ExtraBold", 18), white, in: at(1034, 33, 50, 24), align: .center)
+
+    // The hero: the question, the last game, the button.
+    text("ON JOUE ?", anton(124), ink, in: at(24, 96, 560, 170))
+    text("Un clic et GTA VI se lance tout seul sur ta machine.", inter("Medium", 18), ink2, in: at(30, 268, 520, 28))
+    ink.setFill()
+    rounded(at(28, 312, 152, 56), 28).fill()
+    lime.setFill()
+    NSBezierPath(ovalIn: at(36, 320, 40, 40)).fill()
+    let play = NSBezierPath()
+    play.move(to: CGPoint(x: o.x + 51, y: o.y + 330))
+    play.line(to: CGPoint(x: o.x + 51, y: o.y + 350))
+    play.line(to: CGPoint(x: o.x + 66, y: o.y + 340))
+    play.close()
+    ink.setFill()
+    play.fill()
+    text("Jouer", inter("ExtraBold", 18), white, in: at(92, 329, 80, 26))
+
+    let big = at(610, 96, 380, 244)
+    sticker(cg, big, radius: 30, rim: 8, fill: ink, tilt: -5) { cover(gta, in: big) }
+    let small = at(890, 250, 196, 132)
+    sticker(cg, small, radius: 24, rim: 7, fill: ink, tilt: 8) { cover(desktopHero, in: small) }
+    let sticker2 = at(586, 262, 92, 92)
+    sticker(cg, sticker2, radius: 24, rim: 6, fill: ink, tilt: -10) { mark(in: sticker2) }
+
+    // The games of the machine, ranked.
+    text("Tes jeux", inter("ExtraBold", 24), ink, in: at(28, 430, 200, 34))
+    text("Tout voir", inter("Bold", 15), ink, in: at(1010, 438, 90, 22))
+    ink.setFill()
+    CGRect(x: o.x + 1010, y: o.y + 458, width: 66, height: 1.5).fill()
+    let tiles: [(String, (CGRect) -> Void)] = [
+      ("Bureau", { r in cover(desktopHero, in: r) }),
+      ("GTA VI", { r in cover(gta, in: r) }),
+      ("Elden Ring", { r in cover(elden, in: r) }),
+      ("Hytale", { r in noCover(cg, "Hytale", in: r) }),
+    ]
+    for (i, tile) in tiles.enumerated() {
+      let x = 24 + CGFloat(i) * 270
+      let art = at(x + 26, 486, 118, 104)
+      sticker(cg, art, radius: 20, rim: 5, fill: ink, tilt: i % 2 == 0 ? -6 : 5) { tile.1(art) }
+      rank(i + 1, at: CGPoint(x: o.x + x, y: o.y + 524), size: 74)
+      let nameFont = inter("ExtraBold", 18)
+      text(tile.0, nameFont, ink, in: at(x + 162, 512, 120, 26))
+      windowsMark(at: CGPoint(x: o.x + x + 166 + min(width(tile.0, nameFont), 96), y: o.y + 517), size: 15)
+      text("PC-SALON", inter("Medium", 13), ink2, in: at(x + 162, 542, 120, 20))
+    }
+    cg.restoreGState()
+  }
+} else {
+  print("docs/readme/accueil.png gardé tel quel : pas de pochettes dans docs/readme/source/games (SteamGridDB).")
 }
