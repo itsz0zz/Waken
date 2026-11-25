@@ -52,6 +52,8 @@ public class WakenStreamModule: Module {
       Prop("remote") { (view: WakenStreamView, v: Bool) in view.config.remote = v }
       Prop("muted") { (view: WakenStreamView, v: Bool) in view.muted = v }
       Prop("smooth") { (view: WakenStreamView, v: Bool) in view.smooth = v }
+      Prop("hostMac") { (view: WakenStreamView, v: Bool) in view.hostMac = v }
+      Prop("textInput") { (view: WakenStreamView, v: Bool) in view.textInput = v }
 
       OnViewDidUpdateProps { view in view.startIfReady() }
     }

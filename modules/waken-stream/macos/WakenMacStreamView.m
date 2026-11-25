@@ -66,7 +66,7 @@ static short Clamp(CGFloat value) {
   return (short)MAX(SHRT_MIN, MIN(SHRT_MAX, value));
 }
 
-@interface WakenMacStreamView () <MLStreamSessionDelegate>
+@interface WakenMacStreamView () <MLStreamSessionDelegate, NSTextInputClient>
 @end
 
 @implementation WakenMacStreamView {
@@ -82,6 +82,11 @@ static short Clamp(CGFloat value) {
   NSMutableArray<id<NSObject>> *_observers;
   CGFloat _scrollRest;
   int _buttons; // pressed in the picture: released there too, even from the dead zone
+  id _keyMonitor;
+  uint16_t _commandVK; // the modifier Cmd goes as while it is held (Ctrl or Windows), 0 when not sent
+  NSMutableSet<NSNumber *> *_commandKeys; // pressed with Cmd: the Mac never sends their keyUp
+  BOOL _typed; // the key being handled went as text (or started a dead key)
+  NSUInteger _markedLength; // a dead key waiting for its letter (its accent, shown nowhere)
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -91,6 +96,7 @@ static short Clamp(CGFloat value) {
     self.layer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
     _config = [MLStreamConfig new];
     _pressedKeys = [NSMutableSet set];
+    _commandKeys = [NSMutableSet set];
     _observers = [NSMutableArray array];
     [self watchControllers];
   }
@@ -98,6 +104,7 @@ static short Clamp(CGFloat value) {
 }
 
 - (void)dealloc {
+  if (_keyMonitor) [NSEvent removeMonitor:_keyMonitor];
   for (id<NSObject> observer in _observers) [NSNotificationCenter.defaultCenter removeObserver:observer];
   [self stopStream];
 }
@@ -233,7 +240,10 @@ static short Clamp(CGFloat value) {
   if (self.window) {
     [self startIfReady];
     [self.window makeFirstResponder:self];
+    [self watchCommandKeys];
   } else {
+    if (_keyMonitor) [NSEvent removeMonitor:_keyMonitor];
+    _keyMonitor = nil;
     [self stopStream];
   }
 }
@@ -416,16 +426,79 @@ static short Clamp(CGFloat value) {
   if (flags & NSEventModifierFlagShift) m |= 0x01;
   if (flags & NSEventModifierFlagControl) m |= 0x02;
   if (flags & NSEventModifierFlagOption) m |= 0x04;
+  if (_commandVK) m |= _hostMac ? 0x08 : 0x02;
   return m;
 }
 
-/// Command stays the Mac's (Cmd+Q, Cmd+Tab): with it, the keys go to the app, not to the game.
+// MARK: Command, translated
+
+/// Cmd+key never reaches keyDown (the menus take it as a shortcut) and its keyUp never comes at all: a local monitor
+/// sees both first. Cmd+Q and Cmd+Tab (which the system keeps anyway) stay the Mac's.
+- (void)watchCommandKeys {
+  if (_keyMonitor) return;
+  __weak WakenMacStreamView *weakSelf = self;
+  _keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown | NSEventMaskKeyUp handler:^NSEvent *(NSEvent *event) {
+    return [weakSelf commandKey:event] ? nil : event;
+  }];
+}
+
+/// YES: the event went to the computer, the Mac does nothing with it.
+- (BOOL)commandKey:(NSEvent *)event {
+  if (!self.window.isKeyWindow || self.window.firstResponder != self) return NO;
+  uint16_t vk = WindowsKey(event.keyCode);
+  if (event.type == NSEventTypeKeyUp) {
+    if (!vk || ![_commandKeys containsObject:@(vk)]) return NO;
+    [_commandKeys removeObject:@(vk)];
+    [_pressedKeys removeObject:@(vk)];
+    [_session sendKey:KeyCode(vk) down:NO modifiers:[self modifiers:event.modifierFlags]];
+    return YES;
+  }
+  if (!(event.modifierFlags & NSEventModifierFlagCommand) || _paused || !vk) return NO;
+  // By the letter it writes: Cmd+Q is the A key's place on AZERTY.
+  NSString *letter = event.charactersIgnoringModifiers.lowercaseString;
+  if ([letter isEqualToString:@"q"] || event.keyCode == kVK_Tab) return NO;
+  if (event.isARepeat) return YES;
+  if (!_commandVK) {
+    // Windows' Ctrl for a PC, its Windows key for a Mac (Sunshine turns it into Cmd).
+    _commandVK = _hostMac ? 0x5B : 0xA2;
+    [_pressedKeys addObject:@(_commandVK)];
+    [_session sendKey:KeyCode(_commandVK) down:YES modifiers:[self modifiers:event.modifierFlags]];
+  }
+  [_commandKeys addObject:@(vk)];
+  [_pressedKeys addObject:@(vk)];
+  [_session sendKey:KeyCode(vk) down:YES modifiers:[self modifiers:event.modifierFlags]];
+  return YES;
+}
+
+/// Cmd let go: the keys pressed with it (whose keyUp may never come), then the modifier it went as.
+- (void)releaseCommand {
+  for (NSNumber *vk in _commandKeys) {
+    [_pressedKeys removeObject:vk];
+    [_session sendKey:KeyCode(vk.unsignedShortValue) down:NO modifiers:[self modifiers:0]];
+  }
+  [_commandKeys removeAllObjects];
+  if (!_commandVK) return;
+  uint16_t vk = _commandVK;
+  _commandVK = 0;
+  [_pressedKeys removeObject:@(vk)];
+  [_session sendKey:KeyCode(vk) down:NO modifiers:0];
+}
+
+// MARK: Keys
+
 - (void)keyDown:(NSEvent *)event {
   if (event.modifierFlags & NSEventModifierFlagCommand) return [super keyDown:event];
   // A held key: the Mac repeats its keyDown about 30 times a second. The computer repeats on its own side, as with
   // a local keyboard, so only the first press goes (as Moonlight does): the repeats queued behind every other key
   // on the input channel, and games saw combinations late or not at all.
   if (event.isARepeat || _paused) return;
+  // Text: what the keyboard writes, dead keys included (^ then e is ê), through the Mac's own text input. Entrée,
+  // Effacer, the arrows come back as commands (doCommandBySelector) and go on as keys.
+  if (_textInput && !(event.modifierFlags & NSEventModifierFlagControl)) {
+    _typed = NO;
+    [self interpretKeyEvents:@[event]];
+    if (_typed) return;
+  }
   uint16_t vk = WindowsKey(event.keyCode);
   if (!vk) return;
   [_pressedKeys addObject:@(vk)];
@@ -441,6 +514,10 @@ static short Clamp(CGFloat value) {
 
 /// Shift, Control, Option and Caps Lock come as flag changes: the key's own bit says pressed or released.
 - (void)flagsChanged:(NSEvent *)event {
+  if (event.keyCode == kVK_Command || event.keyCode == kVK_RightCommand) {
+    if (!(event.modifierFlags & NSEventModifierFlagCommand)) [self releaseCommand];
+    return;
+  }
   uint16_t vk = WindowsKey(event.keyCode);
   if (!vk) return;
   NSUInteger flags = event.modifierFlags;
@@ -475,6 +552,65 @@ static short Clamp(CGFloat value) {
 - (void)releaseKeys {
   for (NSNumber *vk in _pressedKeys) [_session sendKey:KeyCode(vk.unsignedShortValue) down:NO modifiers:0];
   [_pressedKeys removeAllObjects];
+  [_commandKeys removeAllObjects];
+  _commandVK = 0;
+  _markedLength = 0;
+  [self.inputContext discardMarkedText];
+}
+
+// MARK: NSTextInputClient (the Texte typing)
+
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
+  NSString *text = [string isKindOfClass:NSAttributedString.class] ? [string string] : string;
+  if (text.length == 0) return;
+  for (NSUInteger i = 0; i < text.length; i++) {
+    unichar c = [text characterAtIndex:i];
+    if (c < 0x20 || c == 0x7F) return; // a control character: the key goes as a key
+  }
+  _typed = YES;
+  _markedLength = 0;
+  [_session sendText:text];
+}
+
+/// A dead key waiting for its letter: nothing goes yet, insertText comes with the letter.
+- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {
+  _typed = YES;
+  _markedLength = [string isKindOfClass:NSAttributedString.class] ? [string length] : [(NSString *)string length];
+}
+
+- (void)doCommandBySelector:(SEL)selector {
+}
+
+- (void)unmarkText {
+  _markedLength = 0;
+}
+
+- (BOOL)hasMarkedText {
+  return _markedLength > 0;
+}
+
+- (NSRange)markedRange {
+  return _markedLength ? NSMakeRange(0, _markedLength) : NSMakeRange(NSNotFound, 0);
+}
+
+- (NSRange)selectedRange {
+  return NSMakeRange(_markedLength, 0);
+}
+
+- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {
+  return @[];
+}
+
+- (NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+  return nil;
+}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point {
+  return NSNotFound;
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+  return NSZeroRect;
 }
 
 // MARK: Focus

@@ -16,6 +16,8 @@ const NativeStreamView = requireNativeComponent<
     remote: boolean;
     muted: boolean;
     smooth: boolean;
+    hostMac: boolean;
+    textInput: boolean;
     paused: boolean;
     onStateChange: (e: NativeSyntheticEvent<NativeState>) => void;
     onStats: (e: NativeSyntheticEvent<NativeStats>) => void;
@@ -23,7 +25,7 @@ const NativeStreamView = requireNativeComponent<
 >('WakenStreamView');
 
 /** Playing from this Mac on another of the owner's computers, behind the shared screens' simpler props. */
-export function StreamView({ launch, settings, remote, muted, paused, smooth, onStateChange, onStats }: StreamViewProps) {
+export function StreamView({ launch, settings, remote, muted, paused, smooth, hostMac, textInput, onStateChange, onStats }: StreamViewProps) {
   return (
     <NativeStreamView
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -36,6 +38,8 @@ export function StreamView({ launch, settings, remote, muted, paused, smooth, on
       remote={remote}
       muted={muted ?? false}
       smooth={smooth ?? true}
+      hostMac={hostMac ?? false}
+      textInput={textInput ?? false}
       paused={paused ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;

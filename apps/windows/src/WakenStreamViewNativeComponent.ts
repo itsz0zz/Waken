@@ -34,6 +34,10 @@ export interface NativeProps extends ViewProps {
   remote: boolean;
   muted: boolean;
   smooth?: boolean;
+  /** The computer is a Mac: Ctrl goes as Cmd (Ctrl+C copies there). */
+  hostMac?: boolean;
+  /** The characters typed go as text (LiSendUtf8TextEvent), not the keys. */
+  textInput?: boolean;
   /** A linked PS5 or PS4 instead of a computer (chiaki): its address and its link's keys. */
   psHost?: string;
   psRegistKey?: string;

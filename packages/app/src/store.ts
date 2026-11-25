@@ -31,6 +31,8 @@ export interface Settings {
   psn?: { accountId: string };
   /** The stream's reserve of frames that adapts to the network (the HUD's "Fluidité"). Absent: on. */
   smoothing?: boolean;
+  /** game: the keyboard's physical keys. text: the characters it writes (the HUD's "Saisie"). Absent: game. */
+  keyboard?: 'game' | 'text';
 }
 
 export interface WakenState {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import {
   Activity,
   Check,
@@ -14,6 +14,7 @@ import {
   Maximize2,
   Minimize2,
   Monitor,
+  Type,
   Volume2,
   VolumeX,
   Waves,
@@ -22,6 +23,7 @@ import {
 import { AppMark, colors, fonts, PressScale, shadows, type } from '@waken/ui';
 import type { StreamSettings } from '@waken/core';
 import { defaultGamepadOptions, useGamepadOptions, useGamepads } from '../gamepads';
+import { useFrame } from '../nav';
 import { platform, type StreamState, type StreamStats } from '../platform';
 import { useWaken } from '../store';
 
@@ -45,7 +47,7 @@ export function applyChoices(settings: StreamSettings, choices: StreamChoices): 
   return s;
 }
 
-type Section = 'resolution' | 'bitrate' | 'codec' | 'gamepads' | null;
+type Section = 'resolution' | 'bitrate' | 'codec' | 'gamepads' | 'typing' | null;
 
 /** The vibration strengths of the Manettes page, the same four steps. */
 const rumbleSteps = [
@@ -100,13 +102,26 @@ export function StreamHud({
   // A reserve of frames that adapts to the network: smooth on 5G, nothing added on a steady network. Kept.
   const smooth = useWaken((s) => s.settings.smoothing ?? true);
   const updateSettings = useWaken((s) => s.updateSettings);
+  // The keyboard: its keys (games) or the characters it writes (chat, documents, a layout the computer lacks).
+  const typing = useWaken((s) => s.settings.keyboard ?? 'game');
   // The bar of figures has one row, or two with the timings (more on a narrow screen): the button goes below it.
   const [barHeight, setBarHeight] = useState(32);
   const [hidden, setHidden] = useState(false);
 
   const status = state.state === 'error' ? 'Erreur' : state.state !== 'streaming' ? 'Connexion…' : relayed ? 'Relais' : 'Connexion top';
   const dot = state.state === 'error' ? colors.danger : state.state !== 'streaming' ? colors.waking : relayed ? colors.hot : colors.online;
-  const top = figures ? barHeight + 6 : 14;
+  // On a phone, clear of the notch, the rounded corners and the home bar; a desktop window has none.
+  const frame = useFrame();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const mobile = platform().form !== 'desktop';
+  const safeTop = mobile ? frame.top : 0;
+  const safeLeft = 16 + (mobile ? frame.left ?? 0 : 0);
+  const safeBottom = mobile ? frame.bottom : 0;
+  const top = (figures ? barHeight + 6 : 14) + safeTop;
+  // The menu takes what is left down to the screen's bottom, and scrolls past it.
+  const menuTop = top + 56;
+  const menuHeight = Math.max(160, screenHeight - menuTop - safeBottom - 12);
+  const menuWidth = Math.min(300, screenWidth - safeLeft - 16);
   const close = () => {
     setOpen(false);
     setSection(null);
@@ -126,14 +141,14 @@ export function StreamHud({
 
       {hidden ? (
         // A thin tab brings the button back: every other click belongs to the game.
-        <Pressable accessibilityRole="button" accessibilityLabel="Afficher le bouton" onPress={() => setHidden(false)} style={[styles.tab, { top: figures ? barHeight : 0 }]} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Afficher le bouton" onPress={() => setHidden(false)} style={[styles.tab, { top: (figures ? barHeight : 0) + safeTop }]} />
       ) : (
         <PressScale
           onPress={() => (open ? close() : setOpen(true))}
           accessibilityRole="button"
           accessibilityLabel="Menu du stream"
           hoverTo={1.08}
-          style={[styles.button, { top }]}
+          style={[styles.button, { top, left: safeLeft }]}
         >
           <AppMark size={40} />
           <View style={[styles.buttonDot, { backgroundColor: dot }]} />
@@ -143,8 +158,8 @@ export function StreamHud({
       {open ? (
         <>
           <Pressable accessibilityLabel="Fermer le menu" onPress={close} style={StyleSheet.absoluteFill} />
-          <View style={[styles.menu, { top: top + 56 }]}>
-            <ScrollView contentContainerStyle={{ padding: 8 }} style={{ maxHeight: 560 }}>
+          <View style={[styles.menu, { top: menuTop, left: safeLeft, width: menuWidth, maxHeight: menuHeight }]}>
+            <ScrollView contentContainerStyle={{ padding: 8 }} style={{ maxHeight: menuHeight }} showsVerticalScrollIndicator={false}>
               <View style={styles.header}>
                 <Text numberOfLines={1} style={[type.display, { fontSize: 22, lineHeight: 28, color: colors.white }]}>
                   {title}
@@ -209,6 +224,21 @@ export function StreamHud({
                 <Item icon={Gamepad2} label="Manettes" expanded={section === 'gamepads'} onPress={() => setSection(section === 'gamepads' ? null : 'gamepads')} />
               ) : null}
               {section === 'gamepads' ? <GamepadsSection /> : null}
+
+              <Item icon={Type} label="Saisie" value={typing === 'text' ? 'Texte' : 'Jeu'} expanded={section === 'typing'} onPress={() => setSection(section === 'typing' ? null : 'typing')} />
+              {section === 'typing' ? (
+                <Options
+                  current={typing}
+                  options={[
+                    { id: 'game', label: 'Jeu (touches)' },
+                    { id: 'text', label: 'Texte (caractères exacts)' },
+                  ]}
+                  onChoose={(keyboard) => {
+                    setSection(null);
+                    updateSettings({ keyboard });
+                  }}
+                />
+              ) : null}
 
               <Item icon={Waves} label="Fluidité" checked={smooth} onPress={() => updateSettings({ smoothing: !smooth })} />
               <Item icon={Activity} label="Statistiques" checked={figures} onPress={() => setFigures(!figures)} />

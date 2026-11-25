@@ -8,7 +8,7 @@ import { isTunnelAvailable, sendMagicPacket, WakenTunnel } from 'waken-tunnel';
 import { gamepadsFrom, playstationFrom, playStationNativeProps, type PlayStationViewProps, type StreamViewProps, type WakenPlatform } from '@waken/app';
 
 /** The native stream view, behind the shared screens' simpler props. */
-function StreamView({ launch, settings, remote, muted, smooth, onStateChange, onStats }: StreamViewProps) {
+function StreamView({ launch, settings, remote, muted, smooth, hostMac, textInput, onStateChange, onStats }: StreamViewProps) {
   return (
     <NativeStreamView
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -21,6 +21,8 @@ function StreamView({ launch, settings, remote, muted, smooth, onStateChange, on
       remote={remote}
       muted={muted ?? false}
       smooth={smooth ?? true}
+      hostMac={hostMac ?? false}
+      textInput={textInput ?? false}
       onStateChange={(e) => {
         const s = e.nativeEvent;
         if (s.state === 'error') onStateChange({ state: 'error', message: s.message ?? 'Erreur de stream' });

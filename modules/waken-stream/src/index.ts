@@ -47,6 +47,10 @@ export interface StreamViewProps extends ViewProps {
   muted?: boolean;
   /** A reserve of frames that adapts to the network (WakenSmoothing.h). On by default. */
   smooth?: boolean;
+  /** The computer is a Mac: Cmd stays Cmd. Otherwise Cmd+C arrives as Ctrl+C. */
+  hostMac?: boolean;
+  /** The characters typed rather than the keys (LiSendUtf8TextEvent). */
+  textInput?: boolean;
   onStateChange?: (e: NativeSyntheticEvent<StreamState>) => void;
   onStats?: (e: NativeSyntheticEvent<StreamStats>) => void;
 }

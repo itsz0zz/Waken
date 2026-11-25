@@ -8,6 +8,7 @@ import { connectionLog, pathTo, pointStreamAt, streamAddress } from '../network'
 import { platform, type LaunchInfo, type StreamState, type StreamStats } from '../platform';
 import { fitToWindow, forPath } from '../quality';
 import { useWaken } from '../store';
+import { platformOf } from './parts';
 import { applyChoices, defaultChoices, StreamHud, type StreamChoices } from './StreamHud';
 
 const CONFLICT = 409;
@@ -42,6 +43,7 @@ export function StreamScreen({
   const game = useGame(gameId);
   const chosen = useWaken((s) => s.settings.stream);
   const smooth = useWaken((s) => s.settings.smoothing ?? true);
+  const textInput = useWaken((s) => s.settings.keyboard === 'text');
   const { StreamView, toggleKeyboard, setFullscreen } = platform();
   // The desktop's full screen: the window's, given back when the stream ends.
   const [fullscreen, setFullscreenState] = useState(false);
@@ -187,7 +189,7 @@ export function StreamScreen({
   return (
     // Not live yet: there, connecting, but invisible and untouchable over the screen underneath.
     <View collapsable={false} style={[styles.root, !everLive && styles.hidden]} pointerEvents={everLive ? 'auto' : 'none'}>
-      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} paused={menuOpen} smooth={smooth} onStateChange={setState} onStats={setStats} /> : null}
+      {launch ? <StreamView launch={launch} settings={q} remote muted={muted} paused={menuOpen} smooth={smooth} hostMac={platformOf(device) === 'mac'} textInput={textInput} onStateChange={setState} onStats={setStats} /> : null}
       {everLive ? (
         <StreamHud
           title={title}

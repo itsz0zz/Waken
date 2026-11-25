@@ -48,6 +48,8 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
       remote = from->remote;
       muted = from->muted;
       smooth = from->smooth;
+      hostMac = from->hostMac;
+      textInput = from->textInput;
       psHost = from->psHost;
       psRegistKey = from->psRegistKey;
       psRpKey = from->psRpKey;
@@ -91,6 +93,10 @@ struct StreamViewProps : winrt::implements<StreamViewProps, IComponentProps> {
   // A reserve of frames that adapts to the network (WakenSmoothing.h), changed while streaming.
   REACT_FIELD(smooth)
   bool smooth{true};
+  REACT_FIELD(hostMac)
+  bool hostMac{false};
+  REACT_FIELD(textInput)
+  bool textInput{false};
   // A linked PS5 or PS4 (chiaki, PlayStationSession.cpp) instead of a computer.
   REACT_FIELD(psHost)
   std::string psHost;
@@ -119,10 +125,11 @@ constexpr float kDeadZoneHeight = 96;
 
 template <typename Point> bool InDeadZone(Point const &p) { return p.X < kDeadZoneWidth && p.Y < kDeadZoneHeight; }
 
-char Modifiers() {
+/// For a Mac, Ctrl goes as Cmd (Sunshine's Windows key), so that Ctrl+C copies there as it does here.
+char Modifiers(bool hostMac) {
   char m = 0;
   if (GetKeyState(VK_SHIFT) & 0x8000) m |= 0x01;
-  if (GetKeyState(VK_CONTROL) & 0x8000) m |= 0x02;
+  if (GetKeyState(VK_CONTROL) & 0x8000) m |= hostMac ? 0x08 : 0x02;
   if (GetKeyState(VK_MENU) & 0x8000) m |= 0x04;
   if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) m |= 0x08;
   return m;
@@ -146,6 +153,9 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
     });
     m_keyUp = view.KeyUp(winrt::auto_revoke, [weak](auto const &, Input::KeyRoutedEventArgs const &args) {
       if (auto self = weak.get()) self->Key(args, false);
+    });
+    m_character = view.CharacterReceived(winrt::auto_revoke, [weak](auto const &, Input::CharacterReceivedRoutedEventArgs const &args) {
+      if (auto self = weak.get()) self->Character(args);
     });
     m_pointerMoved = view.PointerMoved(winrt::auto_revoke, [weak](auto const &, Input::PointerRoutedEventArgs const &args) {
       if (auto self = weak.get()) self->Pointer(args);
@@ -203,6 +213,8 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
       if (m_session) m_session->Audio().SetMuted(m_muted);
       m_smooth = props->smooth;
       if (m_session) m_session->SetSmoothing(m_smooth);
+      m_hostMac = props->hostMac;
+      m_textInput = props->textInput;
     }
     if (!props || m_session || m_pending || props->videoWidth <= 0 || props->videoHeight <= 0) return;
     const bool playstation = !props->psHost.empty();
@@ -375,14 +387,53 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   void Key(Input::KeyRoutedEventArgs const &args, bool down) {
     args.Handled(true);
     if (!CanSend()) return;
-    const int vk = static_cast<int>(args.Key());
+    int vk = static_cast<int>(args.Key());
     if (vk <= 0 || vk > 0xFE) return;
+    // Text: a key that writes a character goes through Character (WM_CHAR, with Windows' dead keys: ^ then e is ê),
+    // not as a key. Ctrl alone makes a shortcut, Ctrl with Alt is AltGr (@, # on AZERTY): text again.
+    if (down && m_textInput && WritesCharacter(vk)) return;
+    // For a Mac, Ctrl goes as Cmd: Sunshine turns Windows' key into it.
+    if (m_hostMac && (vk == VK_CONTROL || vk == VK_LCONTROL)) vk = VK_LWIN;
+    if (m_hostMac && vk == VK_RCONTROL) vk = VK_RWIN;
     if (down) {
       m_pressed.insert(vk);
     } else if (!m_pressed.erase(vk)) {
       return;
     }
-    LiSendKeyboardEvent(static_cast<short>(0x8000 | vk), down ? KEY_ACTION_DOWN : KEY_ACTION_UP, Modifiers());
+    LiSendKeyboardEvent(static_cast<short>(0x8000 | vk), down ? KEY_ACTION_DOWN : KEY_ACTION_UP, Modifiers(m_hostMac));
+  }
+
+  static bool WritesCharacter(int vk) {
+    const bool control = GetKeyState(VK_CONTROL) & 0x8000;
+    const bool alt = GetKeyState(VK_MENU) & 0x8000;
+    if (control && !alt) return false;
+    // The character the key writes on this PC's layout (high bit: a dead key, which writes with the next one).
+    const UINT c = MapVirtualKeyW(static_cast<UINT>(vk), MAPVK_VK_TO_CHAR) & 0x7FFFFFFF;
+    return c >= 0x20 && c != 0x7F;
+  }
+
+  /// The Texte typing: the characters as Windows wrote them, in UTF-8. A character past U+FFFF comes in two halves.
+  void Character(Input::CharacterReceivedRoutedEventArgs const &args) {
+    args.Handled(true);
+    if (!m_textInput || !CanSend()) return;
+    const auto unit = static_cast<wchar_t>(args.KeyCode());
+    if (unit >= 0xD800 && unit <= 0xDBFF) {
+      m_highSurrogate = unit;
+      return;
+    }
+    if (unit < 0x20 || unit == 0x7F) return;
+    wchar_t text[2] = {unit, 0};
+    int length = 1;
+    if (unit >= 0xDC00 && unit <= 0xDFFF) {
+      if (!m_highSurrogate) return;
+      text[0] = m_highSurrogate;
+      text[1] = unit;
+      length = 2;
+    }
+    m_highSurrogate = 0;
+    char utf8[8];
+    const int size = WideCharToMultiByte(CP_UTF8, 0, text, length, utf8, sizeof(utf8), nullptr, nullptr);
+    if (size > 0) LiSendUtf8TextEvent(utf8, static_cast<unsigned int>(size));
   }
 
   void ReleaseKeys() {
@@ -449,12 +500,16 @@ struct StreamView : winrt::implements<StreamView, winrt::Windows::Foundation::II
   int m_videoWidth = 0, m_videoHeight = 0;
   bool m_muted = false;
   bool m_smooth = true;
+  bool m_hostMac = false;
+  bool m_textInput = false;
+  wchar_t m_highSurrogate = 0;
   std::set<int> m_pressed;
   int m_buttons = 0;
   std::atomic<bool> m_running{false};
   std::thread m_stats;
   ComponentView::KeyDown_revoker m_keyDown;
   ComponentView::KeyUp_revoker m_keyUp;
+  ComponentView::CharacterReceived_revoker m_character;
   ComponentView::PointerMoved_revoker m_pointerMoved;
   ComponentView::PointerPressed_revoker m_pointerPressed;
   ComponentView::PointerReleased_revoker m_pointerReleased;

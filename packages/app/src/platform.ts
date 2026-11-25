@@ -62,6 +62,16 @@ export interface StreamViewProps {
    * delay, a smooth picture) on an uneven one such as 5G. Off: every frame at once, the least delay. On by default.
    */
   smooth?: boolean;
+  /**
+   * The computer is a Mac: the keyboard's shortcuts follow it (Cmd stays Cmd from a Mac, Ctrl becomes Cmd from a
+   * PC). Otherwise Windows: Cmd+C from a Mac arrives as Ctrl+C.
+   */
+  hostMac?: boolean;
+  /**
+   * Typing sends the characters the keyboard writes (an AZERTY é stays é whatever the computer's layout), not the
+   * keys. Off: the physical keys, as games want them. The HUD's "Saisie".
+   */
+  textInput?: boolean;
   onStateChange: (s: StreamState) => void;
   onStats: (s: StreamStats) => void;
 }

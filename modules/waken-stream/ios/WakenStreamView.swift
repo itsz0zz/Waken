@@ -21,6 +21,11 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
   var muted = false {
     didSet { session?.muted = muted }
   }
+  /// The computer is a Mac: Cmd goes as Cmd. Otherwise (Windows) Cmd+C from an iPad's keyboard goes as Ctrl+C.
+  var hostMac = false
+  /// A hardware keyboard's characters go as text (é stays é whatever the computer's layout); Entrée, the arrows
+  /// and Echap stay keys. Off: every key as a physical key, as games want them.
+  var textInput = false
   private var statsTimer: Timer?
   private var started = false
 
@@ -237,10 +242,19 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
   private func forward(_ presses: Set<UIPress>, down: Bool) -> Set<UIPress> {
     var unhandled = Set<UIPress>()
     for press in presses {
-      guard let key = press.key, let vk = KeyMap.windowsVK(hidUsage: key.keyCode.rawValue) else {
+      guard let key = press.key, var vk = KeyMap.windowsVK(hidUsage: key.keyCode.rawValue) else {
         unhandled.insert(press)
         continue
       }
+      // Text: what the key writes goes, not the key; its release then finds nothing pressed and is dropped.
+      if down, textInput, let text = Self.typedText(key) {
+        session?.sendText(text)
+        continue
+      }
+      // Cmd (the Windows key for Sunshine) as Ctrl for a PC: Cmd+C copies there too.
+      let commandAsControl = !hostMac
+      if commandAsControl, vk == 0x5B { vk = 0xA2 }
+      if commandAsControl, vk == 0x5C { vk = 0xA3 }
       // A release can reach both the text view and this one: send it once.
       if down {
         pressedKeys.insert(vk)
@@ -251,10 +265,22 @@ class WakenStreamView: ExpoView, MLStreamSessionDelegate {
       if key.modifierFlags.contains(.shift) { modifiers |= 0x01 }
       if key.modifierFlags.contains(.control) { modifiers |= 0x02 }
       if key.modifierFlags.contains(.alternate) { modifiers |= 0x04 }
-      if key.modifierFlags.contains(.command) { modifiers |= 0x08 }
+      if key.modifierFlags.contains(.command) { modifiers |= commandAsControl ? 0x02 : 0x08 }
       session?.sendKey(KeyMap.keyCode(vk), down: down, modifiers: modifiers)
     }
     return unhandled
+  }
+
+  /// The characters a key writes, when they are text: none with Ctrl or Cmd (a shortcut), nor for Entrée, Tab,
+  /// Effacer (control characters) or the arrows and function keys (private-use characters).
+  private static func typedText(_ key: UIKey) -> String? {
+    if !key.modifierFlags.isDisjoint(with: [.control, .command]) { return nil }
+    let text = key.characters
+    if text.isEmpty || text.hasPrefix("UIKeyInput") { return nil }
+    for scalar in text.unicodeScalars {
+      if scalar.value < 0x20 || scalar.value == 0x7F || (0xE000...0xF8FF).contains(scalar.value) { return nil }
+    }
+    return text
   }
 
   private func typeKey(_ vk: UInt16) {
