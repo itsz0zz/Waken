@@ -3,6 +3,7 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iphlpapi.h>
 
 #include "PlayStation.h"
 
@@ -120,6 +121,33 @@ void Registered(ChiakiRegistEvent *event, void *user) {
 
 } // namespace
 
+/// The local network's own broadcast address (192.168.1.255 for 192.168.1.x/24), from the adapter that has a
+/// gateway: 255.255.255.255 may leave through another adapter (a VPN, the Waken network) and miss the console.
+in_addr SubnetBroadcast() {
+  in_addr result{};
+  result.s_addr = INADDR_BROADCAST;
+  ULONG size = 16 * 1024;
+  std::vector<unsigned char> buffer(size);
+  auto adapters = reinterpret_cast<IP_ADAPTER_ADDRESSES *>(buffer.data());
+  const ULONG flags = GAA_FLAG_INCLUDE_GATEWAYS | GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+  if (GetAdaptersAddresses(AF_INET, flags, nullptr, adapters, &size) == ERROR_BUFFER_OVERFLOW) {
+    buffer.resize(size);
+    adapters = reinterpret_cast<IP_ADAPTER_ADDRESSES *>(buffer.data());
+  }
+  if (GetAdaptersAddresses(AF_INET, flags, nullptr, adapters, &size) != NO_ERROR) return result;
+  for (auto a = adapters; a; a = a->Next) {
+    if (a->OperStatus != IfOperStatusUp || a->IfType == IF_TYPE_SOFTWARE_LOOPBACK || a->IfType == IF_TYPE_TUNNEL || !a->FirstGatewayAddress) continue;
+    for (auto u = a->FirstUnicastAddress; u; u = u->Next) {
+      if (u->Address.lpSockaddr->sa_family != AF_INET || u->OnLinkPrefixLength == 0 || u->OnLinkPrefixLength > 30) continue;
+      const ULONG ip = ntohl(reinterpret_cast<sockaddr_in *>(u->Address.lpSockaddr)->sin_addr.s_addr);
+      const ULONG mask = 0xFFFFFFFFul << (32 - u->OnLinkPrefixLength);
+      result.s_addr = htonl(ip | ~mask);
+      return result;
+    }
+  }
+  return result;
+}
+
 std::string Discover(double seconds) {
   Found found;
   if (!Ready()) return found.json;
@@ -130,10 +158,10 @@ std::string Discover(double seconds) {
   options.host_drop_pings = 3;
   options.cb = Discovered;
   options.cb_user = &found;
-  // The whole network's broadcast: both consoles answer it, on their own port each.
+  // The local network's broadcast: both consoles answer it, on their own port each.
   sockaddr_in broadcast{};
   broadcast.sin_family = AF_INET;
-  broadcast.sin_addr.s_addr = INADDR_BROADCAST;
+  broadcast.sin_addr = SubnetBroadcast();
   sockaddr_storage address{};
   memcpy(&address, &broadcast, sizeof(broadcast));
   options.send_addr = &address;

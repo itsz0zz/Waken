@@ -4,6 +4,9 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <string.h>
 
 #include <chiaki/common.h>
 #include <chiaki/discovery.h>
@@ -112,6 +115,23 @@ static void Registered(ChiakiRegistEvent *event, void *user) {
   });
 }
 
+/// The local network's own broadcast address (192.168.1.255 for 192.168.1.x/24), from the Wi-Fi or Ethernet
+/// interface: iOS refuses 255.255.255.255 without Apple's multicast entitlement, and macOS may route it elsewhere.
+static in_addr_t SubnetBroadcast(void) {
+  in_addr_t result = INADDR_BROADCAST;
+  struct ifaddrs *list = NULL;
+  if (getifaddrs(&list) != 0) return result;
+  for (struct ifaddrs *i = list; i; i = i->ifa_next) {
+    if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !i->ifa_dstaddr) continue;
+    if (!(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK) || !(i->ifa_flags & IFF_BROADCAST)) continue;
+    if (strncmp(i->ifa_name, "en", 2) != 0) continue;   // Wi-Fi and Ethernet, not the Waken network's tunnel
+    result = ((struct sockaddr_in *)i->ifa_dstaddr)->sin_addr.s_addr;
+    break;
+  }
+  freeifaddrs(list);
+  return result;
+}
+
 @implementation MLPlayStation
 
 + (void)discoverFor:(NSTimeInterval)seconds completion:(void (^)(NSArray<NSDictionary<NSString *, id> *> *))completion {
@@ -126,10 +146,10 @@ static void Registered(ChiakiRegistEvent *event, void *user) {
       options.host_drop_pings = 3;
       options.cb = Discovered;
       options.cb_user = (__bridge void *)found;
-      // The whole network's broadcast: both consoles answer it, on their own port each.
+      // The local network's broadcast: both consoles answer it, on their own port each.
       struct sockaddr_in broadcast = {0};
       broadcast.sin_family = AF_INET;
-      broadcast.sin_addr.s_addr = INADDR_BROADCAST;
+      broadcast.sin_addr.s_addr = SubnetBroadcast();
       struct sockaddr_storage address = {0};
       memcpy(&address, &broadcast, sizeof(broadcast));
       options.send_addr = &address;

@@ -29,6 +29,7 @@ export function PlayStationAddScreen() {
   const [searching, setSearching] = useState(false);
   const [chosen, setChosen] = useState<{ host: string; ps5: boolean } | null>(null);
   const [manual, setManual] = useState('');
+  const [manualPs5, setManualPs5] = useState(true);
   const [pin, setPin] = useState('');
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function PlayStationAddScreen() {
   };
 
   const link = async () => {
-    const target = chosen ?? (manual.trim() ? { host: manual.trim(), ps5: true } : null);
+    const target = chosen ?? (manual.trim() ? { host: manual.trim(), ps5: manualPs5 } : null);
     if (!target || !account) return;
     setLinking(true);
     setError(null);
@@ -135,16 +136,34 @@ export function PlayStationAddScreen() {
             />
           );
         })}
-        {consoles && consoles.length === 0 ? (
-          <Text style={[type.caption, { color: colors.ink2 }]}>Aucune console trouvée. Tape son adresse (Paramètres, Réseau, État de la connexion).</Text>
+        {consoles && consoles.length === 0 ? <Text style={[type.caption, { color: colors.ink2 }]}>Aucune console trouvée sur ce réseau.</Text> : null}
+        {/* Always there: the search can miss a console (another network, a blocked broadcast). */}
+        <Text style={[type.caption, { color: colors.ink2 }]}>
+          Ou tape son adresse : sur la console, Paramètres, Réseau, Afficher l’état de la connexion (adresse IP).
+        </Text>
+        <Field
+          label="Adresse de la console"
+          value={manual}
+          onChangeText={(t) => {
+            setManual(t);
+            if (t.trim()) setChosen(null);
+          }}
+          placeholder="192.168.1.20"
+          keyboardType="numbers-and-punctuation"
+        />
+        {manual.trim() ? (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <PillButton label="PS5" size="sm" variant={manualPs5 ? 'ink' : 'white'} onPress={() => setManualPs5(true)} />
+            <PillButton label="PS4" size="sm" variant={manualPs5 ? 'white' : 'ink'} onPress={() => setManualPs5(false)} />
+          </View>
         ) : null}
-        {consoles && consoles.length === 0 ? <Field label="Adresse de la console" value={manual} onChangeText={setManual} placeholder="192.168.1.20" keyboardType="numbers-and-punctuation" /> : null}
       </Card>
 
       <Card lifted style={{ marginTop: 16, gap: 12, opacity: chosen || manual.trim() ? 1 : 0.5 }}>
         <Step n={3} icon={Gamepad2} title="Le code de liaison" done={false} />
         <Text style={[type.caption, { color: colors.ink2 }]}>
-          Sur la console : Paramètres, Système, Lecture à distance, Lier un appareil. Elle affiche un code à 8 chiffres.
+          Sur la console : Paramètres, Système, Lecture à distance. Active d’abord « Activer la lecture à distance » : l’option
+          « Associer un appareil » apparaît alors, avec un code à 8 chiffres.
         </Text>
         <Field label="Code à 8 chiffres" value={pin} onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 8))} keyboardType="number-pad" placeholder="12345678" />
         <PillButton label="Lier la console" loading={linking} disabled={!account || !(chosen || manual.trim()) || pin.length !== 8 || linking} onPress={() => void link()} />
