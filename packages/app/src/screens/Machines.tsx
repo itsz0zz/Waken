@@ -73,8 +73,13 @@ function MachineCard({ device }: { device: Device }) {
         </View>
       </PressScale>
       {last ? <Text style={[type.caption, { color: colors.ink2 }]}>Dernière partie : {last.title}, {sinceLabel(last.lastPlayedAt)}.</Text> : null}
+      {device.kind === 'pc' && !device.local && device.stream ? (
+        <Text style={[type.caption, { color: wakeable ? colors.ink2 : colors.danger }]}>{wakeSummary(device)}</Text>
+      ) : null}
       {device.local ? (
-        <Text style={[type.caption, { color: colors.ink2 }]}>Ce Mac : tes autres appareils peuvent y jouer. Ses jeux se lancent depuis l'onglet Jeux.</Text>
+        <Text style={[type.caption, { color: colors.ink2 }]}>
+          {`Ce ${platform().deviceName ?? 'appareil'} : tes autres appareils peuvent y jouer. Ses jeux se lancent depuis l'onglet Jeux.`}
+        </Text>
       ) : device.kind === 'playstation' ? (
         <PillButton label="Ouvrir Remote Play" icon={Play} size="md" onPress={() => nav.play(device.id)} />
       ) : !device.stream ? null : ready || !wakeable ? (
@@ -84,6 +89,20 @@ function MachineCard({ device }: { device: Device }) {
       )}
     </Card>
   );
+}
+
+/** How this computer is woken, in a line under its name; what is missing when it cannot be yet. */
+function wakeSummary(device: Device): string {
+  switch (device.wake.type) {
+    case 'wake-on-lan':
+      return device.wake.publicAddress ? 'Réveil par le réseau, chez toi et depuis Internet.' : 'Réveil par le réseau, chez toi.';
+    case 'shelly-cloud':
+      return 'Réveil par la prise connectée.';
+    case 'homelab-relay':
+      return 'Réveil par le relais du homelab.';
+    default:
+      return `Pas encore de réveil à distance : ouvre Waken une fois sur ${device.name}.`;
+  }
 }
 
 /** "AJOUTER": machines come by themselves through the Waken network; this screen says how. */
