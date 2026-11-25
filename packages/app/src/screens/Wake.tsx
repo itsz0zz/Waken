@@ -106,11 +106,9 @@ export function WakeScreen({
           await wakeConsole(device, (state) => console.log(`[playstation] ${device.name} : ${state}`), ctrl.signal);
           if (only) return nav.back();
           if (platform().PlayStationView) return setStreaming(true);
-          if (!settings.psRemotePlayUrl) return nav.back();
+          throw new Error('Cette app ne sait pas encore diffuser une PlayStation : la console est allumée.');
         }
-        if (!settings.psRemotePlayUrl) throw new Error('Renseigne le lien de PS Remote Play dans Réglages, Avancé.');
-        await Linking.openURL(settings.psRemotePlayUrl);
-        return nav.back();
+        throw new Error('Lie d’abord la console dans Waken : Machines, Ajouter une PS5.');
       }
       if (useMoonlight && !settings.moonlightUrl) throw new Error("Renseigne le lien d'ouverture de Moonlight dans Réglages, Avancé.");
       const began = Date.now();

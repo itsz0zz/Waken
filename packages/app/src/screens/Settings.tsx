@@ -357,14 +357,18 @@ function confirmSignOut() {
 function Advanced() {
   const settings = useWaken((s) => s.settings);
   const update = useWaken((s) => s.updateSettings);
-  const [draft, setDraft] = useState({ apiUrl: settings.apiUrl, apiToken: settings.apiToken, psRemotePlayUrl: settings.psRemotePlayUrl, moonlightUrl: settings.moonlightUrl });
+  // Only where it serves: a machine woken by the homelab relay, or the iPhone's choice of the Moonlight app.
+  const relayUsed = useWaken((s) => s.devices.some((d) => d.wake.type === 'homelab-relay'));
+  const moonlight = !!platform().canUseMoonlightApp;
+  const [draft, setDraft] = useState({ apiUrl: settings.apiUrl, apiToken: settings.apiToken, moonlightUrl: settings.moonlightUrl });
   const [open, setOpen] = useState(false);
   const changed = (Object.keys(draft) as (keyof typeof draft)[]).some((k) => draft[k] !== settings[k]);
   const save = () => {
     const problem = draft.apiToken ? validateApiUrl(draft.apiUrl) : null;
     if (problem) return Alert.alert('Adresse du relais', problem);
-    update({ ...draft, apiUrl: draft.apiUrl.trim(), apiToken: draft.apiToken.trim(), psRemotePlayUrl: draft.psRemotePlayUrl.trim(), moonlightUrl: draft.moonlightUrl.trim() });
+    update({ ...draft, apiUrl: draft.apiUrl.trim(), apiToken: draft.apiToken.trim(), moonlightUrl: draft.moonlightUrl.trim() });
   };
+  if (!relayUsed && !moonlight) return null;
   const engines: { id: StreamEngine; label: string }[] = [
     { id: 'native', label: 'Dans Waken' },
     { id: 'moonlight-app', label: 'App Moonlight' },
@@ -372,13 +376,22 @@ function Advanced() {
 
   return (
     <Card style={{ gap: 12 }}>
-      <SettingRow icon={Server} color={colors.ink} label="Avancé" hint="Relais de réveil, PS Remote Play" right={<PillButton label={open ? 'Fermer' : 'Ouvrir'} size="sm" variant="outline" onPress={() => setOpen(!open)} />} />
+      <SettingRow
+        icon={Server}
+        color={colors.ink}
+        label="Avancé"
+        hint={[relayUsed ? 'Relais de réveil du homelab' : null, moonlight ? 'Moteur de stream' : null].filter(Boolean).join(', ')}
+        right={<PillButton label={open ? 'Fermer' : 'Ouvrir'} size="sm" variant="outline" onPress={() => setOpen(!open)} />}
+      />
       {open ? (
         <View style={{ gap: 12 }}>
-          <Field label="Relais homelab (réveil)" value={draft.apiUrl} onChangeText={(apiUrl) => setDraft({ ...draft, apiUrl })} keyboardType="url" placeholder="http://homelab:8085" />
-          <Field label="Jeton du relais" value={draft.apiToken} onChangeText={(apiToken) => setDraft({ ...draft, apiToken })} secureTextEntry placeholder="WAKEN_TOKEN du homelab" />
-          <Field label="Lien PS Remote Play" value={draft.psRemotePlayUrl} onChangeText={(psRemotePlayUrl) => setDraft({ ...draft, psRemotePlayUrl })} keyboardType="url" />
-          {platform().canUseMoonlightApp ? (
+          {relayUsed ? (
+            <>
+              <Field label="Relais homelab (réveil)" value={draft.apiUrl} onChangeText={(apiUrl) => setDraft({ ...draft, apiUrl })} keyboardType="url" placeholder="http://homelab:8085" />
+              <Field label="Jeton du relais" value={draft.apiToken} onChangeText={(apiToken) => setDraft({ ...draft, apiToken })} secureTextEntry placeholder="WAKEN_TOKEN du homelab" />
+            </>
+          ) : null}
+          {moonlight ? (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <IconBubble icon={Gamepad2} color={colors.blue} size={32} />

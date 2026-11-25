@@ -25,7 +25,6 @@ export interface Settings {
   engine: StreamEngine;
   stream: StreamSettings;
   moonlightUrl: string;
-  psRemotePlayUrl: string;
   /** Absent in a configuration saved before it: defaultGamepadOptions then. */
   gamepads?: GamepadOptions;
   /** The PlayStation Network account consoles are linked with (its id only, never the password). */
@@ -74,7 +73,6 @@ export const useWaken = create<WakenState>()(
         engine: 'native',
         stream: qualities.balanced.settings,
         moonlightUrl: '',
-        psRemotePlayUrl: '',
       },
       updateDevice: (d) => set((s) => ({ devices: s.devices.map((x) => (x.id === d.id ? d : x)) })),
       addFoundComputer: (d) =>

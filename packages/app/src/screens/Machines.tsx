@@ -81,7 +81,7 @@ function MachineCard({ device }: { device: Device }) {
           {`Ce ${platform().deviceName ?? 'appareil'} : tes autres appareils peuvent y jouer. Ses jeux se lancent depuis l'onglet Jeux.`}
         </Text>
       ) : device.kind === 'playstation' ? (
-        <PillButton label="Ouvrir Remote Play" icon={Play} size="md" onPress={() => nav.play(device.id)} />
+        <PillButton label="Jouer" icon={Play} size="md" onPress={() => nav.play(device.id)} />
       ) : !device.stream ? null : ready || !wakeable ? (
         <PillButton label="Jouer au bureau" icon={Play} size="md" onPress={() => nav.play(device.id)} />
       ) : (
